@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "ACK Freight Driver Log",
+    "slug": "ack-freight-driver-log",
+    "scheme": "ackfreight",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ackfreight.driverlog",
+      "infoPlist": {
+        "NSCameraUsageInfo": "ACK Freight needs camera access so drivers can photograph proof of delivery documents.",
+        "NSPhotoLibraryUsageInfo": "ACK Freight needs photo library access so drivers can attach proof of delivery photos."
+      }
+    },
+    "android": {
+      "package": "com.ackfreight.driverlog",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ACK Freight needs photo library access so drivers can attach proof of delivery photos.",
+          "cameraPermission": "ACK Freight needs camera access so drivers can photograph proof of delivery documents."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b0fd7a62-0ec4-40aa-bcff-8a9b454d30f4"
+      }
+    },
+    "owner": "victor.abreu13"
+  }
+}

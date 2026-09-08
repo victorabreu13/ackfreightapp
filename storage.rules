@@ -1,0 +1,22 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Proof files are stored under proofs/{driverId}/... . The owning driver
+    // can upload and read their own files; admins can read every driver's files.
+    match /proofs/{driverId}/{fileName} {
+      allow read: if isSignedIn() && (request.auth.uid == driverId || isAdmin());
+      allow write: if isSignedIn() && request.auth.uid == driverId;
+    }
+  }
+}
