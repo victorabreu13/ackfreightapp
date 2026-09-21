@@ -10,11 +10,18 @@ import {
 } from "react-native";
 import { Trip } from "../types";
 
-export default function TripDetailScreen({ route }: any) {
+export default function TripDetailScreen({ route, navigation }: any) {
   const trip: Trip = route.params.trip;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+      >
+        <Text style={styles.backButtonText}>‹ Back</Text>
+      </TouchableOpacity>
+
       <View style={styles.headerRow}>
         <Text style={styles.date}>{trip.date}</Text>
         <Text style={styles.time}>
@@ -83,6 +90,8 @@ export default function TripDetailScreen({ route }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f6fa" },
+  backButton: { marginBottom: 14, alignSelf: "flex-start" },
+  backButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 16 },
   headerRow: { flexDirection: "row", justifyContent: "space-between" },
   date: { fontSize: 20, fontWeight: "800", color: "#111" },
   time: { fontSize: 16, color: "#555" },

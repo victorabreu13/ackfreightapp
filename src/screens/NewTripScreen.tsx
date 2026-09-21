@@ -196,6 +196,13 @@ export default function NewTripScreen({ navigation }: any) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+      >
+        <Text style={styles.backButtonText}>‹ Back</Text>
+      </TouchableOpacity>
+
       <Text style={styles.label}>Date</Text>
       <TouchableOpacity style={styles.pickerButton} onPress={() => setShowPicker("date")}>
         <Text style={styles.pickerText}>{formatDate(date)}</Text>
@@ -383,6 +390,8 @@ export default function NewTripScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f6fa" },
+  backButton: { marginBottom: 14, alignSelf: "flex-start" },
+  backButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 16 },
   label: { fontSize: 13, fontWeight: "700", color: "#444", marginTop: 16, marginBottom: 6 },
   row: { flexDirection: "row", gap: 10 },
   half: { flex: 1 },
