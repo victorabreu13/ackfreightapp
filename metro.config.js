@@ -9,7 +9,15 @@ const config = getDefaultConfig(__dirname);
 // touching it at all, which previously triggered the OneDrive
 // symlink/readlink bug (see the webchannel-wrapper comment below) on
 // other packages too.
-config.resolver.blockList = [/[\\/]functions[\\/].*/];
+//
+// This must be anchored to the project's own top-level "functions"
+// folder specifically — an unanchored /functions/ pattern also matches
+// node_modules/firebase/functions/, breaking `import ... from
+// "firebase/functions"` everywhere in the app.
+const projectFunctionsDir = path
+  .join(__dirname, "functions")
+  .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+config.resolver.blockList = [new RegExp(`^${projectFunctionsDir}[\\\\/].*`)];
 
 // With Metro's package-exports resolution on, "firebase/auth" can resolve
 // to a build whose React Native registration side effects don't run,

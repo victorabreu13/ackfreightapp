@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
-import { createTrip } from "../services/trips";
+import { checkDuplicateUld, createTrip } from "../services/trips";
 import { uploadProofFile } from "../services/storage";
 import { ProofFile, ULD_TYPES, UldType } from "../types";
 
@@ -47,6 +47,7 @@ export default function NewTripScreen({ navigation }: any) {
   const [to, setTo] = useState("");
   const [qty, setQty] = useState(1);
   const [unitTypes, setUnitTypes] = useState<UldType[]>(["Loose"]);
+  const [uldNumbers, setUldNumbers] = useState<string[]>([""]);
   const [typeModalIndex, setTypeModalIndex] = useState<number | null>(null);
   const [awbNumber, setAwbNumber] = useState("");
   const [notes, setNotes] = useState("");
@@ -60,6 +61,11 @@ export default function NewTripScreen({ navigation }: any) {
       while (next.length < n) next.push("Loose");
       return next;
     });
+    setUldNumbers((prev) => {
+      const next = prev.slice(0, n);
+      while (next.length < n) next.push("");
+      return next;
+    });
   };
 
   const selectUnitType = (index: number, type: UldType) => {
@@ -69,6 +75,14 @@ export default function NewTripScreen({ navigation }: any) {
       return next;
     });
     setTypeModalIndex(null);
+  };
+
+  const setUldNumberAt = (index: number, value: string) => {
+    setUldNumbers((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
   };
 
   const addPhoto = async () => {
@@ -140,6 +154,10 @@ export default function NewTripScreen({ navigation }: any) {
       Alert.alert("Missing info", "Enter the AWB / Document number.");
       return;
     }
+    if (uldNumbers.some((u) => !u.trim())) {
+      Alert.alert("Missing info", "Enter the ULD # for each unit.");
+      return;
+    }
     if (files.length === 0) {
       Alert.alert(
         "No proof attached",
@@ -158,6 +176,18 @@ export default function NewTripScreen({ navigation }: any) {
     if (!user || !profile) return;
     setSubmitting(true);
     try {
+      const trimmedUlds = uldNumbers.map((u) => u.trim());
+      const dup = await checkDuplicateUld(awbNumber.trim(), trimmedUlds);
+      if (dup.duplicate) {
+        Alert.alert(
+          "Duplicate ULD #",
+          `ULD #${dup.uldNumber} was already logged under this AWB by ${dup.conflictingDriverName}${
+            dup.conflictingDate ? ` on ${dup.conflictingDate}` : ""
+          }. Double-check the ULD # and AWB before submitting.`
+        );
+        return;
+      }
+
       const uploaded: ProofFile[] = [];
       for (const file of files) {
         const proof = await uploadProofFile(
@@ -180,6 +210,7 @@ export default function NewTripScreen({ navigation }: any) {
         to: to.trim(),
         qty,
         unitTypes,
+        uldNumbers: trimmedUlds,
         awbNumber: awbNumber.trim(),
         notes: notes.trim(),
         proofFiles: uploaded,
@@ -301,6 +332,17 @@ export default function NewTripScreen({ navigation }: any) {
           >
             <Text style={styles.pickerText}>{type}</Text>
           </TouchableOpacity>
+
+          <Text style={styles.label}>
+            ULD #{unitTypes.length > 1 ? ` (Unit ${i + 1})` : ""}
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. AKE12345AA"
+            value={uldNumbers[i] ?? ""}
+            onChangeText={(v) => setUldNumberAt(i, v)}
+            autoCapitalize="characters"
+          />
         </View>
       ))}
 

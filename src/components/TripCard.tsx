@@ -24,7 +24,12 @@ export default function TripCard({ trip, showDriver, onPress }: Props) {
       <Text style={styles.awb}>AWB / Doc #: {trip.awbNumber}</Text>
       {!!trip.unitTypes?.length && (
         <Text style={styles.qty}>
-          QTY {trip.qty}: {trip.unitTypes.join(", ")}
+          QTY {trip.qty}:{" "}
+          {trip.unitTypes
+            .map((type, i) =>
+              trip.uldNumbers?.[i] ? `${type} #${trip.uldNumbers[i]}` : type
+            )
+            .join(", ")}
         </Text>
       )}
       <Text style={styles.proofCount}>

@@ -6,10 +6,31 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { db } from "../firebase/config";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../firebase/config";
 import { NewTripInput, Trip } from "../types";
 
 const tripsCollection = collection(db, "trips");
+
+interface DuplicateUldResult {
+  duplicate: boolean;
+  uldNumber?: string;
+  conflictingDriverName?: string;
+  conflictingDate?: string;
+}
+
+const checkDuplicateUldFn = httpsCallable<
+  { awbNumber: string; uldNumbers: string[] },
+  DuplicateUldResult
+>(functions, "checkDuplicateUld");
+
+export async function checkDuplicateUld(
+  awbNumber: string,
+  uldNumbers: string[]
+): Promise<DuplicateUldResult> {
+  const result = await checkDuplicateUldFn({ awbNumber, uldNumbers });
+  return result.data;
+}
 
 export async function createTrip(input: NewTripInput): Promise<void> {
   await addDoc(tripsCollection, {

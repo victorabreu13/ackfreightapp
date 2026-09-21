@@ -38,6 +38,7 @@ export interface Trip {
   to: string;
   qty: number;
   unitTypes: UldType[]; // one entry per unit, length === qty
+  uldNumbers: string[]; // one entry per unit, length === qty
   awbNumber: string;
   notes: string;
   proofFiles: ProofFile[];

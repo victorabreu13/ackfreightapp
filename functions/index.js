@@ -1,4 +1,5 @@
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
@@ -49,8 +50,11 @@ function buildSummaryHtml(dateStr, trips) {
     html +=
       "<tr style=\"background:#f0f0f0;\"><th>Time</th><th>Route</th><th>AWB / Doc #</th><th>QTY</th><th>Proof Files</th></tr>";
     for (const t of driverTrips) {
-      const qtyText =
-        t.unitTypes && t.unitTypes.length ? `${t.qty}: ${t.unitTypes.join(", ")}` : "-";
+      const units = (t.unitTypes || []).map((type, i) => {
+        const uld = t.uldNumbers && t.uldNumbers[i];
+        return uld ? `${type} #${uld}` : type;
+      });
+      const qtyText = units.length ? `${t.qty}: ${units.join(", ")}` : "-";
       html += `<tr>
         <td>${escapeHtml(t.timeStart)} – ${escapeHtml(t.timeFinish)}</td>
         <td>${escapeHtml(t.from)} → ${escapeHtml(t.to)}</td>
@@ -97,6 +101,52 @@ async function sendDailySummary() {
 
   logger.info(`Sent daily summary for ${dateStr} to ${adminEmails.join(", ")} (${trips.length} trips).`);
 }
+
+function normalize(value) {
+  return String(value ?? "").trim().toUpperCase();
+}
+
+// Drivers can only read their own trips under the Firestore security rules,
+// so checking for a duplicate ULD#/AWB# combo across *every* driver's trips
+// has to happen server-side, with admin privileges, instead of a client
+// query. Called from the app right before a new trip is submitted.
+exports.checkDuplicateUld = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
+  }
+
+  const { awbNumber, uldNumbers } = request.data || {};
+  if (!awbNumber || !Array.isArray(uldNumbers) || uldNumbers.length === 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      "awbNumber and uldNumbers are required."
+    );
+  }
+
+  const targetAwb = normalize(awbNumber);
+  const targetUlds = uldNumbers.map(normalize);
+
+  const db = admin.firestore();
+  const snap = await db.collection("trips").get();
+
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    if (normalize(data.awbNumber) !== targetAwb) continue;
+    const existingUlds = (data.uldNumbers || []).map(normalize);
+    for (const uld of targetUlds) {
+      if (uld && existingUlds.includes(uld)) {
+        return {
+          duplicate: true,
+          uldNumber: uld,
+          conflictingDriverName: data.driverName || "another driver",
+          conflictingDate: data.date || "",
+        };
+      }
+    }
+  }
+
+  return { duplicate: false };
+});
 
 exports.sendDailyTripSummary = onSchedule(
   {

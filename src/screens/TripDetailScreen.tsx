@@ -49,7 +49,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
       {!!trip.unitTypes?.length && (
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>QTY: {trip.qty}</Text>
-          <Text style={styles.sectionValue}>{trip.unitTypes.join(", ")}</Text>
+          <Text style={styles.sectionValue}>
+            {trip.unitTypes
+              .map((type, i) =>
+                trip.uldNumbers?.[i] ? `${type} #${trip.uldNumbers[i]}` : type
+              )
+              .join(", ")}
+          </Text>
         </View>
       )}
 
