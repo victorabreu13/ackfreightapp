@@ -12,7 +12,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 
 export default function LoginScreen({ navigation }: any) {
-  const { signIn } = useAuth();
+  const { signIn, authError } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -58,7 +58,9 @@ export default function LoginScreen({ navigation }: any) {
         onChangeText={setPassword}
       />
 
-      {!!error && <Text style={styles.error}>{error}</Text>}
+      {!!(error || authError) && (
+        <Text style={styles.error}>{error || authError}</Text>
+      )}
 
       <TouchableOpacity
         style={styles.button}

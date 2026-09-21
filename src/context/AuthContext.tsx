@@ -20,6 +20,7 @@ interface AuthContextValue {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
+  authError: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -31,13 +32,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
-        const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-        setProfile(snap.exists() ? (snap.data() as UserProfile) : null);
+        try {
+          const snap = await getDoc(doc(db, "users", firebaseUser.uid));
+          setProfile(snap.exists() ? (snap.data() as UserProfile) : null);
+          setAuthError(null);
+        } catch (err: any) {
+          console.error("Failed to load user profile:", err);
+          setProfile(null);
+          setAuthError(
+            `Signed in, but couldn't load your account data (${err?.code ?? err?.message ?? "unknown error"}). Please try again or contact support.`
+          );
+          // Sign back out so the app doesn't sit in a half-authenticated
+          // limbo state — the user lands back on the login screen with
+          // the error message visible instead of a silent stuck spinner.
+          await firebaseSignOut(auth);
+        }
       } else {
         setProfile(null);
       }
@@ -47,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    setAuthError(null);
     await signInWithEmailAndPassword(auth, email.trim(), password);
   };
 
@@ -76,8 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const value = useMemo(
-    () => ({ user, profile, loading, signIn, signUp, signOut }),
-    [user, profile, loading]
+    () => ({ user, profile, loading, authError, signIn, signUp, signOut }),
+    [user, profile, loading, authError]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
