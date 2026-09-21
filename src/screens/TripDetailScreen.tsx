@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Image,
   Linking,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +13,7 @@ import { Trip } from "../types";
 
 export default function TripDetailScreen({ route, navigation }: any) {
   const trip: Trip = route.params.trip;
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
@@ -67,7 +69,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
         )}
         {trip.proofFiles.map((file, i) =>
           file.kind === "image" ? (
-            <TouchableOpacity key={i} onPress={() => Linking.openURL(file.url)}>
+            <TouchableOpacity
+              key={i}
+              onPress={() => setPreviewImageUrl(file.url)}
+            >
               <Image source={{ uri: file.url }} style={styles.image} />
             </TouchableOpacity>
           ) : (
@@ -84,6 +89,33 @@ export default function TripDetailScreen({ route, navigation }: any) {
           )
         )}
       </View>
+
+      <Modal
+        visible={!!previewImageUrl}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewImageUrl(null)}
+      >
+        <TouchableOpacity
+          style={styles.previewOverlay}
+          activeOpacity={1}
+          onPress={() => setPreviewImageUrl(null)}
+        >
+          <TouchableOpacity
+            style={styles.previewClose}
+            onPress={() => setPreviewImageUrl(null)}
+          >
+            <Text style={styles.previewCloseText}>✕ Close</Text>
+          </TouchableOpacity>
+          {!!previewImageUrl && (
+            <Image
+              source={{ uri: previewImageUrl }}
+              style={styles.previewImage}
+              resizeMode="contain"
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 }
@@ -113,4 +145,22 @@ const styles = StyleSheet.create({
   },
   docName: { flex: 1, color: "#333", marginRight: 8 },
   docOpen: { color: "#1d4ed8", fontWeight: "700" },
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.92)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewClose: {
+    position: "absolute",
+    top: 50,
+    right: 24,
+    zIndex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 8,
+  },
+  previewCloseText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  previewImage: { width: "100%", height: "85%" },
 });
