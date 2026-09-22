@@ -3,6 +3,7 @@ import React from "react";
 import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import AdminDashboardScreen from "../screens/AdminDashboardScreen";
+import DriversRecordScreen from "../screens/DriversRecordScreen";
 import DriverHomeScreen from "../screens/DriverHomeScreen";
 import LoginScreen from "../screens/LoginScreen";
 import NewTripScreen from "../screens/NewTripScreen";
@@ -43,6 +44,11 @@ export default function RootNavigator() {
           name="TripDetail"
           component={TripDetailScreen}
           options={{ title: "Trip Detail" }}
+        />
+        <Stack.Screen
+          name="DriversRecord"
+          component={DriversRecordScreen}
+          options={{ title: "Drivers Record" }}
         />
       </Stack.Navigator>
     );

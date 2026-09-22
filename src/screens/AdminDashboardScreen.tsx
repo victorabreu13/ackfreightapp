@@ -57,9 +57,19 @@ export default function AdminDashboardScreen({ navigation }: any) {
             {driverCount} driver{driverCount === 1 ? "" : "s"}
           </Text>
         </View>
-        <TouchableOpacity onPress={signOut}>
-          <Text style={styles.signOut}>Log out</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {Platform.OS === "web" && (
+            <TouchableOpacity
+              style={styles.recordButton}
+              onPress={() => navigation.navigate("DriversRecord")}
+            >
+              <Text style={styles.recordButtonText}>Drivers Record</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={signOut}>
+            <Text style={styles.signOut}>Log out</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.filterRow}>
@@ -137,6 +147,14 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: "800", color: "#111" },
   subtitle: { fontSize: 13, color: "#666" },
   signOut: { color: "#c0392b", fontSize: 14, fontWeight: "600" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 16 },
+  recordButton: {
+    backgroundColor: "#e8edff",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  recordButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 13 },
   filterRow: {
     flexDirection: "row",
     gap: 8,
