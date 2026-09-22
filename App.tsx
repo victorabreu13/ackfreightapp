@@ -17,6 +17,9 @@ const linking = {
       NewTrip: "new-trip",
       TripDetail: "trip",
       DriversRecord: "drivers-record",
+      CustomerHome: "customer-home",
+      NewTripRequest: "new-trip-request",
+      TripRequestDetail: "trip-request",
     },
   },
 };

@@ -22,7 +22,12 @@ interface AuthContextValue {
   loading: boolean;
   authError: string | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (name: string, email: string, password: string) => Promise<void>;
+  signUp: (
+    name: string,
+    email: string,
+    password: string,
+    role: "driver" | "customer"
+  ) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -66,7 +71,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signInWithEmailAndPassword(auth, email.trim(), password);
   };
 
-  const signUp = async (name: string, email: string, password: string) => {
+  const signUp = async (
+    name: string,
+    email: string,
+    password: string,
+    requestedRole: "driver" | "customer"
+  ) => {
     const trimmedEmail = email.trim();
     const credential = await createUserWithEmailAndPassword(
       auth,
@@ -75,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
     const role = ADMIN_EMAILS.includes(trimmedEmail.toLowerCase())
       ? "admin"
-      : "driver";
+      : requestedRole;
     const newProfile: UserProfile = {
       uid: credential.user.uid,
       email: trimmedEmail,

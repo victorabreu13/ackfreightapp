@@ -37,5 +37,41 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false;
     }
+
+    // Customers submit and own their trip requests; admins (Dispatch, phase 2)
+    // can read and update every request. A customer may keep editing their own
+    // request — including cancelling it — right up until it's Completed,
+    // Invoiced or already Cancelled, and can never touch driver assignment.
+    function isOwnTripRequest() {
+      return resource.data.customerId == request.auth.uid;
+    }
+
+    function tripRequestLocked() {
+      return resource.data.status in ["completed", "invoiced", "cancelled"];
+    }
+
+    function customerFieldsUnchanged() {
+      return request.resource.data.assignedDriverIds == resource.data.assignedDriverIds &&
+        request.resource.data.assignedDriverNames == resource.data.assignedDriverNames &&
+        request.resource.data.customerId == resource.data.customerId &&
+        request.resource.data.customerName == resource.data.customerName &&
+        request.resource.data.customerEmail == resource.data.customerEmail &&
+        request.resource.data.submittedAt == resource.data.submittedAt;
+    }
+
+    match /tripRequests/{requestId} {
+      allow create: if isSignedIn() &&
+        request.resource.data.customerId == request.auth.uid &&
+        request.resource.data.status == "submitted" &&
+        request.resource.data.assignedDriverIds.size() == 0;
+      allow read: if isSignedIn() && (isOwnTripRequest() || isAdmin());
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (isOwnTripRequest() && !tripRequestLocked() &&
+          customerFieldsUnchanged() &&
+          (request.resource.data.status == resource.data.status ||
+            request.resource.data.status == "cancelled")));
+      allow delete: if false;
+    }
   }
 }

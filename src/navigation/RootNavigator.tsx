@@ -3,12 +3,15 @@ import React from "react";
 import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import AdminDashboardScreen from "../screens/AdminDashboardScreen";
+import CustomerHomeScreen from "../screens/CustomerHomeScreen";
 import DriversRecordScreen from "../screens/DriversRecordScreen";
 import DriverHomeScreen from "../screens/DriverHomeScreen";
 import LoginScreen from "../screens/LoginScreen";
+import NewTripRequestScreen from "../screens/NewTripRequestScreen";
 import NewTripScreen from "../screens/NewTripScreen";
 import SignUpScreen from "../screens/SignUpScreen";
 import TripDetailScreen from "../screens/TripDetailScreen";
+import TripRequestDetailScreen from "../screens/TripRequestDetailScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -49,6 +52,28 @@ export default function RootNavigator() {
           name="DriversRecord"
           component={DriversRecordScreen}
           options={{ title: "Drivers Record" }}
+        />
+      </Stack.Navigator>
+    );
+  }
+
+  if (profile.role === "customer") {
+    return (
+      <Stack.Navigator>
+        <Stack.Screen
+          name="CustomerHome"
+          component={CustomerHomeScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="NewTripRequest"
+          component={NewTripRequestScreen}
+          options={{ title: "New Trip Request" }}
+        />
+        <Stack.Screen
+          name="TripRequestDetail"
+          component={TripRequestDetailScreen}
+          options={{ title: "Trip Request" }}
         />
       </Stack.Navigator>
     );

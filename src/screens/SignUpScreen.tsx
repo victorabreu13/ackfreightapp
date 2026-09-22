@@ -10,8 +10,10 @@ import {
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
 
-export default function SignUpScreen({ navigation }: any) {
+export default function SignUpScreen({ route, navigation }: any) {
   const { signUp } = useAuth();
+  const role: "driver" | "customer" = route?.params?.role ?? "driver";
+  const isCustomer = role === "customer";
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +23,11 @@ export default function SignUpScreen({ navigation }: any) {
   const handleSignUp = async () => {
     setError("");
     if (!name || !email || !password) {
-      setError("Fill in your name, email, and password.");
+      setError(
+        isCustomer
+          ? "Fill in your company name, email, and password."
+          : "Fill in your name, email, and password."
+      );
       return;
     }
     if (password.length < 6) {
@@ -30,7 +36,7 @@ export default function SignUpScreen({ navigation }: any) {
     }
     setSubmitting(true);
     try {
-      await signUp(name, email, password);
+      await signUp(name, email, password, role);
     } catch (e: any) {
       setError(friendlyError(e?.code));
     } finally {
@@ -43,11 +49,13 @@ export default function SignUpScreen({ navigation }: any) {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Text style={styles.title}>Create Account</Text>
+      <Text style={styles.title}>
+        {isCustomer ? "Create Customer Account" : "Create Account"}
+      </Text>
 
       <TextInput
         style={styles.input}
-        placeholder="Full name"
+        placeholder={isCustomer ? "Company / customer name" : "Full name"}
         value={name}
         onChangeText={setName}
       />

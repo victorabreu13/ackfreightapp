@@ -74,8 +74,15 @@ export default function LoginScreen({ navigation }: any) {
         )}
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
+      <TouchableOpacity
+        onPress={() => navigation.navigate("SignUp", { role: "driver" })}
+      >
         <Text style={styles.link}>New driver? Create an account</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => navigation.navigate("SignUp", { role: "customer" })}
+      >
+        <Text style={styles.link}>New customer? Create an account</Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>
   );
