@@ -138,7 +138,7 @@ function normalize(value) {
 // so checking for a duplicate ULD#/AWB# combo across *every* driver's trips
 // has to happen server-side, with admin privileges, instead of a client
 // query. Called from the app right before a new trip is submitted.
-exports.checkDuplicateUld = onCall(async (request) => {
+exports.checkDuplicateUld = onCall({ invoker: "public" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be signed in.");
   }
@@ -181,7 +181,7 @@ exports.checkDuplicateUld = onCall(async (request) => {
 // permission-checked, snapshotted to `deletedTrips` for an audit trail, and
 // emailed to admins immediately.
 exports.deleteTrip = onCall(
-  { secrets: [GMAIL_USER, GMAIL_APP_PASSWORD] },
+  { secrets: [GMAIL_USER, GMAIL_APP_PASSWORD], invoker: "public" },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Must be signed in.");
