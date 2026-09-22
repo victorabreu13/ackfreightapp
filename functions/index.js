@@ -69,6 +69,40 @@ function buildSummaryHtml(dateStr, trips) {
   return html;
 }
 
+function buildTransporter() {
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: GMAIL_USER.value(),
+      pass: GMAIL_APP_PASSWORD.value(),
+    },
+  });
+}
+
+function buildDeletionEmailHtml(trip, deletedBy) {
+  const units = (trip.unitTypes || []).map((type, i) => {
+    const uld = trip.uldNumbers && trip.uldNumbers[i];
+    return uld ? `${type} #${uld}` : type;
+  });
+  return `
+    <h2>ACK Freight — Trip Deleted</h2>
+    <p><strong>${escapeHtml(deletedBy.name)}</strong> (${escapeHtml(deletedBy.role)}, ${escapeHtml(
+    deletedBy.email
+  )}) deleted a trip.</p>
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:sans-serif;font-size:13px;">
+      <tr><th align="left">Driver</th><td>${escapeHtml(trip.driverName)} (${escapeHtml(trip.driverEmail)})</td></tr>
+      <tr><th align="left">Date</th><td>${escapeHtml(trip.date)}</td></tr>
+      <tr><th align="left">Time</th><td>${escapeHtml(trip.timeStart)} – ${escapeHtml(trip.timeFinish)}</td></tr>
+      <tr><th align="left">Route</th><td>${escapeHtml(trip.from)} → ${escapeHtml(trip.to)}</td></tr>
+      <tr><th align="left">AWB / Doc #</th><td>${escapeHtml(trip.awbNumber)}</td></tr>
+      <tr><th align="left">QTY</th><td>${escapeHtml(units.join(", ") || "-")}</td></tr>
+      <tr><th align="left">Deleted at</th><td>${escapeHtml(
+        new Date().toLocaleString("en-US", { timeZone: TIME_ZONE })
+      )}</td></tr>
+    </table>
+  `;
+}
+
 async function sendDailySummary() {
   const db = admin.firestore();
   const dateStr = todayDateString();
@@ -84,13 +118,7 @@ async function sendDailySummary() {
     return;
   }
 
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: GMAIL_USER.value(),
-      pass: GMAIL_APP_PASSWORD.value(),
-    },
-  });
+  const transporter = buildTransporter();
 
   await transporter.sendMail({
     from: `"ACK Freight" <${GMAIL_USER.value()}>`,
@@ -147,6 +175,78 @@ exports.checkDuplicateUld = onCall(async (request) => {
 
   return { duplicate: false };
 });
+
+// Trips are immutable via direct Firestore writes (see firestore.rules) — the
+// only way to remove one is through this function, so every deletion is
+// permission-checked, snapshotted to `deletedTrips` for an audit trail, and
+// emailed to admins immediately.
+exports.deleteTrip = onCall(
+  { secrets: [GMAIL_USER, GMAIL_APP_PASSWORD] },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be signed in.");
+    }
+
+    const { tripId } = request.data || {};
+    if (!tripId) {
+      throw new HttpsError("invalid-argument", "tripId is required.");
+    }
+
+    const db = admin.firestore();
+    const tripRef = db.collection("trips").doc(tripId);
+    const tripSnap = await tripRef.get();
+    if (!tripSnap.exists) {
+      throw new HttpsError("not-found", "Trip not found.");
+    }
+    const trip = tripSnap.data();
+
+    const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+    const callerProfile = callerSnap.exists ? callerSnap.data() : null;
+    const isAdmin = callerProfile?.role === "admin";
+    const isOwner = trip.driverId === request.auth.uid;
+
+    if (!isAdmin && !isOwner) {
+      throw new HttpsError(
+        "permission-denied",
+        "You can only delete your own trips."
+      );
+    }
+
+    const deletedBy = {
+      uid: request.auth.uid,
+      name: callerProfile?.name || request.auth.token.email || "Unknown",
+      email: callerProfile?.email || request.auth.token.email || "",
+      role: callerProfile?.role || "driver",
+    };
+
+    await db.collection("deletedTrips").add({
+      trip,
+      tripId,
+      deletedBy,
+      deletedAt: Date.now(),
+    });
+
+    await tripRef.delete();
+
+    try {
+      const adminsSnap = await db.collection("users").where("role", "==", "admin").get();
+      const adminEmails = adminsSnap.docs.map((d) => d.data().email).filter(Boolean);
+      if (adminEmails.length > 0) {
+        const transporter = buildTransporter();
+        await transporter.sendMail({
+          from: `"ACK Freight" <${GMAIL_USER.value()}>`,
+          to: adminEmails.join(","),
+          subject: `ACK Freight — Trip Deleted (${trip.awbNumber || "no AWB"})`,
+          html: buildDeletionEmailHtml(trip, deletedBy),
+        });
+      }
+    } catch (err) {
+      logger.error("Failed to send trip-deletion email:", err);
+    }
+
+    return { success: true };
+  }
+);
 
 exports.sendDailyTripSummary = onSchedule(
   {

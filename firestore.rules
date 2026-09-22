@@ -21,12 +21,21 @@ service cloud.firestore {
     }
 
     // Drivers can create and read their own trips. Admins can read every trip.
-    // Trips are immutable once created (a log entry, not an editable record).
+    // Trips can't be edited or deleted directly by clients — deletion only
+    // happens through the deleteTrip Cloud Function, which audits it.
     match /trips/{tripId} {
       allow create: if isSignedIn() && request.resource.data.driverId == request.auth.uid;
       allow read: if isSignedIn() &&
         (resource.data.driverId == request.auth.uid || isAdmin());
       allow update, delete: if false;
+    }
+
+    // Audit trail written only by the deleteTrip Cloud Function (Admin SDK
+    // bypasses these rules); admins can review it, nobody can write to it
+    // directly from the client.
+    match /deletedTrips/{entryId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
   }
 }

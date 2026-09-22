@@ -6,11 +6,35 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
+import { HttpsCallable, httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "../firebase/config";
 import { NewTripInput, Trip } from "../types";
 
 const tripsCollection = collection(db, "trips");
+
+// Force a fresh ID token before calling, and retry once on "unauthenticated":
+// on native the cached token can lag behind sign-in state, which makes a
+// callable function see no auth even though the user is logged in.
+async function callWithFreshToken<Req, Res>(
+  fn: HttpsCallable<Req, Res>,
+  data: Req
+): Promise<Res> {
+  if (auth.currentUser) {
+    await auth.currentUser.getIdToken(true);
+  }
+  try {
+    const result = await fn(data);
+    return result.data;
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === "functions/unauthenticated" && auth.currentUser) {
+      await auth.currentUser.getIdToken(true);
+      const retry = await fn(data);
+      return retry.data;
+    }
+    throw err;
+  }
+}
 
 interface DuplicateUldResult {
   duplicate: boolean;
@@ -28,24 +52,16 @@ export async function checkDuplicateUld(
   awbNumber: string,
   uldNumbers: string[]
 ): Promise<DuplicateUldResult> {
-  // Force a fresh ID token before the call: on native the cached token can
-  // lag behind sign-in state, which makes the callable function see no auth
-  // and reject with "unauthenticated" even though the user is logged in.
-  if (auth.currentUser) {
-    await auth.currentUser.getIdToken(true);
-  }
-  try {
-    const result = await checkDuplicateUldFn({ awbNumber, uldNumbers });
-    return result.data;
-  } catch (err) {
-    const code = (err as { code?: string })?.code;
-    if (code === "functions/unauthenticated" && auth.currentUser) {
-      await auth.currentUser.getIdToken(true);
-      const retry = await checkDuplicateUldFn({ awbNumber, uldNumbers });
-      return retry.data;
-    }
-    throw err;
-  }
+  return callWithFreshToken(checkDuplicateUldFn, { awbNumber, uldNumbers });
+}
+
+const deleteTripFn = httpsCallable<{ tripId: string }, { success: boolean }>(
+  functions,
+  "deleteTrip"
+);
+
+export async function deleteTrip(tripId: string): Promise<void> {
+  await callWithFreshToken(deleteTripFn, { tripId });
 }
 
 export async function createTrip(input: NewTripInput): Promise<void> {

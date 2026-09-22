@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   Linking,
   Modal,
@@ -9,20 +11,66 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "../context/AuthContext";
+import { deleteTrip } from "../services/trips";
 import { Trip } from "../types";
 
 export default function TripDetailScreen({ route, navigation }: any) {
   const trip: Trip = route.params.trip;
+  const { user, profile } = useAuth();
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const canDelete = profile?.role === "admin" || user?.uid === trip.driverId;
+
+  const performDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteTrip(trip.id);
+      navigation.goBack();
+    } catch (err: any) {
+      Alert.alert(
+        "Couldn't delete trip",
+        err?.message ?? "Something went wrong. Please try again."
+      );
+      setDeleting(false);
+    }
+  };
+
+  const confirmDelete = () => {
+    Alert.alert(
+      "Delete this trip?",
+      "This can't be undone. The admins will be notified of this deletion.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: performDelete },
+      ]
+    );
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}
-      >
-        <Text style={styles.backButtonText}>‹ Back</Text>
-      </TouchableOpacity>
+      <View style={styles.topRow}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>‹ Back</Text>
+        </TouchableOpacity>
+        {canDelete && (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={confirmDelete}
+            disabled={deleting}
+          >
+            {deleting ? (
+              <ActivityIndicator size="small" color="#c0392b" />
+            ) : (
+              <Text style={styles.deleteButtonText}>Delete Trip</Text>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
 
       <View style={styles.headerRow}>
         <Text style={styles.date}>{trip.date}</Text>
@@ -128,8 +176,23 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f6fa" },
-  backButton: { marginBottom: 14, alignSelf: "flex-start" },
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  backButton: { alignSelf: "flex-start" },
   backButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 16 },
+  deleteButton: {
+    backgroundColor: "#fdecea",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    minWidth: 90,
+    alignItems: "center",
+  },
+  deleteButtonText: { color: "#c0392b", fontWeight: "700", fontSize: 13 },
   headerRow: { flexDirection: "row", justifyContent: "space-between" },
   date: { fontSize: 20, fontWeight: "800", color: "#111" },
   time: { fontSize: 16, color: "#555" },
