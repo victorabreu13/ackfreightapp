@@ -7,7 +7,7 @@ import {
   where,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { db, functions } from "../firebase/config";
+import { auth, db, functions } from "../firebase/config";
 import { NewTripInput, Trip } from "../types";
 
 const tripsCollection = collection(db, "trips");
@@ -28,8 +28,24 @@ export async function checkDuplicateUld(
   awbNumber: string,
   uldNumbers: string[]
 ): Promise<DuplicateUldResult> {
-  const result = await checkDuplicateUldFn({ awbNumber, uldNumbers });
-  return result.data;
+  // Force a fresh ID token before the call: on native the cached token can
+  // lag behind sign-in state, which makes the callable function see no auth
+  // and reject with "unauthenticated" even though the user is logged in.
+  if (auth.currentUser) {
+    await auth.currentUser.getIdToken(true);
+  }
+  try {
+    const result = await checkDuplicateUldFn({ awbNumber, uldNumbers });
+    return result.data;
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === "functions/unauthenticated" && auth.currentUser) {
+      await auth.currentUser.getIdToken(true);
+      const retry = await checkDuplicateUldFn({ awbNumber, uldNumbers });
+      return retry.data;
+    }
+    throw err;
+  }
 }
 
 export async function createTrip(input: NewTripInput): Promise<void> {
