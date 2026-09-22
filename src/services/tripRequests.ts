@@ -81,3 +81,44 @@ export function subscribeToCustomerTripRequests(
     onError
   );
 }
+
+// Dispatch (admin) — sees every customer's requests.
+export function subscribeToAllTripRequests(
+  onChange: (requests: TripRequest[]) => void,
+  onError: (error: Error) => void
+) {
+  const q = query(tripRequestsCollection, orderBy("createdAt", "desc"));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const requests = snapshot.docs.map(
+        (d) => ({ id: d.id, ...d.data() } as TripRequest)
+      );
+      onChange(requests);
+    },
+    onError
+  );
+}
+
+export async function assignDriversToTripRequest(
+  requestId: string,
+  driverIds: string[],
+  driverNames: string[]
+): Promise<void> {
+  await updateDoc(doc(db, "tripRequests", requestId), {
+    assignedDriverIds: driverIds,
+    assignedDriverNames: driverNames,
+    status: "assigned",
+    updatedAt: Date.now(),
+  });
+}
+
+export async function setTripRequestStatus(
+  requestId: string,
+  status: TripRequest["status"]
+): Promise<void> {
+  await updateDoc(doc(db, "tripRequests", requestId), {
+    status,
+    updatedAt: Date.now(),
+  });
+}

@@ -59,12 +59,20 @@ export default function AdminDashboardScreen({ navigation }: any) {
         </View>
         <View style={styles.headerActions}>
           {Platform.OS === "web" && (
-            <TouchableOpacity
-              style={styles.recordButton}
-              onPress={() => navigation.navigate("DriversRecord")}
-            >
-              <Text style={styles.recordButtonText}>Drivers Record</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={styles.recordButton}
+                onPress={() => navigation.navigate("Dispatch")}
+              >
+                <Text style={styles.recordButtonText}>Dispatch</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.recordButton}
+                onPress={() => navigation.navigate("DriversRecord")}
+              >
+                <Text style={styles.recordButtonText}>Drivers Record</Text>
+              </TouchableOpacity>
+            </>
           )}
           <TouchableOpacity onPress={signOut}>
             <Text style={styles.signOut}>Log out</Text>

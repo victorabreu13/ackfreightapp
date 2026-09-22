@@ -20,6 +20,8 @@ const linking = {
       CustomerHome: "customer-home",
       NewTripRequest: "new-trip-request",
       TripRequestDetail: "trip-request",
+      Dispatch: "dispatch",
+      DispatchDetail: "dispatch-request",
     },
   },
 };

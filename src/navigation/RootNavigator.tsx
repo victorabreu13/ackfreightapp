@@ -4,6 +4,8 @@ import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import AdminDashboardScreen from "../screens/AdminDashboardScreen";
 import CustomerHomeScreen from "../screens/CustomerHomeScreen";
+import DispatchDetailScreen from "../screens/DispatchDetailScreen";
+import DispatchScreen from "../screens/DispatchScreen";
 import DriversRecordScreen from "../screens/DriversRecordScreen";
 import DriverHomeScreen from "../screens/DriverHomeScreen";
 import LoginScreen from "../screens/LoginScreen";
@@ -52,6 +54,16 @@ export default function RootNavigator() {
           name="DriversRecord"
           component={DriversRecordScreen}
           options={{ title: "Drivers Record" }}
+        />
+        <Stack.Screen
+          name="Dispatch"
+          component={DispatchScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="DispatchDetail"
+          component={DispatchDetailScreen}
+          options={{ title: "Dispatch Request" }}
         />
       </Stack.Navigator>
     );
