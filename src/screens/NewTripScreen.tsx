@@ -4,7 +4,6 @@ import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Platform,
   ScrollView,
@@ -18,6 +17,7 @@ import { useAuth } from "../context/AuthContext";
 import { checkDuplicateUld, createTrip } from "../services/trips";
 import { uploadProofFile } from "../services/storage";
 import { ProofFile, ULD_TYPES, UldType } from "../types";
+import { confirmAction, notify } from "../utils/alert";
 
 type PendingFile = {
   uri: string;
@@ -88,7 +88,7 @@ export default function NewTripScreen({ navigation }: any) {
   const addPhoto = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("Camera permission is required to take a photo.");
+      notify("Camera permission is required to take a photo.");
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
@@ -104,7 +104,7 @@ export default function NewTripScreen({ navigation }: any) {
   const addFromLibrary = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("Photo library permission is required.");
+      notify("Photo library permission is required.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -147,25 +147,27 @@ export default function NewTripScreen({ navigation }: any) {
   const handleSubmit = async () => {
     if (!user || !profile) return;
     if (!from.trim() || !to.trim()) {
-      Alert.alert("Missing info", "Enter both the From and To locations.");
+      notify("Missing info", "Enter both the From and To locations.");
       return;
     }
     if (!awbNumber.trim()) {
-      Alert.alert("Missing info", "Enter the AWB / Document number.");
+      notify("Missing info", "Enter the AWB / Document number.");
       return;
     }
     if (uldNumbers.some((u) => !u.trim())) {
-      Alert.alert("Missing info", "Enter the ULD # for each unit.");
+      notify("Missing info", "Enter the ULD # for each unit.");
       return;
     }
     if (files.length === 0) {
-      Alert.alert(
-        "No proof attached",
-        "Attach at least one photo or document as proof of the freight before submitting.",
-        [
-          { text: "Attach now", style: "cancel" },
-          { text: "Submit anyway", onPress: () => submit() },
-        ]
+      confirmAction(
+        {
+          title: "No proof attached",
+          message:
+            "Attach at least one photo or document as proof of the freight before submitting.",
+          confirmLabel: "Submit anyway",
+          cancelLabel: "Attach now",
+        },
+        () => submit()
       );
       return;
     }
@@ -179,7 +181,7 @@ export default function NewTripScreen({ navigation }: any) {
       const trimmedUlds = uldNumbers.map((u) => u.trim());
       const dup = await checkDuplicateUld(awbNumber.trim(), trimmedUlds);
       if (dup.duplicate) {
-        Alert.alert(
+        notify(
           "Duplicate ULD #",
           `ULD #${dup.uldNumber} was already logged under this AWB by ${dup.conflictingDriverName}${
             dup.conflictingDate ? ` on ${dup.conflictingDate}` : ""
@@ -219,7 +221,7 @@ export default function NewTripScreen({ navigation }: any) {
       navigation.goBack();
     } catch (e: any) {
       console.error("createTrip error:", e);
-      Alert.alert("Error", `Couldn't save the trip: ${e?.message ?? "unknown error"}`);
+      notify("Error", `Couldn't save the trip: ${e?.message ?? "unknown error"}`);
     } finally {
       setSubmitting(false);
     }

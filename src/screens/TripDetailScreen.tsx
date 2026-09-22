@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Linking,
   Modal,
@@ -14,6 +13,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { deleteTrip } from "../services/trips";
 import { Trip } from "../types";
+import { confirmAction, notify } from "../utils/alert";
 
 export default function TripDetailScreen({ route, navigation }: any) {
   const trip: Trip = route.params.trip;
@@ -29,7 +29,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       await deleteTrip(trip.id);
       navigation.goBack();
     } catch (err: any) {
-      Alert.alert(
+      notify(
         "Couldn't delete trip",
         err?.message ?? "Something went wrong. Please try again."
       );
@@ -38,13 +38,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
   };
 
   const confirmDelete = () => {
-    Alert.alert(
-      "Delete this trip?",
-      "This can't be undone. The admins will be notified of this deletion.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: performDelete },
-      ]
+    confirmAction(
+      {
+        title: "Delete this trip?",
+        message: "This can't be undone. The admins will be notified of this deletion.",
+        confirmLabel: "Delete",
+        destructive: true,
+      },
+      performDelete
     );
   };
 
