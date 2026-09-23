@@ -5,10 +5,13 @@ import { useAuth } from "../context/AuthContext";
 import AdminDashboardScreen from "../screens/AdminDashboardScreen";
 import CustomerHomeScreen from "../screens/CustomerHomeScreen";
 import DispatchDetailScreen from "../screens/DispatchDetailScreen";
+import DispatchNewRequestScreen from "../screens/DispatchNewRequestScreen";
 import DispatchScreen from "../screens/DispatchScreen";
 import DriversRecordScreen from "../screens/DriversRecordScreen";
 import DriverHomeScreen from "../screens/DriverHomeScreen";
+import DriverTripRequestDetailScreen from "../screens/DriverTripRequestDetailScreen";
 import LoginScreen from "../screens/LoginScreen";
+import MyTripRequestsScreen from "../screens/MyTripRequestsScreen";
 import NewTripRequestScreen from "../screens/NewTripRequestScreen";
 import NewTripScreen from "../screens/NewTripScreen";
 import SignUpScreen from "../screens/SignUpScreen";
@@ -65,6 +68,11 @@ export default function RootNavigator() {
           component={DispatchDetailScreen}
           options={{ title: "Dispatch Request" }}
         />
+        <Stack.Screen
+          name="DispatchNewRequest"
+          component={DispatchNewRequestScreen}
+          options={{ title: "New Trip Request" }}
+        />
       </Stack.Navigator>
     );
   }
@@ -107,6 +115,16 @@ export default function RootNavigator() {
         name="TripDetail"
         component={TripDetailScreen}
         options={{ title: "Trip Detail" }}
+      />
+      <Stack.Screen
+        name="MyTripRequests"
+        component={MyTripRequestsScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="DriverTripRequestDetail"
+        component={DriverTripRequestDetailScreen}
+        options={{ title: "Trip Request" }}
       />
     </Stack.Navigator>
   );

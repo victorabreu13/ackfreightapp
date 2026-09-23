@@ -15,6 +15,14 @@
         { "fieldPath": "role", "order": "ASCENDING" },
         { "fieldPath": "name", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "tripRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "assignedDriverIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -1,9 +1,14 @@
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const {
+  onDocumentCreated,
+  onDocumentUpdated,
+} = require("firebase-functions/v2/firestore");
 const { defineSecret } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
+const crypto = require("crypto");
 
 admin.initializeApp();
 
@@ -99,6 +104,57 @@ function buildDeletionEmailHtml(trip, deletedBy) {
       <tr><th align="left">Deleted at</th><td>${escapeHtml(
         new Date().toLocaleString("en-US", { timeZone: TIME_ZONE })
       )}</td></tr>
+    </table>
+  `;
+}
+
+// Best-effort push via Expo's push API — no SDK dependency needed since
+// Node 20 has a global fetch. Failures are logged, never thrown: a missing
+// or stale push token should never block the email that goes out alongside it.
+async function sendExpoPush(tokens, title, body, data) {
+  const validTokens = [...new Set((tokens || []).filter(Boolean))];
+  if (validTokens.length === 0) return;
+  try {
+    await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(
+        validTokens.map((to) => ({ to, title, body, data, sound: "default" }))
+      ),
+    });
+  } catch (err) {
+    logger.error("Failed to send push notification:", err);
+  }
+}
+
+function buildTripRequestEmailHtml(heading, intro, req) {
+  const awbRows = (req.awbLines || [])
+    .map(
+      (l) => `<tr>
+        <td>${escapeHtml(l.awbNumber)}</td>
+        <td>${escapeHtml(l.type)}</td>
+        <td>${escapeHtml(String(l.qtyPieces))}</td>
+        <td>${escapeHtml(String(l.kilograms))} kg</td>
+      </tr>`
+    )
+    .join("");
+
+  return `
+    <h2>${escapeHtml(heading)}</h2>
+    <p>${intro}</p>
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:sans-serif;font-size:13px;">
+      <tr><th align="left">Customer</th><td>${escapeHtml(req.customerName)} (${escapeHtml(req.customerEmail)})</td></tr>
+      <tr><th align="left">Trip date</th><td>${escapeHtml(req.tripDate)}</td></tr>
+      <tr><th align="left">Route</th><td>${escapeHtml(req.from)} → ${escapeHtml(req.to)}</td></tr>
+      <tr><th align="left">Person requesting</th><td>${escapeHtml(req.personRequesting)}</td></tr>
+      <tr><th align="left">Assigned driver(s)</th><td>${escapeHtml(
+        (req.assignedDriverNames || []).join(", ") || "Not assigned yet"
+      )}</td></tr>
+    </table>
+    <h3>AWBs</h3>
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:sans-serif;font-size:13px;">
+      <tr style="background:#f0f0f0;"><th>AWB #</th><th>Type</th><th>Pieces</th><th>Weight</th></tr>
+      ${awbRows}
     </table>
   `;
 }
@@ -247,6 +303,167 @@ exports.deleteTrip = onCall(
     return { success: true };
   }
 );
+
+// Fires the moment a customer (or admin, on their behalf) submits a trip
+// request. Immediate, unlike sendDailyTripSummary which only covers trips
+// already logged by end of day.
+exports.onTripRequestCreated = onDocumentCreated(
+  { document: "tripRequests/{requestId}", secrets: [GMAIL_USER, GMAIL_APP_PASSWORD] },
+  async (event) => {
+    const req = event.data?.data();
+    if (!req) return;
+
+    const db = admin.firestore();
+    const adminsSnap = await db.collection("users").where("role", "==", "admin").get();
+    const adminEmails = adminsSnap.docs.map((d) => d.data().email).filter(Boolean);
+    const adminPushTokens = adminsSnap.docs.map((d) => d.data().pushToken).filter(Boolean);
+
+    if (adminEmails.length > 0) {
+      try {
+        const transporter = buildTransporter();
+        await transporter.sendMail({
+          from: `"ACK Freight" <${GMAIL_USER.value()}>`,
+          to: adminEmails.join(","),
+          subject: `ACK Freight — New Trip Request (${req.customerName})`,
+          html: buildTripRequestEmailHtml(
+            "New Trip Request",
+            `${escapeHtml(req.customerName)} submitted a new trip request.`,
+            req
+          ),
+        });
+      } catch (err) {
+        logger.error("Failed to send new-trip-request email:", err);
+      }
+    }
+
+    await sendExpoPush(
+      adminPushTokens,
+      "New Trip Request",
+      `${req.customerName}: ${req.from} → ${req.to}`,
+      { type: "tripRequestCreated", requestId: event.params.requestId }
+    );
+  }
+);
+
+// Fires whenever assignedDriverIds gains a new entry — covers Dispatch
+// assigning for the first time and reassigning/adding a second driver alike.
+exports.onTripRequestAssigned = onDocumentUpdated(
+  { document: "tripRequests/{requestId}", secrets: [GMAIL_USER, GMAIL_APP_PASSWORD] },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+
+    const beforeIds = new Set(before.assignedDriverIds || []);
+    const newDriverIds = (after.assignedDriverIds || []).filter((id) => !beforeIds.has(id));
+    if (newDriverIds.length === 0) return;
+
+    const db = admin.firestore();
+    const driverDocs = await Promise.all(
+      newDriverIds.map((id) => db.collection("users").doc(id).get())
+    );
+    const driverEmails = driverDocs.map((d) => d.data()?.email).filter(Boolean);
+    const driverPushTokens = driverDocs.map((d) => d.data()?.pushToken).filter(Boolean);
+
+    if (driverEmails.length > 0) {
+      try {
+        const transporter = buildTransporter();
+        await transporter.sendMail({
+          from: `"ACK Freight" <${GMAIL_USER.value()}>`,
+          to: driverEmails.join(","),
+          subject: `ACK Freight — Trip Assigned to You (${after.tripDate})`,
+          html: buildTripRequestEmailHtml(
+            "Trip Assigned to You",
+            "You've been assigned a new trip. Details below.",
+            after
+          ),
+        });
+      } catch (err) {
+        logger.error("Failed to send trip-assigned email:", err);
+      }
+    }
+
+    await sendExpoPush(
+      driverPushTokens,
+      "New Trip Assigned",
+      `${after.from} → ${after.to} on ${after.tripDate}`,
+      { type: "tripRequestAssigned", requestId: event.params.requestId }
+    );
+  }
+);
+
+// Fires when a trip request's status flips to "completed" (set by the
+// assigned driver from their app) — admins and the customer both want to
+// know right away, separate from the daily summary and from the driver's
+// own assignment email above.
+exports.onTripRequestStatusEmails = onDocumentUpdated(
+  { document: "tripRequests/{requestId}", secrets: [GMAIL_USER, GMAIL_APP_PASSWORD] },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+    if (before.status === "completed" || after.status !== "completed") return;
+
+    const db = admin.firestore();
+    const adminsSnap = await db.collection("users").where("role", "==", "admin").get();
+    const recipients = adminsSnap.docs.map((d) => d.data().email).filter(Boolean);
+    if (after.customerEmail) recipients.push(after.customerEmail);
+    if (recipients.length === 0) return;
+
+    try {
+      const transporter = buildTransporter();
+      await transporter.sendMail({
+        from: `"ACK Freight" <${GMAIL_USER.value()}>`,
+        to: recipients.join(","),
+        subject: `ACK Freight — Trip Completed (${after.tripDate})`,
+        html: buildTripRequestEmailHtml(
+          "Trip Completed",
+          "This trip has been marked completed.",
+          after
+        ),
+      });
+    } catch (err) {
+      logger.error("Failed to send trip-completed email:", err);
+    }
+  }
+);
+
+// Admin-only: creates a real, login-capable customer account (e.g. for a
+// phone-in order) without the admin ever seeing or setting the password —
+// a random one is generated here, and the client follows up with Firebase
+// Auth's own sendPasswordResetEmail so the customer sets their own.
+exports.createCustomer = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
+  }
+
+  const db = admin.firestore();
+  const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+  if (callerSnap.data()?.role !== "admin") {
+    throw new HttpsError("permission-denied", "Admins only.");
+  }
+
+  const { name, email } = request.data || {};
+  if (!name || !email) {
+    throw new HttpsError("invalid-argument", "name and email are required.");
+  }
+
+  const userRecord = await admin.auth().createUser({
+    email,
+    password: crypto.randomBytes(18).toString("base64"),
+    displayName: name,
+  });
+
+  await db.collection("users").doc(userRecord.uid).set({
+    uid: userRecord.uid,
+    email,
+    name,
+    role: "customer",
+    createdAt: Date.now(),
+  });
+
+  return { uid: userRecord.uid };
+});
 
 exports.sendDailyTripSummary = onSchedule(
   {

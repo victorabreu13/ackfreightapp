@@ -13,11 +13,14 @@ service cloud.firestore {
     }
 
     // Users can read/create their own profile. Only the owner can create it
-    // (at sign-up); nobody can change their own role after that.
+    // (at sign-up); nobody can change their own role after that. The one
+    // exception is a user updating their own push-notification token.
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update, delete: if false;
+      allow update: if isSignedIn() && request.auth.uid == userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pushToken"]);
+      allow delete: if false;
     }
 
     // Drivers can create and read their own trips. Admins can read every trip.
@@ -39,11 +42,19 @@ service cloud.firestore {
     }
 
     // Customers submit and own their trip requests; admins (Dispatch, phase 2)
-    // can read and update every request. A customer may keep editing their own
-    // request — including cancelling it — right up until it's Completed,
-    // Invoiced or already Cancelled, and can never touch driver assignment.
+    // can read, create (on a customer's behalf, e.g. a phone-in order) and
+    // update every request. A customer may keep editing their own request —
+    // including cancelling it — right up until it's Completed, Invoiced or
+    // already Cancelled, and can never touch driver assignment. The assigned
+    // driver(s) (phase 3) can move the request forward through exactly
+    // assigned -> in_progress -> completed, touching only the status field —
+    // Dispatch/the customer see that change live, no separate sync needed.
     function isOwnTripRequest() {
       return resource.data.customerId == request.auth.uid;
+    }
+
+    function isAssignedDriver() {
+      return request.auth.uid in resource.data.assignedDriverIds;
     }
 
     function tripRequestLocked() {
@@ -60,17 +71,23 @@ service cloud.firestore {
     }
 
     match /tripRequests/{requestId} {
-      allow create: if isSignedIn() &&
-        request.resource.data.customerId == request.auth.uid &&
-        request.resource.data.status == "submitted" &&
-        request.resource.data.assignedDriverIds.size() == 0;
-      allow read: if isSignedIn() && (isOwnTripRequest() || isAdmin());
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (request.resource.data.customerId == request.auth.uid &&
+          request.resource.data.status == "submitted" &&
+          request.resource.data.assignedDriverIds.size() == 0));
+      allow read: if isSignedIn() && (isOwnTripRequest() || isAdmin() || isAssignedDriver());
       allow update: if isSignedIn() && (
         isAdmin() ||
         (isOwnTripRequest() && !tripRequestLocked() &&
           customerFieldsUnchanged() &&
           (request.resource.data.status == resource.data.status ||
-            request.resource.data.status == "cancelled")));
+            request.resource.data.status == "cancelled")) ||
+        (isAssignedDriver() &&
+          ((resource.data.status == "assigned" && request.resource.data.status == "in_progress" &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"])) ||
+            (resource.data.status == "in_progress" && request.resource.data.status == "completed" &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt", "tripLogId"])))));
       allow delete: if false;
     }
   }

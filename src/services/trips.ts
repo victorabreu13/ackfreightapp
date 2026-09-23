@@ -64,11 +64,12 @@ export async function deleteTrip(tripId: string): Promise<void> {
   await callWithFreshToken(deleteTripFn, { tripId });
 }
 
-export async function createTrip(input: NewTripInput): Promise<void> {
-  await addDoc(tripsCollection, {
+export async function createTrip(input: NewTripInput): Promise<string> {
+  const docRef = await addDoc(tripsCollection, {
     ...input,
     createdAt: Date.now(),
   });
+  return docRef.id;
 }
 
 export function subscribeToDriverTrips(

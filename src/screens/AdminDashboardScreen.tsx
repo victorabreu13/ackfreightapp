@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import { registerForPushNotifications } from "../services/notifications";
 import { subscribeToAllTrips } from "../services/trips";
 import { Trip } from "../types";
 import TripCard from "../components/TripCard";
@@ -24,6 +25,10 @@ export default function AdminDashboardScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [filterDate, setFilterDate] = useState<Date | null>(new Date());
   const [showPicker, setShowPicker] = useState(false);
+
+  useEffect(() => {
+    registerForPushNotifications();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = subscribeToAllTrips(

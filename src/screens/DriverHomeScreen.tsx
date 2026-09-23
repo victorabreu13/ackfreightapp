@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import { registerForPushNotifications } from "../services/notifications";
 import { subscribeToDriverTrips } from "../services/trips";
 import { Trip } from "../types";
 import TripCard from "../components/TripCard";
@@ -17,6 +18,10 @@ export default function DriverHomeScreen({ navigation }: any) {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    registerForPushNotifications();
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -53,6 +58,13 @@ export default function DriverHomeScreen({ navigation }: any) {
         onPress={() => navigation.navigate("NewTrip")}
       >
         <Text style={styles.newTripButtonText}>+ Log New Trip</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.tripRequestsButton}
+        onPress={() => navigation.navigate("MyTripRequests")}
+      >
+        <Text style={styles.tripRequestsButtonText}>Trip Requests</Text>
       </TouchableOpacity>
 
       {error ? (
@@ -102,6 +114,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   newTripButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  tripRequestsButton: {
+    backgroundColor: "#e8edff",
+    marginHorizontal: 16,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  tripRequestsButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 14 },
   empty: {
     textAlign: "center",
     color: "#888",

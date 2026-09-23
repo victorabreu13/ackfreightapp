@@ -17,6 +17,7 @@ import { confirmAction, notify } from "../utils/alert";
 const STATUS_LABELS: Record<TripRequest["status"], string> = {
   submitted: "Submitted",
   assigned: "Assigned",
+  in_progress: "In Progress",
   completed: "Completed",
   invoiced: "Invoiced",
   cancelled: "Cancelled",

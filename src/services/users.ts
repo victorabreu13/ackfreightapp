@@ -22,3 +22,22 @@ export function subscribeToDrivers(
     onError
   );
 }
+
+export function subscribeToCustomers(
+  onChange: (customers: UserProfile[]) => void,
+  onError: (error: Error) => void
+) {
+  const q = query(
+    usersCollection,
+    where("role", "==", "customer"),
+    orderBy("name")
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const customers = snapshot.docs.map((d) => d.data() as UserProfile);
+      onChange(customers);
+    },
+    onError
+  );
+}

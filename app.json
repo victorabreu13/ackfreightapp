@@ -42,6 +42,13 @@
           "photosPermission": "ACK Freight needs photo library access so drivers can attach proof of delivery photos.",
           "cameraPermission": "ACK Freight needs camera access so drivers can photograph proof of delivery documents."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#1d4ed8"
+        }
       ]
     ],
     "extra": {

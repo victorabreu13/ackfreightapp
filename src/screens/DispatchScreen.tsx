@@ -13,6 +13,7 @@ import { TripRequest, TripRequestStatus } from "../types";
 const STATUS_LABELS: Record<TripRequestStatus, string> = {
   submitted: "Submitted",
   assigned: "Assigned",
+  in_progress: "In Progress",
   completed: "Completed",
   invoiced: "Invoiced",
   cancelled: "Cancelled",
@@ -21,6 +22,7 @@ const STATUS_LABELS: Record<TripRequestStatus, string> = {
 const STATUS_COLORS: Record<TripRequestStatus, string> = {
   submitted: "#1d4ed8",
   assigned: "#b45309",
+  in_progress: "#0891b2",
   completed: "#15803d",
   invoiced: "#6d28d9",
   cancelled: "#c0392b",
@@ -29,6 +31,7 @@ const STATUS_COLORS: Record<TripRequestStatus, string> = {
 const FILTERS: { key: TripRequestStatus | "all"; label: string }[] = [
   { key: "submitted", label: "Submitted" },
   { key: "assigned", label: "Assigned" },
+  { key: "in_progress", label: "In Progress" },
   { key: "completed", label: "Completed" },
   { key: "invoiced", label: "Invoiced" },
   { key: "cancelled", label: "Cancelled" },
@@ -59,10 +62,18 @@ export default function DispatchScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Dispatch</Text>
-        <Text style={styles.subtitle}>
-          {filtered.length} request{filtered.length === 1 ? "" : "s"}
-        </Text>
+        <View>
+          <Text style={styles.title}>Dispatch</Text>
+          <Text style={styles.subtitle}>
+            {filtered.length} request{filtered.length === 1 ? "" : "s"}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.newButton}
+          onPress={() => navigation.navigate("DispatchNewRequest")}
+        >
+          <Text style={styles.newButtonText}>+ New Request</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.filterRow}>
@@ -132,10 +143,20 @@ export default function DispatchScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f6fa" },
   header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 12,
   },
+  newButton: {
+    backgroundColor: "#1d4ed8",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  newButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   title: { fontSize: 22, fontWeight: "800", color: "#111" },
   subtitle: { fontSize: 13, color: "#666" },
   filterRow: {

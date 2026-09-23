@@ -18,6 +18,7 @@ export interface UserProfile {
   name: string;
   role: UserRole;
   createdAt: number;
+  pushToken?: string;
 }
 
 export interface ProofFile {
@@ -50,6 +51,7 @@ export type NewTripInput = Omit<Trip, "id" | "createdAt">;
 export const TRIP_REQUEST_STATUSES = [
   "submitted",
   "assigned",
+  "in_progress",
   "completed",
   "invoiced",
   "cancelled",
@@ -87,6 +89,7 @@ export interface TripRequest {
   assignedDriverIds: string[];
   assignedDriverNames: string[];
   status: TripRequestStatus;
+  tripLogId?: string; // set once completed, links to the created Trip
   createdAt: number;
   updatedAt: number;
 }

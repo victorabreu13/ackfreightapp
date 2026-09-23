@@ -19,6 +19,7 @@ import { confirmAction, notify } from "../utils/alert";
 const STATUS_LABELS: Record<TripRequestStatus, string> = {
   submitted: "Submitted",
   assigned: "Assigned",
+  in_progress: "In Progress",
   completed: "Completed",
   invoiced: "Invoiced",
   cancelled: "Cancelled",
@@ -113,7 +114,7 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
 
       <TripRequestReadOnly request={request} />
 
-      {request.status !== "cancelled" && (
+      {(request.status === "submitted" || request.status === "assigned") && (
         <>
           <Text style={styles.sectionTitle}>Assign Driver(s)</Text>
           {drivers.length === 0 ? (
@@ -152,16 +153,12 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
       )}
 
       <Text style={styles.sectionTitle}>Status</Text>
+      {(request.status === "assigned" || request.status === "in_progress") && (
+        <Text style={styles.statusHint}>
+          The driver marks this In Progress and Completed from their app.
+        </Text>
+      )}
       <View style={styles.statusActions}>
-        {request.status === "assigned" && (
-          <TouchableOpacity
-            style={styles.statusButton}
-            onPress={() => changeStatus("completed", "Mark this trip as completed?")}
-            disabled={changingStatus}
-          >
-            <Text style={styles.statusButtonText}>Mark Completed</Text>
-          </TouchableOpacity>
-        )}
         {request.status === "completed" && (
           <TouchableOpacity
             style={styles.statusButton}
@@ -221,6 +218,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   assignButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  statusHint: { fontSize: 13, color: "#888", marginBottom: 10 },
   statusActions: { gap: 10, marginBottom: 30 },
   statusButton: {
     backgroundColor: "#e8edff",

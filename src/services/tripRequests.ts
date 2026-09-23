@@ -122,3 +122,43 @@ export async function setTripRequestStatus(
     updatedAt: Date.now(),
   });
 }
+
+export function subscribeToDriverTripRequests(
+  driverId: string,
+  onChange: (requests: TripRequest[]) => void,
+  onError: (error: Error) => void
+) {
+  const q = query(
+    tripRequestsCollection,
+    where("assignedDriverIds", "array-contains", driverId),
+    orderBy("createdAt", "desc")
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const requests = snapshot.docs.map(
+        (d) => ({ id: d.id, ...d.data() } as TripRequest)
+      );
+      onChange(requests);
+    },
+    onError
+  );
+}
+
+export async function startTripRequest(requestId: string): Promise<void> {
+  await updateDoc(doc(db, "tripRequests", requestId), {
+    status: "in_progress",
+    updatedAt: Date.now(),
+  });
+}
+
+export async function completeTripRequest(
+  requestId: string,
+  tripLogId: string
+): Promise<void> {
+  await updateDoc(doc(db, "tripRequests", requestId), {
+    status: "completed",
+    tripLogId,
+    updatedAt: Date.now(),
+  });
+}

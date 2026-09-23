@@ -14,6 +14,7 @@ import { TripRequest } from "../types";
 const STATUS_LABELS: Record<TripRequest["status"], string> = {
   submitted: "Submitted",
   assigned: "Assigned",
+  in_progress: "In Progress",
   completed: "Completed",
   invoiced: "Invoiced",
   cancelled: "Cancelled",
@@ -22,6 +23,7 @@ const STATUS_LABELS: Record<TripRequest["status"], string> = {
 const STATUS_COLORS: Record<TripRequest["status"], string> = {
   submitted: "#1d4ed8",
   assigned: "#b45309",
+  in_progress: "#0891b2",
   completed: "#15803d",
   invoiced: "#6d28d9",
   cancelled: "#c0392b",
