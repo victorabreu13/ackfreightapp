@@ -37,7 +37,10 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
   useEffect(() => {
     const unsubscribe = subscribeToDrivers(
       (data) => setDrivers(data),
-      () => {}
+      (err) => {
+        console.error("subscribeToDrivers error:", err);
+        notify("Couldn't load drivers", err.message);
+      }
     );
     return unsubscribe;
   }, []);

@@ -12,6 +12,7 @@ import {
 import { subscribeToAllTrips } from "../services/trips";
 import { subscribeToDrivers } from "../services/users";
 import { Trip, UserProfile } from "../types";
+import { notify } from "../utils/alert";
 
 function toDateStr(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -85,7 +86,11 @@ export default function DriversRecordScreen({ navigation }: any) {
         setDrivers(data);
         setDriversLoaded(true);
       },
-      () => setDriversLoaded(true)
+      (err) => {
+        console.error("subscribeToDrivers error:", err);
+        notify("Couldn't load drivers", err.message);
+        setDriversLoaded(true);
+      }
     );
     return () => {
       unsubTrips();
