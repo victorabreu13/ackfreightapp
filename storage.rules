@@ -19,12 +19,18 @@ service firebase.storage {
       allow write: if isSignedIn() && request.auth.uid == driverId;
     }
 
+    function isAssignedDriver(requestId) {
+      return isSignedIn() && request.auth.uid in
+        firestore.get(/databases/(default)/documents/tripRequests/$(requestId)).data.assignedDriverIds;
+    }
+
     // Trip request documents (AWB/LOA/DO per line, shared import fee) are
     // stored under tripRequestDocs/{customerId}/{requestId}/... . The owning
-    // customer can upload and read their own files; admins can read every
-    // customer's files.
+    // customer can upload and read their own files; admins and the driver(s)
+    // assigned to that request can read every customer's files.
     match /tripRequestDocs/{customerId}/{requestId}/{fileName} {
-      allow read: if isSignedIn() && (request.auth.uid == customerId || isAdmin());
+      allow read: if isSignedIn() &&
+        (request.auth.uid == customerId || isAdmin() || isAssignedDriver(requestId));
       allow write: if isSignedIn() && request.auth.uid == customerId;
     }
   }

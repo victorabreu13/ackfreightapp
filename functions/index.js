@@ -127,17 +127,37 @@ async function sendExpoPush(tokens, title, body, data) {
   }
 }
 
+function docLink(file, label) {
+  if (!file || !file.url) return "";
+  return `<a href="${file.url}">${escapeHtml(label)}</a>`;
+}
+
 function buildTripRequestEmailHtml(heading, intro, req) {
   const awbRows = (req.awbLines || [])
-    .map(
-      (l) => `<tr>
+    .map((l) => {
+      const docs =
+        [
+          docLink(l.awbFile, "AWB doc"),
+          docLink(l.loaFile, "Letter of Auth."),
+          docLink(l.doFile, "Delivery Order"),
+        ]
+          .filter(Boolean)
+          .join(" &middot; ") || "—";
+      return `<tr>
         <td>${escapeHtml(l.awbNumber)}</td>
         <td>${escapeHtml(l.type)}</td>
         <td>${escapeHtml(String(l.qtyPieces))}</td>
         <td>${escapeHtml(String(l.kilograms))} kg</td>
-      </tr>`
-    )
+        <td>${docs}</td>
+      </tr>`;
+    })
     .join("");
+
+  const importFeeLinks =
+    (req.importFeeFiles || [])
+      .map((f, i) => docLink(f, `File ${i + 1}`))
+      .filter(Boolean)
+      .join(" &middot; ") || "None";
 
   return `
     <h2>${escapeHtml(heading)}</h2>
@@ -150,10 +170,11 @@ function buildTripRequestEmailHtml(heading, intro, req) {
       <tr><th align="left">Assigned driver(s)</th><td>${escapeHtml(
         (req.assignedDriverNames || []).join(", ") || "Not assigned yet"
       )}</td></tr>
+      <tr><th align="left">Import Fee / 1F</th><td>${importFeeLinks}</td></tr>
     </table>
     <h3>AWBs</h3>
     <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:sans-serif;font-size:13px;">
-      <tr style="background:#f0f0f0;"><th>AWB #</th><th>Type</th><th>Pieces</th><th>Weight</th></tr>
+      <tr style="background:#f0f0f0;"><th>AWB #</th><th>Type</th><th>Pieces</th><th>Weight</th><th>Documents</th></tr>
       ${awbRows}
     </table>
   `;
