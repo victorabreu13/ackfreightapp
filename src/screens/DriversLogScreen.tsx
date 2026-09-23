@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "../context/AuthContext";
 import { subscribeToAllTrips } from "../services/trips";
 import { Trip } from "../types";
 import TripCard from "../components/TripCard";
@@ -19,7 +18,6 @@ function formatDate(d: Date) {
 }
 
 export default function DriversLogScreen({ navigation }: any) {
-  const { signOut } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterDate, setFilterDate] = useState<Date | null>(new Date());
@@ -49,11 +47,9 @@ export default function DriversLogScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      {Platform.OS === "web" && (
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>‹ Back</Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+        <Text style={styles.backButtonText}>‹ Back</Text>
+      </TouchableOpacity>
 
       <View style={styles.header}>
         <View>
@@ -63,11 +59,6 @@ export default function DriversLogScreen({ navigation }: any) {
             {driverCount} driver{driverCount === 1 ? "" : "s"}
           </Text>
         </View>
-        {Platform.OS !== "web" && (
-          <TouchableOpacity onPress={signOut}>
-            <Text style={styles.signOut}>Log out</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       <View style={styles.filterRow}>

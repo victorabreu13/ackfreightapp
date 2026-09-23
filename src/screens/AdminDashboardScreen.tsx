@@ -2,9 +2,8 @@ import React, { useEffect } from "react";
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { registerForPushNotifications } from "../services/notifications";
-import DriversLogScreen from "./DriversLogScreen";
 
-const TILES = [
+const WEB_TILES = [
   {
     key: "Dispatch",
     icon: "🚚",
@@ -25,18 +24,18 @@ const TILES = [
   },
 ] as const;
 
+// The native app keeps a lighter menu for now — Drivers Record (heavier on
+// filters/tables) stays web-only.
+const NATIVE_TILES = WEB_TILES.filter((t) => t.key !== "DriversRecord");
+
+const TILES = Platform.OS === "web" ? WEB_TILES : NATIVE_TILES;
+
 export default function AdminDashboardScreen({ navigation }: any) {
   const { signOut } = useAuth();
 
   useEffect(() => {
     registerForPushNotifications();
   }, []);
-
-  // The clean tile home is a web-only redesign (per the request); the native
-  // admin app keeps showing the trip log directly, same as before.
-  if (Platform.OS !== "web") {
-    return <DriversLogScreen navigation={navigation} />;
-  }
 
   return (
     <View style={styles.container}>
