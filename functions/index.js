@@ -113,14 +113,24 @@ function buildDeletionEmailHtml(trip, deletedBy) {
 // or stale push token should never block the email that goes out alongside it.
 async function sendExpoPush(tokens, title, body, data) {
   const validTokens = [...new Set((tokens || []).filter(Boolean))];
-  if (validTokens.length === 0) return;
+  if (validTokens.length === 0) {
+    logger.info("sendExpoPush: no push tokens to send to, skipping.", { title });
+    return;
+  }
   try {
-    await fetch("https://exp.host/--/api/v2/push/send", {
+    const res = await fetch("https://exp.host/--/api/v2/push/send", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(
         validTokens.map((to) => ({ to, title, body, data, sound: "default" }))
       ),
+    });
+    const responseBody = await res.text();
+    logger.info("sendExpoPush: Expo push API response", {
+      title,
+      tokenCount: validTokens.length,
+      status: res.status,
+      responseBody,
     });
   } catch (err) {
     logger.error("Failed to send push notification:", err);
