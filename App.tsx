@@ -1,6 +1,8 @@
 import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
+import { Platform, View } from "react-native";
+import AppHeader from "./src/components/AppHeader";
 import { AuthProvider } from "./src/context/AuthContext";
 import RootNavigator from "./src/navigation/RootNavigator";
 
@@ -32,10 +34,13 @@ const linking = {
 export default function App() {
   return (
     <AuthProvider>
-      <NavigationContainer linking={linking}>
-        <StatusBar style="dark" />
-        <RootNavigator />
-      </NavigationContainer>
+      <View style={{ flex: 1 }}>
+        {Platform.OS === "web" && <AppHeader />}
+        <NavigationContainer linking={linking}>
+          <StatusBar style="dark" />
+          <RootNavigator />
+        </NavigationContainer>
+      </View>
     </AuthProvider>
   );
 }
