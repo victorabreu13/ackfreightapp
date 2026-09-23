@@ -61,6 +61,10 @@ export default function DispatchScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
+      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+        <Text style={styles.backButtonText}>‹ Back</Text>
+      </TouchableOpacity>
+
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Dispatch</Text>
@@ -142,12 +146,14 @@ export default function DispatchScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f6fa" },
+  backButton: { marginTop: 24, marginLeft: 20, alignSelf: "flex-start" },
+  backButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 16 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 12,
     paddingBottom: 12,
   },
   newButton: {
