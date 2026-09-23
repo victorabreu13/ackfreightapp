@@ -7,6 +7,7 @@ import CustomerHomeScreen from "../screens/CustomerHomeScreen";
 import DispatchDetailScreen from "../screens/DispatchDetailScreen";
 import DispatchNewRequestScreen from "../screens/DispatchNewRequestScreen";
 import DispatchScreen from "../screens/DispatchScreen";
+import DriversLogScreen from "../screens/DriversLogScreen";
 import DriversRecordScreen from "../screens/DriversRecordScreen";
 import DriverHomeScreen from "../screens/DriverHomeScreen";
 import DriverTripRequestDetailScreen from "../screens/DriverTripRequestDetailScreen";
@@ -52,6 +53,11 @@ export default function RootNavigator() {
           name="TripDetail"
           component={TripDetailScreen}
           options={{ title: "Trip Detail" }}
+        />
+        <Stack.Screen
+          name="DriversLog"
+          component={DriversLogScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="DriversRecord"

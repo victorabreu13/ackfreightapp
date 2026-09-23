@@ -1,148 +1,65 @@
-import DateTimePicker from "@react-native-community/datetimepicker";
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import React, { useEffect } from "react";
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { registerForPushNotifications } from "../services/notifications";
-import { subscribeToAllTrips } from "../services/trips";
-import { Trip } from "../types";
-import TripCard from "../components/TripCard";
+import DriversLogScreen from "./DriversLogScreen";
 
-function formatDate(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
+const TILES = [
+  {
+    key: "Dispatch",
+    icon: "🚚",
+    label: "Dispatch",
+    description: "Review and assign customer trip requests",
+  },
+  {
+    key: "DriversLog",
+    icon: "📋",
+    label: "Drivers Log",
+    description: "See every trip logged by your drivers",
+  },
+  {
+    key: "DriversRecord",
+    icon: "📊",
+    label: "Drivers Record",
+    description: "Trip counts per driver, for payroll",
+  },
+] as const;
 
 export default function AdminDashboardScreen({ navigation }: any) {
   const { signOut } = useAuth();
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filterDate, setFilterDate] = useState<Date | null>(new Date());
-  const [showPicker, setShowPicker] = useState(false);
 
   useEffect(() => {
     registerForPushNotifications();
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = subscribeToAllTrips(
-      (data) => {
-        setTrips(data);
-        setLoading(false);
-      },
-      () => setLoading(false)
-    );
-    return unsubscribe;
-  }, []);
-
-  const filteredTrips = useMemo(() => {
-    if (!filterDate) return trips;
-    const target = formatDate(filterDate);
-    return trips.filter((t) => t.date === target);
-  }, [trips, filterDate]);
-
-  const driverCount = useMemo(
-    () => new Set(filteredTrips.map((t) => t.driverId)).size,
-    [filteredTrips]
-  );
+  // The clean tile home is a web-only redesign (per the request); the native
+  // admin app keeps showing the trip log directly, same as before.
+  if (Platform.OS !== "web") {
+    return <DriversLogScreen navigation={navigation} />;
+  }
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Team Log</Text>
-          <Text style={styles.subtitle}>
-            {filteredTrips.length} trip{filteredTrips.length === 1 ? "" : "s"} ·{" "}
-            {driverCount} driver{driverCount === 1 ? "" : "s"}
-          </Text>
-        </View>
-        <View style={styles.headerActions}>
-          {Platform.OS === "web" && (
-            <>
-              <TouchableOpacity
-                style={styles.recordButton}
-                onPress={() => navigation.navigate("Dispatch")}
-              >
-                <Text style={styles.recordButtonText}>Dispatch</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.recordButton}
-                onPress={() => navigation.navigate("DriversRecord")}
-              >
-                <Text style={styles.recordButtonText}>Drivers Record</Text>
-              </TouchableOpacity>
-            </>
-          )}
-          <TouchableOpacity onPress={signOut}>
-            <Text style={styles.signOut}>Log out</Text>
+        <Text style={styles.title}>ACK Freight Admin</Text>
+        <TouchableOpacity onPress={signOut}>
+          <Text style={styles.signOut}>Log out</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.tileGrid}>
+        {TILES.map((tile) => (
+          <TouchableOpacity
+            key={tile.key}
+            style={styles.tile}
+            onPress={() => navigation.navigate(tile.key)}
+          >
+            <Text style={styles.tileIcon}>{tile.icon}</Text>
+            <Text style={styles.tileLabel}>{tile.label}</Text>
+            <Text style={styles.tileDescription}>{tile.description}</Text>
           </TouchableOpacity>
-        </View>
+        ))}
       </View>
-
-      <View style={styles.filterRow}>
-        <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => setShowPicker(true)}
-        >
-          <Text style={styles.filterButtonText}>
-            {filterDate ? formatDate(filterDate) : "All dates"}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.filterButtonSecondary}
-          onPress={() => setFilterDate(new Date())}
-        >
-          <Text style={styles.filterButtonSecondaryText}>Today</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.filterButtonSecondary}
-          onPress={() => setFilterDate(null)}
-        >
-          <Text style={styles.filterButtonSecondaryText}>All</Text>
-        </TouchableOpacity>
-      </View>
-
-      {showPicker && (
-        <DateTimePicker
-          value={filterDate ?? new Date()}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={(_, selected) => {
-            setShowPicker(Platform.OS === "ios");
-            if (selected) setFilterDate(selected);
-          }}
-        />
-      )}
-      {showPicker && Platform.OS === "ios" && (
-        <TouchableOpacity onPress={() => setShowPicker(false)} style={styles.doneButton}>
-          <Text style={styles.doneButtonText}>Done</Text>
-        </TouchableOpacity>
-      )}
-
-      {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} />
-      ) : filteredTrips.length === 0 ? (
-        <Text style={styles.empty}>No trips logged for this filter.</Text>
-      ) : (
-        <FlatList
-          data={filteredTrips}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingVertical: 8 }}
-          renderItem={({ item }) => (
-            <TripCard
-              trip={item}
-              showDriver
-              onPress={() => navigation.navigate("TripDetail", { trip: item })}
-            />
-          )}
-        />
-      )}
     </View>
   );
 }
@@ -153,46 +70,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 60,
-    paddingBottom: 12,
+    paddingBottom: 20,
   },
-  title: { fontSize: 22, fontWeight: "800", color: "#111" },
-  subtitle: { fontSize: 13, color: "#666" },
-  signOut: { color: "#c0392b", fontSize: 14, fontWeight: "600" },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 16 },
-  recordButton: {
-    backgroundColor: "#e8edff",
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  recordButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 13 },
-  filterRow: {
+  title: { fontSize: 24, fontWeight: "800", color: "#111" },
+  signOut: { color: "#c0392b", fontSize: 15, fontWeight: "600" },
+  tileGrid: {
     flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 4,
+    flexWrap: "wrap",
+    gap: 20,
+    paddingHorizontal: 24,
   },
-  filterButton: {
-    flex: 1,
+  tile: {
     backgroundColor: "#fff",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    paddingVertical: 10,
+    borderRadius: 16,
+    paddingVertical: 36,
+    paddingHorizontal: 20,
     alignItems: "center",
+    width: 220,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  filterButtonText: { color: "#111", fontWeight: "600" },
-  filterButtonSecondary: {
-    backgroundColor: "#e8edff",
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    alignItems: "center",
-  },
-  filterButtonSecondaryText: { color: "#1d4ed8", fontWeight: "700" },
-  doneButton: { alignSelf: "flex-end", padding: 8, marginRight: 16 },
-  doneButtonText: { color: "#1d4ed8", fontWeight: "700" },
-  empty: { textAlign: "center", color: "#888", marginTop: 40, paddingHorizontal: 40 },
+  tileIcon: { fontSize: 44, marginBottom: 14 },
+  tileLabel: { fontSize: 18, fontWeight: "800", color: "#111", marginBottom: 6 },
+  tileDescription: { fontSize: 13, color: "#888", textAlign: "center" },
 });
