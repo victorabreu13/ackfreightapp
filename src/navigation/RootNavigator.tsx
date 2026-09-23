@@ -17,6 +17,7 @@ import NewTripRequestScreen from "../screens/NewTripRequestScreen";
 import NewTripScreen from "../screens/NewTripScreen";
 import SignUpScreen from "../screens/SignUpScreen";
 import TripDetailScreen from "../screens/TripDetailScreen";
+import TripHistoryScreen from "../screens/TripHistoryScreen";
 import TripRequestDetailScreen from "../screens/TripRequestDetailScreen";
 
 const Stack = createNativeStackNavigator();
@@ -131,6 +132,11 @@ export default function RootNavigator() {
         name="DriverTripRequestDetail"
         component={DriverTripRequestDetailScreen}
         options={{ title: "Trip Request" }}
+      />
+      <Stack.Screen
+        name="TripHistory"
+        component={TripHistoryScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

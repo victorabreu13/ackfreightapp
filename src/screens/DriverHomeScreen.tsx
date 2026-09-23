@@ -1,44 +1,35 @@
-import React, { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import React, { useEffect } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
-import { registerForPushNotifications } from "../services/notifications";
-import { subscribeToDriverTrips } from "../services/trips";
-import { Trip } from "../types";
-import TripCard from "../components/TripCard";
+import { registerForPushNotifications, syncBadgeCount } from "../services/notifications";
+
+const TILES = [
+  {
+    key: "MyTripRequests",
+    icon: "🚚",
+    label: "Trip Requests",
+    description: "Trips assigned to you by dispatch",
+  },
+  {
+    key: "NewTrip",
+    icon: "➕",
+    label: "Log New Trip",
+    description: "Manually log a trip you just drove",
+  },
+  {
+    key: "TripHistory",
+    icon: "📜",
+    label: "Trip History",
+    description: "Every trip you've completed and logged",
+  },
+] as const;
 
 export default function DriverHomeScreen({ navigation }: any) {
   const { user, profile, signOut } = useAuth();
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     registerForPushNotifications();
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    const unsubscribe = subscribeToDriverTrips(
-      user.uid,
-      (data) => {
-        setTrips(data);
-        setError(null);
-        setLoading(false);
-      },
-      (err) => {
-        console.error("subscribeToDriverTrips error:", err);
-        setError(err.message);
-        setLoading(false);
-      }
-    );
-    return unsubscribe;
+    if (user) syncBadgeCount(user.uid);
   }, [user]);
 
   return (
@@ -46,48 +37,26 @@ export default function DriverHomeScreen({ navigation }: any) {
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Hi, {profile?.name?.split(" ")[0]}</Text>
-          <Text style={styles.subGreeting}>Your trip log</Text>
+          <Text style={styles.subGreeting}>ACK Freight Driver</Text>
         </View>
         <TouchableOpacity onPress={signOut}>
           <Text style={styles.signOut}>Log out</Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity
-        style={styles.newTripButton}
-        onPress={() => navigation.navigate("NewTrip")}
-      >
-        <Text style={styles.newTripButtonText}>+ Log New Trip</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.tripRequestsButton}
-        onPress={() => navigation.navigate("MyTripRequests")}
-      >
-        <Text style={styles.tripRequestsButtonText}>Trip Requests</Text>
-      </TouchableOpacity>
-
-      {error ? (
-        <Text style={styles.error}>Error loading trips: {error}</Text>
-      ) : loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} />
-      ) : trips.length === 0 ? (
-        <Text style={styles.empty}>
-          No trips logged yet. Tap "Log New Trip" to add your first one.
-        </Text>
-      ) : (
-        <FlatList
-          data={trips}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingVertical: 8 }}
-          renderItem={({ item }) => (
-            <TripCard
-              trip={item}
-              onPress={() => navigation.navigate("TripDetail", { trip: item })}
-            />
-          )}
-        />
-      )}
+      <View style={styles.tileGrid}>
+        {TILES.map((tile) => (
+          <TouchableOpacity
+            key={tile.key}
+            style={styles.tile}
+            onPress={() => navigation.navigate(tile.key)}
+          >
+            <Text style={styles.tileIcon}>{tile.icon}</Text>
+            <Text style={styles.tileLabel}>{tile.label}</Text>
+            <Text style={styles.tileDescription}>{tile.description}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
   );
 }
@@ -98,41 +67,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 60,
-    paddingBottom: 12,
+    paddingBottom: 20,
   },
-  greeting: { fontSize: 22, fontWeight: "800", color: "#111" },
+  greeting: { fontSize: 24, fontWeight: "800", color: "#111" },
   subGreeting: { fontSize: 14, color: "#666" },
-  signOut: { color: "#c0392b", fontSize: 14, fontWeight: "600" },
-  newTripButton: {
-    backgroundColor: "#1d4ed8",
-    marginHorizontal: 16,
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginBottom: 4,
+  signOut: { color: "#c0392b", fontSize: 15, fontWeight: "600" },
+  tileGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 20,
+    paddingHorizontal: 24,
   },
-  newTripButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  tripRequestsButton: {
-    backgroundColor: "#e8edff",
-    marginHorizontal: 16,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  tripRequestsButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 14 },
-  empty: {
-    textAlign: "center",
-    color: "#888",
-    marginTop: 40,
-    paddingHorizontal: 40,
-  },
-  error: {
-    textAlign: "center",
-    color: "#c0392b",
-    marginTop: 40,
+  tile: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    paddingVertical: 36,
     paddingHorizontal: 20,
+    alignItems: "center",
+    width: 220,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
+  tileIcon: { fontSize: 44, marginBottom: 14 },
+  tileLabel: { fontSize: 18, fontWeight: "800", color: "#111", marginBottom: 6 },
+  tileDescription: { fontSize: 13, color: "#888", textAlign: "center" },
 });

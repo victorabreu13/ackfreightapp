@@ -111,19 +111,19 @@ function buildDeletionEmailHtml(trip, deletedBy) {
 // Best-effort push via Expo's push API — no SDK dependency needed since
 // Node 20 has a global fetch. Failures are logged, never thrown: a missing
 // or stale push token should never block the email that goes out alongside it.
-async function sendExpoPush(tokens, title, body, data) {
+async function sendExpoPush(tokens, title, body, data, badge) {
   const validTokens = [...new Set((tokens || []).filter(Boolean))];
   if (validTokens.length === 0) {
     logger.info("sendExpoPush: no push tokens to send to, skipping.", { title });
     return;
   }
   try {
+    const message = { title, body, data, sound: "default" };
+    if (typeof badge === "number") message.badge = badge;
     const res = await fetch("https://exp.host/--/api/v2/push/send", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(
-        validTokens.map((to) => ({ to, title, body, data, sound: "default" }))
-      ),
+      body: JSON.stringify(validTokens.map((to) => ({ to, ...message }))),
     });
     const responseBody = await res.text();
     logger.info("sendExpoPush: Expo push API response", {
@@ -394,7 +394,6 @@ exports.onTripRequestAssigned = onDocumentUpdated(
       newDriverIds.map((id) => db.collection("users").doc(id).get())
     );
     const driverEmails = driverDocs.map((d) => d.data()?.email).filter(Boolean);
-    const driverPushTokens = driverDocs.map((d) => d.data()?.pushToken).filter(Boolean);
 
     if (driverEmails.length > 0) {
       try {
@@ -414,12 +413,27 @@ exports.onTripRequestAssigned = onDocumentUpdated(
       }
     }
 
-    await sendExpoPush(
-      driverPushTokens,
-      "New Trip Assigned",
-      `${after.from} → ${after.to} on ${after.tripDate}`,
-      { type: "tripRequestAssigned", requestId: event.params.requestId }
-    );
+    // Each driver's app icon badge tracks their own count of assigned-but-
+    // not-started trips, so the push payload carries a per-driver badge
+    // number — this is what makes the badge correct even if the app is
+    // closed when the push lands, before the client ever gets a chance to
+    // recompute it itself.
+    for (const driverDoc of driverDocs) {
+      const pushToken = driverDoc.data()?.pushToken;
+      if (!pushToken) continue;
+      const assignedSnap = await db
+        .collection("tripRequests")
+        .where("assignedDriverIds", "array-contains", driverDoc.id)
+        .get();
+      const badge = assignedSnap.docs.filter((d) => d.data().status === "assigned").length;
+      await sendExpoPush(
+        [pushToken],
+        "New Trip Assigned",
+        `${after.from} → ${after.to} on ${after.tripDate}`,
+        { type: "tripRequestAssigned", requestId: event.params.requestId },
+        badge
+      );
+    }
   }
 );
 

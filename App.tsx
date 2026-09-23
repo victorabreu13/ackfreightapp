@@ -28,6 +28,7 @@ const linking = {
       DispatchNewRequest: "dispatch-new-request",
       MyTripRequests: "my-trip-requests",
       DriverTripRequestDetail: "my-trip-request",
+      TripHistory: "trip-history",
     },
   },
 };

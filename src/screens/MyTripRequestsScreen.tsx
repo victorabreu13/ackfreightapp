@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import { syncBadgeCount } from "../services/notifications";
 import { subscribeToDriverTripRequests } from "../services/tripRequests";
 import { TripRequest, TripRequestStatus } from "../types";
 
@@ -43,6 +44,7 @@ export default function MyTripRequestsScreen({ navigation }: any) {
         setRequests(data.filter((r) => r.status !== "cancelled"));
         setError(null);
         setLoading(false);
+        syncBadgeCount(user.uid);
       },
       (err) => {
         console.error("subscribeToDriverTripRequests error:", err);

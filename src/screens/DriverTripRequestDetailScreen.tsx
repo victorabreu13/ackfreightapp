@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import TripRequestReadOnly from "../components/TripRequestReadOnly";
 import { useAuth } from "../context/AuthContext";
+import { syncBadgeCount } from "../services/notifications";
 import { uploadProofFile } from "../services/storage";
 import { checkDuplicateUld, createTrip } from "../services/trips";
 import { completeTripRequest, startTripRequest } from "../services/tripRequests";
@@ -125,6 +126,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
         try {
           await startTripRequest(request.id);
           setRequest((prev) => ({ ...prev, status: "in_progress" }));
+          if (user) syncBadgeCount(user.uid);
         } catch (e: any) {
           notify("Couldn't start trip", e?.message ?? "Something went wrong. Please try again.");
         } finally {
