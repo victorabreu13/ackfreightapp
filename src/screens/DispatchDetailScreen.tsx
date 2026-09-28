@@ -16,6 +16,7 @@ import {
   assignAwbDriver,
   setTripRequestStatus,
   subscribeToTripRequest,
+  updateAwbKilograms,
 } from "../services/tripRequests";
 import {
   computeTripRequestRollup,
@@ -46,6 +47,9 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
   const [drivers, setDrivers] = useState<UserProfile[]>([]);
   const [assigningIndex, setAssigningIndex] = useState<number | null>(null);
   const [changingStatus, setChangingStatus] = useState(false);
+  const [editingKgIndex, setEditingKgIndex] = useState<number | null>(null);
+  const [editKgValue, setEditKgValue] = useState("");
+  const [savingKg, setSavingKg] = useState(false);
 
   // Live-subscribed so status changes and driver location pings show up
   // without backing out and reopening — the various optimistic setRequest
@@ -175,6 +179,32 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
     doAssign(awbIndex, driver);
   };
 
+  const startEditingKg = (awbIndex: number) => {
+    setEditingKgIndex(awbIndex);
+    setEditKgValue(String(request.awbLines[awbIndex].kilograms));
+  };
+
+  const saveKg = async (awbIndex: number) => {
+    const kilograms = parseFloat(editKgValue);
+    if (!kilograms || kilograms <= 0) {
+      notify("Enter a weight", "Enter a kilogram value greater than 0.");
+      return;
+    }
+    setSavingKg(true);
+    try {
+      await updateAwbKilograms(request.id, awbIndex, kilograms);
+      setRequest((prev) => ({
+        ...prev,
+        awbLines: prev.awbLines.map((line, i) => (i === awbIndex ? { ...line, kilograms } : line)),
+      }));
+      setEditingKgIndex(null);
+    } catch (e: any) {
+      notify("Couldn't save weight", e?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setSavingKg(false);
+    }
+  };
+
   const changeStatus = (status: TripRequestStatus, confirmTitle: string) => {
     confirmAction(
       { title: confirmTitle, confirmLabel: "Confirm", destructive: status === "cancelled" },
@@ -239,6 +269,46 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
           );
         })
       )}
+
+      <Text style={styles.sectionTitle}>AWB Weights</Text>
+      <Text style={styles.sectionHint}>
+        Fix a customer's typo before invoicing — billing by kilogram uses this value.
+      </Text>
+      {request.awbLines.map((line, i) => (
+        <View key={i} style={styles.awbAssignRow}>
+          <Text style={styles.awbAssignLabel}>{line.awbNumber}</Text>
+          {editingKgIndex === i ? (
+            <View style={styles.kgEditRow}>
+              <TextInput
+                style={styles.kgInput}
+                keyboardType="numeric"
+                value={editKgValue}
+                onChangeText={setEditKgValue}
+                autoFocus
+              />
+              <Text style={styles.kgUnit}>kg</Text>
+              <TouchableOpacity
+                style={styles.saveRateButton}
+                onPress={() => saveKg(i)}
+                disabled={savingKg}
+              >
+                {savingKg ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.saveRateButtonText}>Save</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setEditingKgIndex(null)}>
+                <Text style={styles.cancelRateText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={() => startEditingKg(i)}>
+              <Text style={styles.kgValueText}>{line.kilograms} kg · Edit</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ))}
 
       <Text style={styles.sectionTitle}>Billing</Text>
       {editingRate ? (
@@ -368,7 +438,21 @@ const styles = StyleSheet.create({
   statusBadgeText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   meta: { fontSize: 13, color: "#666", marginTop: 4 },
   sectionTitle: { fontSize: 15, fontWeight: "800", color: "#111", marginTop: 26, marginBottom: 10 },
+  sectionHint: { fontSize: 12, color: "#888", marginTop: -6, marginBottom: 10 },
   empty: { color: "#888", fontSize: 13 },
+  kgEditRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  kgInput: {
+    width: 80,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    fontSize: 14,
+  },
+  kgUnit: { fontSize: 13, color: "#666" },
+  kgValueText: { fontSize: 13, color: "#1d4ed8", fontWeight: "600" },
   awbAssignRow: {
     flexDirection: "row",
     justifyContent: "space-between",
