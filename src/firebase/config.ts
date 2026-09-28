@@ -1,4 +1,7 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
+// getReactNativePersistence exists at runtime for this SDK version but isn't
+// in its type declarations yet — safe to silence, not a real type error.
+// @ts-expect-error
 import { getAuth, getReactNativePersistence, initializeAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
@@ -32,7 +35,7 @@ export const functions = getFunctions(app);
 
 export const ADMIN_EMAILS = (process.env.EXPO_PUBLIC_ADMIN_EMAILS ?? "")
   .split(",")
-  .map((e) => e.trim().toLowerCase())
+  .map((e: string) => e.trim().toLowerCase())
   .filter(Boolean);
 
 export default app;
