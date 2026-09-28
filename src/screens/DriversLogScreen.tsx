@@ -4,6 +4,7 @@ import {
   FlatList,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -20,6 +21,7 @@ export default function DriversLogScreen({ navigation }: any) {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterDate, setFilterDate] = useState<Date | null>(new Date());
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const unsubscribe = subscribeToAllTrips(
@@ -32,11 +34,17 @@ export default function DriversLogScreen({ navigation }: any) {
     return unsubscribe;
   }, []);
 
+  // A search takes priority over the date filter — you're looking for one
+  // specific AWB wherever it is, not narrowing within the current date.
   const filteredTrips = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      return trips.filter((t) => t.awbNumber.toLowerCase().includes(q));
+    }
     if (!filterDate) return trips;
     const target = formatDate(filterDate);
     return trips.filter((t) => t.date === target);
-  }, [trips, filterDate]);
+  }, [trips, filterDate, searchQuery]);
 
   const driverCount = useMemo(
     () => new Set(filteredTrips.map((t) => t.driverId)).size,
@@ -59,33 +67,45 @@ export default function DriversLogScreen({ navigation }: any) {
         </View>
       </View>
 
-      <View style={styles.filterRow}>
-        <View style={styles.filterDateField}>
-          <DateField
-            value={filterDate ?? new Date()}
-            mode="date"
-            onChange={setFilterDate}
-            label={filterDate ? undefined : "All dates"}
-          />
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search by AWB #"
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        autoCapitalize="characters"
+      />
+
+      {!searchQuery.trim() && (
+        <View style={styles.filterRow}>
+          <View style={styles.filterDateField}>
+            <DateField
+              value={filterDate ?? new Date()}
+              mode="date"
+              onChange={setFilterDate}
+              label={filterDate ? undefined : "All dates"}
+            />
+          </View>
+          <TouchableOpacity
+            style={styles.filterButtonSecondary}
+            onPress={() => setFilterDate(new Date())}
+          >
+            <Text style={styles.filterButtonSecondaryText}>Today</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.filterButtonSecondary}
+            onPress={() => setFilterDate(null)}
+          >
+            <Text style={styles.filterButtonSecondaryText}>All</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.filterButtonSecondary}
-          onPress={() => setFilterDate(new Date())}
-        >
-          <Text style={styles.filterButtonSecondaryText}>Today</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.filterButtonSecondary}
-          onPress={() => setFilterDate(null)}
-        >
-          <Text style={styles.filterButtonSecondaryText}>All</Text>
-        </TouchableOpacity>
-      </View>
+      )}
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} />
       ) : filteredTrips.length === 0 ? (
-        <Text style={styles.empty}>No trips logged for this filter.</Text>
+        <Text style={styles.empty}>
+          {searchQuery.trim() ? "No trips match that AWB search." : "No trips logged for this filter."}
+        </Text>
       ) : (
         <FlatList
           data={filteredTrips}
@@ -119,6 +139,17 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: "800", color: "#111" },
   subtitle: { fontSize: 13, color: "#666" },
   signOut: { color: "#c0392b", fontSize: 14, fontWeight: "600" },
+  searchInput: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
   filterRow: {
     flexDirection: "row",
     gap: 8,
