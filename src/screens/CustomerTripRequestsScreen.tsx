@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -88,7 +89,7 @@ export default function CustomerTripRequestsScreen({ navigation }: any) {
 
       {requests.length > 0 && (
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, Platform.OS === "web" && styles.searchInputWeb]}
           placeholder="Search by AWB #"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -189,6 +190,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 4,
   },
+  searchInputWeb: { width: "25%" as any, minWidth: 160 },
   filterRow: {
     flexDirection: "row",
     flexWrap: "wrap",

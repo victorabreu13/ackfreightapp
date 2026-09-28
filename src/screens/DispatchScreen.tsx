@@ -164,7 +164,7 @@ export default function DispatchScreen({ navigation }: any) {
       )}
 
       <TextInput
-        style={styles.searchInput}
+        style={[styles.searchInput, Platform.OS === "web" && styles.searchInputWeb]}
         placeholder="Search by AWB #"
         value={searchQuery}
         onChangeText={setSearchQuery}
@@ -287,6 +287,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 8,
   },
+  searchInputWeb: { width: "25%" as any, minWidth: 160, marginHorizontal: 16 },
   filterRow: {
     flexDirection: "row",
     flexWrap: "wrap",
