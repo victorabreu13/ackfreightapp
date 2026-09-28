@@ -1,6 +1,16 @@
 import React from "react";
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { TripRequest } from "../types";
+import LiveTrackingSection from "./LiveTrackingSection";
+import { TripRequest, TripRequestStatus } from "../types";
+
+const LINE_STATUS_LABELS: Record<TripRequestStatus, string> = {
+  submitted: "Unassigned",
+  assigned: "Assigned",
+  in_progress: "In Progress",
+  completed: "Completed",
+  invoiced: "Invoiced",
+  cancelled: "Cancelled",
+};
 
 export default function TripRequestReadOnly({ request }: { request: TripRequest }) {
   return (
@@ -11,16 +21,29 @@ export default function TripRequestReadOnly({ request }: { request: TripRequest 
           {request.from} → {request.to} · {request.tripDate}
         </Text>
       </View>
+      {!!request.pickupTime && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Pick up time</Text>
+          <Text style={styles.sectionValue}>{request.pickupTime}</Text>
+        </View>
+      )}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Person requesting</Text>
         <Text style={styles.sectionValue}>{request.personRequesting}</Text>
       </View>
+
+      <LiveTrackingSection request={request} />
 
       <Text style={styles.sectionTitle}>AWBs</Text>
       {request.awbLines.map((line, i) => (
         <View key={i} style={styles.awbCard}>
           <Text style={styles.awbTitle}>
             {line.awbNumber} · {line.type} · {line.qtyPieces} pcs · {line.kilograms} kg
+          </Text>
+          <Text style={styles.awbAssignment}>
+            {line.assignedDriverName ? `Assigned to: ${line.assignedDriverName}` : "Unassigned"}
+            {" · "}
+            {LINE_STATUS_LABELS[line.status] ?? line.status}
           </Text>
           {[
             ["AWB document", line.awbFile],
@@ -70,7 +93,8 @@ const styles = StyleSheet.create({
   sectionValue: { fontSize: 16, color: "#111", marginTop: 4 },
   sectionTitle: { fontSize: 15, fontWeight: "800", color: "#111", marginTop: 26, marginBottom: 10 },
   awbCard: { backgroundColor: "#f0f2fa", borderRadius: 12, padding: 14, marginBottom: 12 },
-  awbTitle: { fontSize: 14, fontWeight: "700", color: "#111", marginBottom: 6 },
+  awbTitle: { fontSize: 14, fontWeight: "700", color: "#111", marginBottom: 2 },
+  awbAssignment: { fontSize: 12, color: "#666", marginBottom: 6 },
   docRow: {
     flexDirection: "row",
     justifyContent: "space-between",

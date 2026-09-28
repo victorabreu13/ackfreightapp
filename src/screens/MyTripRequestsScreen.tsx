@@ -10,7 +10,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { syncBadgeCount } from "../services/notifications";
 import { subscribeToDriverTripRequests } from "../services/tripRequests";
-import { TripRequest, TripRequestStatus } from "../types";
+import { computeTripRequestRollup, TripRequest, TripRequestStatus } from "../types";
 
 const STATUS_LABELS: Record<TripRequestStatus, string> = {
   submitted: "Submitted",
@@ -74,33 +74,40 @@ export default function MyTripRequestsScreen({ navigation }: any) {
           data={requests}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingVertical: 8 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() =>
-                navigation.navigate("DriverTripRequestDetail", { request: item })
-              }
-            >
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardDate}>{item.tripDate}</Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: STATUS_COLORS[item.status] },
-                  ]}
-                >
-                  <Text style={styles.statusBadgeText}>{STATUS_LABELS[item.status]}</Text>
+          renderItem={({ item }) => {
+            // Show this driver's own progress, not the trip's overall rollup
+            // — another driver's lines on the same request can be at a
+            // completely different stage.
+            const myLines = item.awbLines.filter((l) => l.assignedDriverId === user?.uid);
+            const myStatus = computeTripRequestRollup(myLines).status;
+            return (
+              <TouchableOpacity
+                style={styles.card}
+                onPress={() =>
+                  navigation.navigate("DriverTripRequestDetail", { request: item })
+                }
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardDate}>{item.tripDate}</Text>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: STATUS_COLORS[myStatus] },
+                    ]}
+                  >
+                    <Text style={styles.statusBadgeText}>{STATUS_LABELS[myStatus]}</Text>
+                  </View>
                 </View>
-              </View>
-              <Text style={styles.cardCustomer}>{item.customerName}</Text>
-              <Text style={styles.cardRoute}>
-                {item.from} → {item.to}
-              </Text>
-              <Text style={styles.cardMeta}>
-                {item.awbLines.length} AWB{item.awbLines.length === 1 ? "" : "s"}
-              </Text>
-            </TouchableOpacity>
-          )}
+                <Text style={styles.cardCustomer}>{item.customerName}</Text>
+                <Text style={styles.cardRoute}>
+                  {item.from} → {item.to}
+                </Text>
+                <Text style={styles.cardMeta}>
+                  {myLines.length} AWB{myLines.length === 1 ? "" : "s"} assigned to you
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
         />
       )}
     </View>

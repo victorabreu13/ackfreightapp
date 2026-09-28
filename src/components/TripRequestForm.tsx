@@ -1,4 +1,3 @@
-import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import React, { useState } from "react";
 import {
@@ -11,12 +10,18 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AwbDriverPicker from "./AwbDriverPicker";
+import DateField from "./DateField";
 import { uploadTripRequestFile } from "../services/storage";
-import { AwbLine, RequestFile, ULD_TYPES, UldType, newAwbLine } from "../types";
+import { AwbLine, RequestFile, ULD_TYPES, UldType, UserProfile, newAwbLine } from "../types";
 import { notify } from "../utils/alert";
 
 function formatDate(d: Date) {
   return d.toISOString().slice(0, 10);
+}
+
+function formatTime(d: Date) {
+  return d.toTimeString().slice(0, 5);
 }
 
 // Each file slot is either untouched (uploaded, from a previous save),
@@ -36,6 +41,12 @@ interface LineState {
   awbSlot: Slot;
   loaSlot: Slot;
   doSlot: Slot;
+  // Carried through untouched on edit so a customer editing AWB details
+  // never wipes out Dispatch's existing driver assignment; only settable via
+  // the driverAssignment prop (Dispatch's new-request flow).
+  assignedDriverId: string | null;
+  assignedDriverName: string | null;
+  status: AwbLine["status"];
 }
 
 function lineFromAwbLine(line?: AwbLine): LineState {
@@ -47,12 +58,16 @@ function lineFromAwbLine(line?: AwbLine): LineState {
     awbSlot: line?.awbFile ? { kind: "uploaded", file: line.awbFile } : { kind: "empty" },
     loaSlot: line?.loaFile ? { kind: "uploaded", file: line.loaFile } : { kind: "empty" },
     doSlot: line?.doFile ? { kind: "uploaded", file: line.doFile } : { kind: "empty" },
+    assignedDriverId: line?.assignedDriverId ?? null,
+    assignedDriverName: line?.assignedDriverName ?? null,
+    status: line?.status ?? "submitted",
   };
 }
 
 export interface TripRequestFormValues {
   tripDate: string;
   from: string;
+  pickupTime: string;
   to: string;
   personRequesting: string;
   awbLines: AwbLine[];
@@ -65,6 +80,7 @@ interface Props {
   initial?: {
     tripDate: string;
     from: string;
+    pickupTime: string;
     to: string;
     personRequesting: string;
     awbLines: AwbLine[];
@@ -73,6 +89,10 @@ interface Props {
   submitLabel: string;
   onSubmit: (values: TripRequestFormValues) => Promise<void>;
   footer?: React.ReactNode;
+  // When provided, each AWB card gets a driver-assignment picker — used only
+  // by Dispatch's new-request flow. Customer flows omit this and their cards
+  // render unchanged.
+  driverAssignment?: { drivers: UserProfile[] };
 }
 
 const MAX_AWB_LINES = 10;
@@ -84,12 +104,15 @@ export default function TripRequestForm({
   submitLabel,
   onSubmit,
   footer,
+  driverAssignment,
 }: Props) {
   const [tripDate, setTripDate] = useState(
     initial ? new Date(`${initial.tripDate}T00:00:00`) : new Date()
   );
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [from, setFrom] = useState(initial?.from ?? "");
+  const [pickupTime, setPickupTime] = useState(
+    initial?.pickupTime ? new Date(`2000-01-01T${initial.pickupTime}:00`) : new Date()
+  );
   const [to, setTo] = useState(initial?.to ?? "");
   const [personRequesting, setPersonRequesting] = useState(
     initial?.personRequesting ?? ""
@@ -187,6 +210,9 @@ export default function TripRequestForm({
           awbFile,
           loaFile,
           doFile,
+          assignedDriverId: l.assignedDriverId,
+          assignedDriverName: l.assignedDriverName,
+          status: l.status,
         });
       }
 
@@ -199,6 +225,7 @@ export default function TripRequestForm({
       await onSubmit({
         tripDate: formatDate(tripDate),
         from: from.trim(),
+        pickupTime: formatTime(pickupTime),
         to: to.trim(),
         personRequesting: personRequesting.trim(),
         awbLines,
@@ -212,27 +239,9 @@ export default function TripRequestForm({
   };
 
   return (
-    <View>
+    <View style={Platform.OS === "web" && styles.webContainer}>
       <Text style={styles.label}>Date of trip</Text>
-      <TouchableOpacity style={styles.pickerButton} onPress={() => setShowDatePicker(true)}>
-        <Text style={styles.pickerText}>{formatDate(tripDate)}</Text>
-      </TouchableOpacity>
-      {showDatePicker && (
-        <DateTimePicker
-          value={tripDate}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={(_, selected) => {
-            setShowDatePicker(Platform.OS === "ios");
-            if (selected) setTripDate(selected);
-          }}
-        />
-      )}
-      {showDatePicker && Platform.OS === "ios" && (
-        <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.doneButton}>
-          <Text style={styles.doneButtonText}>Done</Text>
-        </TouchableOpacity>
-      )}
+      <DateField value={tripDate} mode="date" onChange={setTripDate} />
 
       <View style={styles.row}>
         <View style={styles.half}>
@@ -245,9 +254,12 @@ export default function TripRequestForm({
         </View>
       </View>
 
+      <Text style={styles.label}>Pick up Time</Text>
+      <DateField value={pickupTime} mode="time" onChange={setPickupTime} />
+
       <Text style={styles.label}>Person requesting the trip</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, Platform.OS === "web" && styles.quarterWidthWeb]}
         placeholder="Full name"
         value={personRequesting}
         onChangeText={setPersonRequesting}
@@ -267,7 +279,7 @@ export default function TripRequestForm({
 
           <Text style={styles.label}>AWB #</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, Platform.OS === "web" && styles.quarterWidthWeb]}
             placeholder="e.g. AWB-102938"
             value={line.awbNumber}
             onChangeText={(v) => updateLine(i, { awbNumber: v })}
@@ -319,6 +331,23 @@ export default function TripRequestForm({
             onPick={() => pickForSlot((s) => updateLine(i, { doSlot: s }))}
             onRemove={() => updateLine(i, { doSlot: { kind: "empty" } })}
           />
+
+          {driverAssignment && (
+            <>
+              <Text style={styles.label}>Driver</Text>
+              <AwbDriverPicker
+                drivers={driverAssignment.drivers}
+                assignedDriverName={line.assignedDriverName}
+                onSelect={(driver) =>
+                  updateLine(i, {
+                    assignedDriverId: driver?.uid ?? null,
+                    assignedDriverName: driver?.name ?? null,
+                    status: driver ? "assigned" : "submitted",
+                  })
+                }
+              />
+            </>
+          )}
         </View>
       ))}
 
@@ -418,6 +447,7 @@ function FileSlotRow({
 }
 
 const styles = StyleSheet.create({
+  webContainer: { width: "50%" as any, minWidth: 480, alignSelf: "flex-start" },
   label: { fontSize: 13, fontWeight: "700", color: "#444", marginTop: 16, marginBottom: 6 },
   sectionTitle: {
     fontSize: 15,
@@ -438,8 +468,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   pickerText: { fontSize: 15, color: "#111" },
-  doneButton: { alignSelf: "flex-end", padding: 8 },
-  doneButtonText: { color: "#1d4ed8", fontWeight: "700" },
   input: {
     backgroundColor: "#fff",
     borderRadius: 10,
@@ -449,6 +477,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
   },
+  quarterWidthWeb: { width: "25%" as any, minWidth: 160 },
   awbCard: {
     backgroundColor: "#f0f2fa",
     borderRadius: 12,

@@ -1,14 +1,16 @@
 import {
   addDoc,
   collection,
+  doc,
   onSnapshot,
   orderBy,
   query,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import { HttpsCallable, httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "../firebase/config";
-import { NewTripInput, Trip } from "../types";
+import { DeletedTrip, NewTripInput, Trip } from "../types";
 
 const tripsCollection = collection(db, "trips");
 
@@ -64,12 +66,36 @@ export async function deleteTrip(tripId: string): Promise<void> {
   await callWithFreshToken(deleteTripFn, { tripId });
 }
 
+const listDeletedTripsFn = httpsCallable<void, { deletedTrips: DeletedTrip[] }>(
+  functions,
+  "listDeletedTrips"
+);
+
+export async function listDeletedTrips(): Promise<DeletedTrip[]> {
+  const result = await callWithFreshToken(listDeletedTripsFn, undefined);
+  return result.deletedTrips;
+}
+
+const restoreDeletedTripFn = httpsCallable<
+  { deletedTripId: string },
+  { success: boolean; tripId: string }
+>(functions, "restoreDeletedTrip");
+
+export async function restoreDeletedTrip(deletedTripId: string): Promise<void> {
+  await callWithFreshToken(restoreDeletedTripFn, { deletedTripId });
+}
+
 export async function createTrip(input: NewTripInput): Promise<string> {
   const docRef = await addDoc(tripsCollection, {
     ...input,
+    paid: false,
     createdAt: Date.now(),
   });
   return docRef.id;
+}
+
+export async function setTripPaid(tripId: string, paid: boolean): Promise<void> {
+  await updateDoc(doc(db, "trips", tripId), { paid });
 }
 
 export function subscribeToDriverTrips(

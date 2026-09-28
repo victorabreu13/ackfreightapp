@@ -1,11 +1,9 @@
-import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import DateField from "../components/DateField";
 import { useAuth } from "../context/AuthContext";
 import { checkDuplicateUld, createTrip } from "../services/trips";
 import { uploadProofFile } from "../services/storage";
@@ -39,9 +38,6 @@ export default function NewTripScreen({ navigation }: any) {
   const [date, setDate] = useState(new Date());
   const [timeStart, setTimeStart] = useState(new Date());
   const [timeFinish, setTimeFinish] = useState(new Date());
-  const [showPicker, setShowPicker] = useState<
-    "date" | "start" | "finish" | null
-  >(null);
 
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -50,6 +46,7 @@ export default function NewTripScreen({ navigation }: any) {
   const [uldNumbers, setUldNumbers] = useState<string[]>([""]);
   const [typeModalIndex, setTypeModalIndex] = useState<number | null>(null);
   const [awbNumber, setAwbNumber] = useState("");
+  const [kilograms, setKilograms] = useState("");
   const [notes, setNotes] = useState("");
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -214,6 +211,7 @@ export default function NewTripScreen({ navigation }: any) {
         unitTypes,
         uldNumbers: trimmedUlds,
         awbNumber: awbNumber.trim(),
+        kilograms: parseFloat(kilograms) || 0,
         notes: notes.trim(),
         proofFiles: uploaded,
       });
@@ -237,50 +235,18 @@ export default function NewTripScreen({ navigation }: any) {
       </TouchableOpacity>
 
       <Text style={styles.label}>Date</Text>
-      <TouchableOpacity style={styles.pickerButton} onPress={() => setShowPicker("date")}>
-        <Text style={styles.pickerText}>{formatDate(date)}</Text>
-      </TouchableOpacity>
+      <DateField value={date} mode="date" onChange={setDate} />
 
       <View style={styles.row}>
         <View style={styles.half}>
           <Text style={styles.label}>Time start</Text>
-          <TouchableOpacity style={styles.pickerButton} onPress={() => setShowPicker("start")}>
-            <Text style={styles.pickerText}>{formatTime(timeStart)}</Text>
-          </TouchableOpacity>
+          <DateField value={timeStart} mode="time" onChange={setTimeStart} />
         </View>
         <View style={styles.half}>
           <Text style={styles.label}>Time finish</Text>
-          <TouchableOpacity style={styles.pickerButton} onPress={() => setShowPicker("finish")}>
-            <Text style={styles.pickerText}>{formatTime(timeFinish)}</Text>
-          </TouchableOpacity>
+          <DateField value={timeFinish} mode="time" onChange={setTimeFinish} />
         </View>
       </View>
-
-      {showPicker && (
-        <DateTimePicker
-          value={
-            showPicker === "date"
-              ? date
-              : showPicker === "start"
-              ? timeStart
-              : timeFinish
-          }
-          mode={showPicker === "date" ? "date" : "time"}
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={(_, selected) => {
-            if (Platform.OS === "android") setShowPicker(null);
-            if (!selected) return;
-            if (showPicker === "date") setDate(selected);
-            if (showPicker === "start") setTimeStart(selected);
-            if (showPicker === "finish") setTimeFinish(selected);
-          }}
-        />
-      )}
-      {showPicker && Platform.OS === "ios" && (
-        <TouchableOpacity onPress={() => setShowPicker(null)} style={styles.doneButton}>
-          <Text style={styles.doneButtonText}>Done</Text>
-        </TouchableOpacity>
-      )}
 
       <View style={styles.row}>
         <View style={styles.half}>
@@ -384,6 +350,15 @@ export default function NewTripScreen({ navigation }: any) {
         autoCapitalize="characters"
       />
 
+      <Text style={styles.label}>Kilograms</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Total weight for this trip"
+        keyboardType="numeric"
+        value={kilograms}
+        onChangeText={setKilograms}
+      />
+
       <Text style={styles.label}>Notes (optional)</Text>
       <TextInput
         style={[styles.input, styles.notesInput]}
@@ -448,8 +423,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   pickerText: { fontSize: 15, color: "#111" },
-  doneButton: { alignSelf: "flex-end", padding: 8 },
-  doneButtonText: { color: "#1d4ed8", fontWeight: "700" },
   input: {
     backgroundColor: "#fff",
     borderRadius: 10,

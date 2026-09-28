@@ -4,17 +4,32 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import AwbDriverPicker from "../components/AwbDriverPicker";
 import TripRequestReadOnly from "../components/TripRequestReadOnly";
-import { subscribeToDrivers } from "../services/users";
+import { sendQuickBooksInvoice } from "../services/quickbooks";
+import { getUserProfile, setCustomerBillRate, subscribeToDrivers } from "../services/users";
 import {
-  assignDriversToTripRequest,
+  assignAwbDriver,
   setTripRequestStatus,
+  subscribeToTripRequest,
 } from "../services/tripRequests";
-import { TripRequest, TripRequestStatus, UserProfile } from "../types";
+import {
+  computeTripRequestRollup,
+  DriverPayType,
+  TripRequest,
+  TripRequestStatus,
+  UserProfile,
+} from "../types";
 import { confirmAction, notify } from "../utils/alert";
+
+const BILL_TYPE_LABELS: Record<DriverPayType, string> = {
+  perTrip: "per trip",
+  perKilogram: "per kilogram",
+};
 
 const STATUS_LABELS: Record<TripRequestStatus, string> = {
   submitted: "Submitted",
@@ -29,11 +44,28 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
   const initialRequest: TripRequest = route.params.request;
   const [request, setRequest] = useState(initialRequest);
   const [drivers, setDrivers] = useState<UserProfile[]>([]);
-  const [selectedDriverIds, setSelectedDriverIds] = useState<string[]>(
-    initialRequest.assignedDriverIds
-  );
-  const [assigning, setAssigning] = useState(false);
+  const [assigningIndex, setAssigningIndex] = useState<number | null>(null);
   const [changingStatus, setChangingStatus] = useState(false);
+
+  // Live-subscribed so status changes and driver location pings show up
+  // without backing out and reopening — the various optimistic setRequest
+  // calls elsewhere in this screen just get reconciled to the same data
+  // shortly after this fires.
+  useEffect(() => {
+    const unsubscribe = subscribeToTripRequest(
+      initialRequest.id,
+      setRequest,
+      (err) => console.error("subscribeToTripRequest error:", err)
+    );
+    return unsubscribe;
+  }, [initialRequest.id]);
+
+  const [customer, setCustomer] = useState<UserProfile | null>(null);
+  const [editingRate, setEditingRate] = useState(false);
+  const [editBillType, setEditBillType] = useState<DriverPayType>("perTrip");
+  const [editBillRate, setEditBillRate] = useState("");
+  const [savingRate, setSavingRate] = useState(false);
+  const [sendingInvoice, setSendingInvoice] = useState(false);
 
   useEffect(() => {
     const unsubscribe = subscribeToDrivers(
@@ -46,35 +78,101 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
     return unsubscribe;
   }, []);
 
-  const toggleDriver = (uid: string) => {
-    setSelectedDriverIds((prev) =>
-      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
-    );
+  useEffect(() => {
+    getUserProfile(request.customerId)
+      .then(setCustomer)
+      .catch((err) => console.error("getUserProfile error:", err));
+  }, [request.customerId]);
+
+  const startEditingRate = () => {
+    setEditBillType(customer?.billType ?? "perTrip");
+    setEditBillRate(customer?.billRate ? String(customer.billRate) : "");
+    setEditingRate(true);
   };
 
-  const handleAssign = async () => {
-    if (selectedDriverIds.length === 0) {
-      notify("Select a driver", "Choose at least one driver to assign.");
+  const saveRate = async () => {
+    const rate = parseFloat(editBillRate);
+    if (!rate || rate <= 0) {
+      notify("Enter a rate", "Enter a rate greater than 0.");
       return;
     }
-    setAssigning(true);
+    setSavingRate(true);
     try {
-      const names = drivers
-        .filter((d) => selectedDriverIds.includes(d.uid))
-        .map((d) => d.name);
-      await assignDriversToTripRequest(request.id, selectedDriverIds, names);
+      await setCustomerBillRate(request.customerId, editBillType, rate);
+      setCustomer((prev) => (prev ? { ...prev, billType: editBillType, billRate: rate } : prev));
+      setEditingRate(false);
+    } catch (e: any) {
+      notify("Couldn't save rate", e?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setSavingRate(false);
+    }
+  };
+
+  const handleSendInvoice = async () => {
+    setSendingInvoice(true);
+    try {
+      const result = await sendQuickBooksInvoice(request.id);
       setRequest((prev) => ({
         ...prev,
-        assignedDriverIds: selectedDriverIds,
-        assignedDriverNames: names,
-        status: "assigned",
+        status: "invoiced",
+        quickbooksInvoiceId: result.invoiceId,
+        invoicedAt: Date.now(),
       }));
-      notify("Assigned", "Driver(s) assigned and the customer's status updated.");
+      notify(
+        result.emailSent ? "Invoice sent" : "Invoice created",
+        result.emailSent
+          ? `Invoice${result.invoiceNumber ? ` #${result.invoiceNumber}` : ""} for $${result.amount.toFixed(2)} was created and emailed via QuickBooks.`
+          : `Invoice${result.invoiceNumber ? ` #${result.invoiceNumber}` : ""} for $${result.amount.toFixed(2)} was created in QuickBooks, but the automatic email failed — send it manually from QuickBooks.`
+      );
+    } catch (e: any) {
+      notify("Couldn't send invoice", e?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setSendingInvoice(false);
+    }
+  };
+
+  const doAssign = async (awbIndex: number, driver: UserProfile | null) => {
+    setAssigningIndex(awbIndex);
+    try {
+      await assignAwbDriver(request.id, awbIndex, driver?.uid ?? null, driver?.name ?? null);
+      setRequest((prev) => {
+        const awbLines = prev.awbLines.map((line, i) =>
+          i === awbIndex
+            ? {
+                ...line,
+                assignedDriverId: driver?.uid ?? null,
+                assignedDriverName: driver?.name ?? null,
+                // Reassigning always lands on {submitted, assigned} — even a
+                // line that was mid-trip resets here so the new driver has
+                // to tap Start themselves, rather than inheriting someone
+                // else's in-progress state.
+                status: driver ? ("assigned" as const) : ("submitted" as const),
+              }
+            : line
+        );
+        return { ...prev, awbLines, ...computeTripRequestRollup(awbLines) };
+      });
     } catch (e: any) {
       notify("Couldn't assign", e?.message ?? "Something went wrong. Please try again.");
     } finally {
-      setAssigning(false);
+      setAssigningIndex(null);
     }
+  };
+
+  const handleAssign = (awbIndex: number, driver: UserProfile | null) => {
+    const line = request.awbLines[awbIndex];
+    if (line.status === "in_progress") {
+      confirmAction(
+        {
+          title: "Reassign an in-progress AWB?",
+          message: `${line.assignedDriverName ?? "The current driver"} already started this AWB. Reassigning resets it back to "Assigned" for ${driver?.name ?? "the new driver"}, who will need to tap Start again.`,
+          confirmLabel: "Reassign",
+        },
+        () => doAssign(awbIndex, driver)
+      );
+      return;
+    }
+    doAssign(awbIndex, driver);
   };
 
   const changeStatus = (status: TripRequestStatus, confirmTitle: string) => {
@@ -114,42 +212,97 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
 
       <TripRequestReadOnly request={request} />
 
-      {(request.status === "submitted" || request.status === "assigned") && (
-        <>
-          <Text style={styles.sectionTitle}>Assign Driver(s)</Text>
-          {drivers.length === 0 ? (
-            <Text style={styles.empty}>No drivers found.</Text>
-          ) : (
-            drivers.map((d) => {
-              const selected = selectedDriverIds.includes(d.uid);
-              return (
-                <TouchableOpacity
-                  key={d.uid}
-                  style={[styles.driverRow, selected && styles.driverRowSelected]}
-                  onPress={() => toggleDriver(d.uid)}
-                >
-                  <Text style={[styles.driverName, selected && styles.driverNameSelected]}>
-                    {selected ? "☑" : "☐"} {d.name}
-                  </Text>
-                  <Text style={styles.driverEmail}>{d.email}</Text>
-                </TouchableOpacity>
-              );
-            })
-          )}
-          <TouchableOpacity
-            style={styles.assignButton}
-            onPress={handleAssign}
-            disabled={assigning}
-          >
-            {assigning ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.assignButtonText}>
-                {request.assignedDriverIds.length > 0 ? "Update Assignment" : "Assign Driver(s)"}
+      <Text style={styles.sectionTitle}>Assign Drivers per AWB</Text>
+      {drivers.length === 0 ? (
+        <Text style={styles.empty}>No drivers found.</Text>
+      ) : (
+        request.awbLines.map((line, i) => {
+          // Completed lines already have a Trip Log entry tied to that
+          // driver, so those stay locked — in-progress ones can still be
+          // reassigned (e.g. swapping in a replacement driver), with a
+          // confirmation since it resets the line for the new driver.
+          const locked = line.status === "completed";
+          return (
+            <View key={i} style={styles.awbAssignRow}>
+              <Text style={styles.awbAssignLabel}>{line.awbNumber}</Text>
+              {assigningIndex === i ? (
+                <ActivityIndicator />
+              ) : (
+                <AwbDriverPicker
+                  drivers={drivers}
+                  assignedDriverName={line.assignedDriverName}
+                  onSelect={(driver) => handleAssign(i, driver)}
+                  disabled={locked}
+                />
+              )}
+            </View>
+          );
+        })
+      )}
+
+      <Text style={styles.sectionTitle}>Billing</Text>
+      {editingRate ? (
+        <View style={styles.rateEditor}>
+          <View style={styles.payTypeRow}>
+            <TouchableOpacity
+              style={[styles.payTypeButton, editBillType === "perTrip" && styles.payTypeButtonActive]}
+              onPress={() => setEditBillType("perTrip")}
+            >
+              <Text
+                style={[
+                  styles.payTypeButtonText,
+                  editBillType === "perTrip" && styles.payTypeButtonTextActive,
+                ]}
+              >
+                Per Trip
               </Text>
-            )}
-          </TouchableOpacity>
-        </>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.payTypeButton,
+                editBillType === "perKilogram" && styles.payTypeButtonActive,
+              ]}
+              onPress={() => setEditBillType("perKilogram")}
+            >
+              <Text
+                style={[
+                  styles.payTypeButtonText,
+                  editBillType === "perKilogram" && styles.payTypeButtonTextActive,
+                ]}
+              >
+                Per Kilogram
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.rateInputRow}>
+            <Text style={styles.dollarSign}>$</Text>
+            <TextInput
+              style={styles.rateInput}
+              keyboardType="numeric"
+              placeholder="0.00"
+              value={editBillRate}
+              onChangeText={setEditBillRate}
+            />
+            <TouchableOpacity style={styles.saveRateButton} onPress={saveRate} disabled={savingRate}>
+              {savingRate ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.saveRateButtonText}>Save</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setEditingRate(false)}>
+              <Text style={styles.cancelRateText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <TouchableOpacity onPress={startEditingRate}>
+          <Text style={styles.rateText}>
+            {customer?.billType && customer?.billRate
+              ? `${customer.name} is billed $${customer.billRate.toFixed(2)} ${BILL_TYPE_LABELS[customer.billType]} · Edit`
+              : "No billing rate set for this customer · Tap to set one"}
+          </Text>
+        </TouchableOpacity>
       )}
 
       <Text style={styles.sectionTitle}>Status</Text>
@@ -160,13 +313,31 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
       )}
       <View style={styles.statusActions}>
         {request.status === "completed" && (
-          <TouchableOpacity
-            style={styles.statusButton}
-            onPress={() => changeStatus("invoiced", "Mark this trip as invoiced?")}
-            disabled={changingStatus}
-          >
-            <Text style={styles.statusButtonText}>Mark Invoiced</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={styles.qbInvoiceButton}
+              onPress={handleSendInvoice}
+              disabled={sendingInvoice}
+            >
+              {sendingInvoice ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.qbInvoiceButtonText}>Send Invoice via QuickBooks</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.statusButton}
+              onPress={() => changeStatus("invoiced", "Mark this trip as invoiced?")}
+              disabled={changingStatus}
+            >
+              <Text style={styles.statusButtonText}>Mark Invoiced Manually</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        {request.status === "invoiced" && request.quickbooksInvoiceId && (
+          <Text style={styles.statusHint}>
+            ✅ Invoiced via QuickBooks{request.invoicedAt ? ` on ${new Date(request.invoicedAt).toISOString().slice(0, 10)}` : ""}.
+          </Text>
         )}
         {(request.status === "submitted" || request.status === "assigned") && (
           <TouchableOpacity
@@ -198,26 +369,48 @@ const styles = StyleSheet.create({
   meta: { fontSize: 13, color: "#666", marginTop: 4 },
   sectionTitle: { fontSize: 15, fontWeight: "800", color: "#111", marginTop: 26, marginBottom: 10 },
   empty: { color: "#888", fontSize: 13 },
-  driverRow: {
+  awbAssignRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  awbAssignLabel: { fontSize: 14, fontWeight: "700", color: "#111", flex: 1, marginRight: 10 },
+  rateText: { fontSize: 13, color: "#1d4ed8", fontWeight: "600" },
+  rateEditor: {},
+  payTypeRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  payTypeButton: {
+    flex: 1,
     backgroundColor: "#fff",
     borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
     borderWidth: 1,
     borderColor: "#ddd",
-  },
-  driverRowSelected: { backgroundColor: "#e8edff", borderColor: "#1d4ed8" },
-  driverName: { fontSize: 15, fontWeight: "700", color: "#111" },
-  driverNameSelected: { color: "#1d4ed8" },
-  driverEmail: { fontSize: 12, color: "#888", marginTop: 2 },
-  assignButton: {
-    backgroundColor: "#1d4ed8",
-    borderRadius: 10,
-    paddingVertical: 14,
+    paddingVertical: 8,
     alignItems: "center",
-    marginTop: 8,
   },
-  assignButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  payTypeButtonActive: { backgroundColor: "#1d4ed8", borderColor: "#1d4ed8" },
+  payTypeButtonText: { color: "#333", fontWeight: "600", fontSize: 13 },
+  payTypeButtonTextActive: { color: "#fff" },
+  rateInputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  dollarSign: { fontSize: 15, color: "#111", fontWeight: "700" },
+  rateInput: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    fontSize: 14,
+  },
+  saveRateButton: {
+    backgroundColor: "#1d4ed8",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  saveRateButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  cancelRateText: { color: "#888", fontWeight: "600", fontSize: 13 },
   statusHint: { fontSize: 13, color: "#888", marginBottom: 10 },
   statusActions: { gap: 10, marginBottom: 30 },
   statusButton: {
@@ -227,6 +420,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statusButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 15 },
+  qbInvoiceButton: {
+    backgroundColor: "#1d4ed8",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  qbInvoiceButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   cancelButton: {
     backgroundColor: "#fdecea",
     borderRadius: 10,

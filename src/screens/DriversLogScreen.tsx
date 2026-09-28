@@ -1,9 +1,7 @@
-import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,6 +9,7 @@ import {
 } from "react-native";
 import { subscribeToAllTrips } from "../services/trips";
 import { Trip } from "../types";
+import DateField from "../components/DateField";
 import TripCard from "../components/TripCard";
 
 function formatDate(d: Date) {
@@ -21,7 +20,6 @@ export default function DriversLogScreen({ navigation }: any) {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterDate, setFilterDate] = useState<Date | null>(new Date());
-  const [showPicker, setShowPicker] = useState(false);
 
   useEffect(() => {
     const unsubscribe = subscribeToAllTrips(
@@ -62,14 +60,14 @@ export default function DriversLogScreen({ navigation }: any) {
       </View>
 
       <View style={styles.filterRow}>
-        <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => setShowPicker(true)}
-        >
-          <Text style={styles.filterButtonText}>
-            {filterDate ? formatDate(filterDate) : "All dates"}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.filterDateField}>
+          <DateField
+            value={filterDate ?? new Date()}
+            mode="date"
+            onChange={setFilterDate}
+            label={filterDate ? undefined : "All dates"}
+          />
+        </View>
         <TouchableOpacity
           style={styles.filterButtonSecondary}
           onPress={() => setFilterDate(new Date())}
@@ -83,23 +81,6 @@ export default function DriversLogScreen({ navigation }: any) {
           <Text style={styles.filterButtonSecondaryText}>All</Text>
         </TouchableOpacity>
       </View>
-
-      {showPicker && (
-        <DateTimePicker
-          value={filterDate ?? new Date()}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={(_, selected) => {
-            setShowPicker(Platform.OS === "ios");
-            if (selected) setFilterDate(selected);
-          }}
-        />
-      )}
-      {showPicker && Platform.OS === "ios" && (
-        <TouchableOpacity onPress={() => setShowPicker(false)} style={styles.doneButton}>
-          <Text style={styles.doneButtonText}>Done</Text>
-        </TouchableOpacity>
-      )}
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} />
@@ -144,16 +125,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 4,
   },
-  filterButton: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  filterButtonText: { color: "#111", fontWeight: "600" },
+  filterDateField: { flex: 1 },
   filterButtonSecondary: {
     backgroundColor: "#e8edff",
     borderRadius: 10,
@@ -162,7 +134,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   filterButtonSecondaryText: { color: "#1d4ed8", fontWeight: "700" },
-  doneButton: { alignSelf: "flex-end", padding: 8, marginRight: 16 },
-  doneButtonText: { color: "#1d4ed8", fontWeight: "700" },
   empty: { textAlign: "center", color: "#888", marginTop: 40, paddingHorizontal: 40 },
 });

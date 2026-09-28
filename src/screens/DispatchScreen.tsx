@@ -2,13 +2,20 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import {
+  disconnectQuickBooks,
+  getQuickBooksConnectUrl,
+  getQuickBooksStatus,
+} from "../services/quickbooks";
 import { subscribeToAllTripRequests } from "../services/tripRequests";
 import { TripRequest, TripRequestStatus } from "../types";
+import { confirmAction, notify } from "../utils/alert";
 
 const STATUS_LABELS: Record<TripRequestStatus, string> = {
   submitted: "Submitted",
@@ -42,6 +49,12 @@ export default function DispatchScreen({ navigation }: any) {
   const [requests, setRequests] = useState<TripRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<TripRequestStatus | "all">("submitted");
+  const [qbStatus, setQbStatus] = useState<{
+    connected: boolean;
+    companyName?: string | null;
+    environment?: string;
+    realmId?: string;
+  } | null>(null);
 
   useEffect(() => {
     const unsubscribe = subscribeToAllTripRequests(
@@ -53,6 +66,46 @@ export default function DispatchScreen({ navigation }: any) {
     );
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    getQuickBooksStatus()
+      .then(setQbStatus)
+      .catch((err) => console.error("getQuickBooksStatus error:", err));
+  }, []);
+
+  const handleConnectQuickBooks = async () => {
+    // Open the tab synchronously (within the click event) so browsers don't
+    // treat it as a popup — the URL itself comes back from an async call,
+    // so we point this already-open tab at it once we have it.
+    const tab = window.open("", "_blank");
+    try {
+      const url = await getQuickBooksConnectUrl();
+      if (tab) tab.location.href = url;
+    } catch (e: any) {
+      if (tab) tab.close();
+      notify("Couldn't start QuickBooks connection", e?.message ?? "Something went wrong. Please try again.");
+    }
+  };
+
+  const handleDisconnectQuickBooks = () => {
+    confirmAction(
+      {
+        title: "Disconnect QuickBooks?",
+        message: "You'll need to reconnect before sending any more invoices.",
+        confirmLabel: "Disconnect",
+        destructive: true,
+      },
+      async () => {
+        try {
+          await disconnectQuickBooks();
+          setQbStatus({ connected: false });
+        } catch (e: any) {
+          notify("Couldn't disconnect", e?.message ?? "Something went wrong. Please try again.");
+        }
+      }
+    );
+  };
 
   const filtered = useMemo(
     () => (filter === "all" ? requests : requests.filter((r) => r.status === filter)),
@@ -79,6 +132,27 @@ export default function DispatchScreen({ navigation }: any) {
           <Text style={styles.newButtonText}>+ New Request</Text>
         </TouchableOpacity>
       </View>
+
+      {Platform.OS === "web" && qbStatus && (
+        <View style={styles.qbRow}>
+          {qbStatus.connected ? (
+            <>
+              <Text style={styles.qbConnectedText}>
+                ✅ QuickBooks connected{qbStatus.companyName ? ` · ${qbStatus.companyName}` : ""}
+                {qbStatus.environment === "sandbox" ? " (sandbox)" : ""}
+                {qbStatus.realmId ? ` · realmId: ${qbStatus.realmId}` : ""}
+              </Text>
+              <TouchableOpacity onPress={handleDisconnectQuickBooks}>
+                <Text style={styles.qbDisconnectText}>Disconnect</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity onPress={handleConnectQuickBooks}>
+              <Text style={styles.qbConnectText}>🔗 Connect QuickBooks to send invoices</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       <View style={styles.filterRow}>
         {FILTERS.map((f) => (
@@ -165,6 +239,20 @@ const styles = StyleSheet.create({
   newButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   title: { fontSize: 22, fontWeight: "800", color: "#111" },
   subtitle: { fontSize: 13, color: "#666" },
+  qbRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  qbConnectText: { color: "#1d4ed8", fontWeight: "700", fontSize: 13 },
+  qbConnectedText: { color: "#15803d", fontWeight: "600", fontSize: 13 },
+  qbDisconnectText: { color: "#c0392b", fontWeight: "600", fontSize: 12 },
   filterRow: {
     flexDirection: "row",
     flexWrap: "wrap",

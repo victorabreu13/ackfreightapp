@@ -22,11 +22,26 @@ const WEB_TILES = [
     label: "Drivers Record",
     description: "Trip counts per driver, for payroll",
   },
+  {
+    key: "DriverPayroll",
+    icon: "💵",
+    label: "Driver Payroll",
+    description: "What each driver is owed, and mark trips paid",
+  },
+  {
+    key: "DeletedTrips",
+    icon: "🗑️",
+    label: "Deleted Trips",
+    description: "Restore a trip that was deleted by mistake",
+  },
 ] as const;
 
-// The native app keeps a lighter menu for now — Drivers Record (heavier on
-// filters/tables) stays web-only.
-const NATIVE_TILES = WEB_TILES.filter((t) => t.key !== "DriversRecord");
+// The native app keeps a lighter menu for now — Drivers Record, Driver
+// Payroll, and Deleted Trips (heavier on filters/tables, or rarely needed
+// on the go) stay web-only.
+const NATIVE_TILES = WEB_TILES.filter(
+  (t) => t.key !== "DriversRecord" && t.key !== "DriverPayroll" && t.key !== "DeletedTrips"
+);
 
 const TILES = Platform.OS === "web" ? WEB_TILES : NATIVE_TILES;
 

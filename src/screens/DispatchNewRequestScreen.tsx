@@ -14,7 +14,7 @@ import TripRequestForm, {
 import { createCustomer } from "../services/customers";
 import { subscribeToCustomers, subscribeToDrivers } from "../services/users";
 import { createTripRequest, newTripRequestId } from "../services/tripRequests";
-import { UserProfile } from "../types";
+import { computeTripRequestRollup, UserProfile } from "../types";
 import { notify } from "../utils/alert";
 
 export default function DispatchNewRequestScreen({ navigation }: any) {
@@ -26,7 +26,6 @@ export default function DispatchNewRequestScreen({ navigation }: any) {
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [selectedDriverIds, setSelectedDriverIds] = useState<string[]>([]);
 
   useEffect(() => {
     const unsubCustomers = subscribeToCustomers(setCustomers, () => {});
@@ -36,12 +35,6 @@ export default function DispatchNewRequestScreen({ navigation }: any) {
       unsubDrivers();
     };
   }, []);
-
-  const toggleDriver = (uid: string) => {
-    setSelectedDriverIds((prev) =>
-      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
-    );
-  };
 
   const handleCreateCustomer = async () => {
     if (!newName.trim() || !newEmail.trim()) {
@@ -71,20 +64,17 @@ export default function DispatchNewRequestScreen({ navigation }: any) {
 
   const handleSubmit = async (values: TripRequestFormValues) => {
     if (!selectedCustomer) return;
-    const names = drivers
-      .filter((d) => selectedDriverIds.includes(d.uid))
-      .map((d) => d.name);
+    const rollup = computeTripRequestRollup(values.awbLines);
     await createTripRequest(requestId, {
       customerId: selectedCustomer.uid,
       customerName: selectedCustomer.name,
       customerEmail: selectedCustomer.email,
       submittedAt: Date.now(),
-      assignedDriverIds: selectedDriverIds,
-      assignedDriverNames: names,
-      status: selectedDriverIds.length > 0 ? "assigned" : "submitted",
+      ...rollup,
       ...values,
     });
-    navigation.goBack();
+    notify("Trip request created", `Request for ${selectedCustomer.name} has been created.`);
+    navigation.navigate("Dispatch");
   };
 
   const filteredCustomers = customers.filter((c) =>
@@ -162,31 +152,7 @@ export default function DispatchNewRequestScreen({ navigation }: any) {
             requestId={requestId}
             submitLabel="Create Trip Request"
             onSubmit={handleSubmit}
-            footer={
-              <>
-                <Text style={styles.sectionTitle}>
-                  Assign Driver(s) (optional — leave blank to dispatch later)
-                </Text>
-                {drivers.length === 0 ? (
-                  <Text style={styles.empty}>No drivers found.</Text>
-                ) : (
-                  drivers.map((d) => {
-                    const selected = selectedDriverIds.includes(d.uid);
-                    return (
-                      <TouchableOpacity
-                        key={d.uid}
-                        style={[styles.driverRow, selected && styles.driverRowSelected]}
-                        onPress={() => toggleDriver(d.uid)}
-                      >
-                        <Text style={[styles.driverName, selected && styles.driverNameSelected]}>
-                          {selected ? "☑" : "☐"} {d.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
-              </>
-            }
+            driverAssignment={{ drivers }}
           />
         </>
       )}
@@ -237,16 +203,4 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   changeText: { color: "#1d4ed8", fontWeight: "700", fontSize: 13 },
-  empty: { color: "#888", fontSize: 13 },
-  driverRow: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  driverRowSelected: { backgroundColor: "#e8edff", borderColor: "#1d4ed8" },
-  driverName: { fontSize: 15, fontWeight: "700", color: "#111" },
-  driverNameSelected: { color: "#1d4ed8" },
 });

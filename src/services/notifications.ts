@@ -52,7 +52,15 @@ export async function syncBadgeCount(driverId: string): Promise<void> {
       where("assignedDriverIds", "array-contains", driverId)
     );
     const snap = await getDocs(q);
-    const count = snap.docs.filter((d) => d.data().status === "assigned").length;
+    // Count by this driver's own AWB lines, not the trip's overall rollup
+    // status — another driver's lines on the same request can already be
+    // in_progress/completed while this driver's own lines are still waiting.
+    const count = snap.docs.filter((d) =>
+      (d.data().awbLines || []).some(
+        (l: { assignedDriverId: string; status: string }) =>
+          l.assignedDriverId === driverId && l.status === "assigned"
+      )
+    ).length;
     await Notifications.setBadgeCountAsync(count);
   } catch (err) {
     console.error("Failed to sync badge count:", err);

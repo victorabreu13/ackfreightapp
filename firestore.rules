@@ -13,24 +13,35 @@ service cloud.firestore {
     }
 
     // Users can read/create their own profile. Only the owner can create it
-    // (at sign-up); nobody can change their own role after that. The one
-    // exception is a user updating their own push-notification token.
+    // (at sign-up); nobody can change their own role after that. A user can
+    // update their own push-notification token; an admin can set a driver's
+    // payroll rate (payType/payRate) or a customer's billing rate
+    // (billType/billRate) — nothing else about another user's profile is
+    // writable from the client. quickbooksCustomerId is written only by the
+    // sendQuickBooksInvoice Cloud Function (Admin SDK bypasses these rules).
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn() && request.auth.uid == userId &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pushToken"]);
+      allow update: if isSignedIn() && (
+        (request.auth.uid == userId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pushToken"])) ||
+        (isAdmin() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+            ["payType", "payRate", "billType", "billRate"])));
       allow delete: if false;
     }
 
-    // Drivers can create and read their own trips. Admins can read every trip.
-    // Trips can't be edited or deleted directly by clients — deletion only
-    // happens through the deleteTrip Cloud Function, which audits it.
+    // Drivers can create and read their own trips. Admins can read every trip
+    // and toggle a trip's payroll-paid status. Trips can't otherwise be
+    // edited or deleted directly by clients — deletion only happens through
+    // the deleteTrip Cloud Function, which audits it.
     match /trips/{tripId} {
       allow create: if isSignedIn() && request.resource.data.driverId == request.auth.uid;
       allow read: if isSignedIn() &&
         (resource.data.driverId == request.auth.uid || isAdmin());
-      allow update, delete: if false;
+      allow update: if isSignedIn() && isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["paid"]);
+      allow delete: if false;
     }
 
     // Audit trail written only by the deleteTrip Cloud Function (Admin SDK
@@ -41,14 +52,28 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Customers submit and own their trip requests; admins (Dispatch, phase 2)
-    // can read, create (on a customer's behalf, e.g. a phone-in order) and
-    // update every request. A customer may keep editing their own request —
-    // including cancelling it — right up until it's Completed, Invoiced or
-    // already Cancelled, and can never touch driver assignment. The assigned
-    // driver(s) (phase 3) can move the request forward through exactly
-    // assigned -> in_progress -> completed, touching only the status field —
-    // Dispatch/the customer see that change live, no separate sync needed.
+    // QuickBooks OAuth tokens — holds a live access/refresh token pair that
+    // could act on the whole connected QuickBooks company, so no client
+    // (including admins) ever reads or writes it directly. Only the
+    // QuickBooks Cloud Functions touch it, via the Admin SDK.
+    match /quickbooksAuth/{docId} {
+      allow read, write: if false;
+    }
+
+    // Customers submit and own their trip requests; admins (Dispatch) can
+    // read, create (on a customer's behalf, e.g. a phone-in order) and update
+    // every request. A customer may keep editing their own request —
+    // including cancelling it — right up until a driver actually starts it
+    // (In Progress) or it's Completed, Invoiced or already Cancelled, and
+    // can never touch driver assignment. Each AWB line
+    // now carries its own driver assignment/status, so drivers no longer
+    // write to this collection directly — validating "only my own line in
+    // the array changed" isn't expressible in these rules. Instead the
+    // assigned driver moves their own lines forward (assigned -> in_progress
+    // -> completed) through the startMyAwbLines/completeMyAwbLines Cloud
+    // Functions, which use the Admin SDK and do their own per-line auth
+    // check in code. Drivers keep read access below so they can still see
+    // requests they're assigned to.
     function isOwnTripRequest() {
       return resource.data.customerId == request.auth.uid;
     }
@@ -58,7 +83,7 @@ service cloud.firestore {
     }
 
     function tripRequestLocked() {
-      return resource.data.status in ["completed", "invoiced", "cancelled"];
+      return resource.data.status in ["in_progress", "completed", "invoiced", "cancelled"];
     }
 
     function customerFieldsUnchanged() {
@@ -82,12 +107,7 @@ service cloud.firestore {
         (isOwnTripRequest() && !tripRequestLocked() &&
           customerFieldsUnchanged() &&
           (request.resource.data.status == resource.data.status ||
-            request.resource.data.status == "cancelled")) ||
-        (isAssignedDriver() &&
-          ((resource.data.status == "assigned" && request.resource.data.status == "in_progress" &&
-              request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"])) ||
-            (resource.data.status == "in_progress" && request.resource.data.status == "completed" &&
-              request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt", "tripLogId"])))));
+            request.resource.data.status == "cancelled")));
       allow delete: if false;
     }
   }

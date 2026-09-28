@@ -1,3 +1,4 @@
+import { sendPasswordResetEmail } from "firebase/auth";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -10,6 +11,8 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import { auth } from "../firebase/config";
+import { notify } from "../utils/alert";
 
 export default function LoginScreen({ navigation }: any) {
   const { signIn, authError } = useAuth();
@@ -17,6 +20,31 @@ export default function LoginScreen({ navigation }: any) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      notify("Enter your email", "Type your email address above first, then tap \"Forgot your password?\" again.");
+      return;
+    }
+    setSendingReset(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      notify(
+        "Check your email",
+        `We sent a password reset link to ${email.trim()}.`
+      );
+    } catch (e: any) {
+      notify(
+        "Couldn't send reset email",
+        e?.code === "auth/invalid-email"
+          ? "That email address doesn't look right."
+          : "Something went wrong. Please try again."
+      );
+    } finally {
+      setSendingReset(false);
+    }
+  };
 
   const handleLogin = async () => {
     setError("");
@@ -72,6 +100,12 @@ export default function LoginScreen({ navigation }: any) {
         ) : (
           <Text style={styles.buttonText}>Log In</Text>
         )}
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={handleForgotPassword} disabled={sendingReset}>
+        <Text style={styles.link}>
+          {sendingReset ? "Sending…" : "Forgot your password?"}
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity

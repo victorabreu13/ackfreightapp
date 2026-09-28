@@ -1,9 +1,7 @@
-import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -12,6 +10,7 @@ import {
 import { subscribeToAllTrips } from "../services/trips";
 import { subscribeToDrivers } from "../services/users";
 import { Trip, UserProfile } from "../types";
+import DateField from "../components/DateField";
 import { notify } from "../utils/alert";
 
 function toDateStr(d: Date) {
@@ -71,7 +70,6 @@ export default function DriversRecordScreen({ navigation }: any) {
   const [preset, setPreset] = useState<Preset>("thisWeek");
   const [customStart, setCustomStart] = useState(new Date());
   const [customEnd, setCustomEnd] = useState(new Date());
-  const [activePicker, setActivePicker] = useState<"start" | "end" | null>(null);
 
   useEffect(() => {
     const unsubTrips = subscribeToAllTrips(
@@ -188,35 +186,15 @@ export default function DriversRecordScreen({ navigation }: any) {
 
       {preset === "custom" && (
         <View style={styles.customRow}>
-          <TouchableOpacity style={styles.dateButton} onPress={() => setActivePicker("start")}>
+          <View style={styles.dateField}>
             <Text style={styles.dateButtonLabel}>From</Text>
-            <Text style={styles.dateButtonText}>{periodStartStr}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.dateButton} onPress={() => setActivePicker("end")}>
+            <DateField value={customStart} mode="date" onChange={setCustomStart} />
+          </View>
+          <View style={styles.dateField}>
             <Text style={styles.dateButtonLabel}>To</Text>
-            <Text style={styles.dateButtonText}>{periodEndStr}</Text>
-          </TouchableOpacity>
+            <DateField value={customEnd} mode="date" onChange={setCustomEnd} />
+          </View>
         </View>
-      )}
-
-      {activePicker && (
-        <DateTimePicker
-          value={activePicker === "start" ? customStart : customEnd}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={(_, selected) => {
-            setActivePicker(Platform.OS === "ios" ? activePicker : null);
-            if (selected) {
-              if (activePicker === "start") setCustomStart(selected);
-              else setCustomEnd(selected);
-            }
-          }}
-        />
-      )}
-      {activePicker && Platform.OS === "ios" && (
-        <TouchableOpacity onPress={() => setActivePicker(null)} style={styles.doneButton}>
-          <Text style={styles.doneButtonText}>Done</Text>
-        </TouchableOpacity>
       )}
 
       <Text style={styles.rangeLabel}>
@@ -278,19 +256,14 @@ const styles = StyleSheet.create({
   presetButtonText: { color: "#333", fontWeight: "600", fontSize: 13 },
   presetButtonTextActive: { color: "#fff" },
   customRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
-  dateButton: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+  dateField: { flex: 1 },
+  dateButtonLabel: {
+    fontSize: 11,
+    color: "#888",
+    fontWeight: "700",
+    textTransform: "uppercase",
+    marginBottom: 4,
   },
-  dateButtonLabel: { fontSize: 11, color: "#888", fontWeight: "700", textTransform: "uppercase" },
-  dateButtonText: { color: "#111", fontWeight: "600", fontSize: 15, marginTop: 2 },
-  doneButton: { alignSelf: "flex-end", padding: 8 },
-  doneButtonText: { color: "#1d4ed8", fontWeight: "700" },
   rangeLabel: { fontSize: 12, color: "#888", marginBottom: 14 },
   row: {
     flexDirection: "row",

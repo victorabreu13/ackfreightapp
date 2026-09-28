@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { Platform, View } from "react-native";
 import AppHeader from "./src/components/AppHeader";
+import AutoReload from "./src/components/AutoReload";
 import { AuthProvider } from "./src/context/AuthContext";
 import RootNavigator from "./src/navigation/RootNavigator";
 
@@ -20,7 +21,9 @@ const linking = {
       TripDetail: "trip",
       DriversLog: "drivers-log",
       DriversRecord: "drivers-record",
+      DriverPayroll: "driver-payroll",
       CustomerHome: "customer-home",
+      CustomerTripRequests: "customer-trip-requests",
       NewTripRequest: "new-trip-request",
       TripRequestDetail: "trip-request",
       Dispatch: "dispatch",
@@ -37,6 +40,7 @@ export default function App() {
   return (
     <AuthProvider>
       <View style={{ flex: 1 }}>
+        {Platform.OS === "web" && <AutoReload />}
         {Platform.OS === "web" && <AppHeader />}
         <NavigationContainer linking={linking}>
           <StatusBar style="dark" />

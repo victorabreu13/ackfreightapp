@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -10,7 +10,11 @@ import TripRequestForm, {
   TripRequestFormValues,
 } from "../components/TripRequestForm";
 import TripRequestReadOnly from "../components/TripRequestReadOnly";
-import { cancelTripRequest, updateTripRequest } from "../services/tripRequests";
+import {
+  cancelTripRequest,
+  subscribeToTripRequest,
+  updateTripRequest,
+} from "../services/tripRequests";
 import { TripRequest } from "../types";
 import { confirmAction, notify } from "../utils/alert";
 
@@ -23,7 +27,10 @@ const STATUS_LABELS: Record<TripRequest["status"], string> = {
   cancelled: "Cancelled",
 };
 
+// Matches firestore.rules' tripRequestLocked() — once a driver actually
+// starts the trip, the customer can no longer edit or cancel it.
 const LOCKED_STATUSES: TripRequest["status"][] = [
+  "in_progress",
   "completed",
   "invoiced",
   "cancelled",
@@ -33,6 +40,19 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
   const initialRequest: TripRequest = route.params.request;
   const [request, setRequest] = useState(initialRequest);
   const locked = LOCKED_STATUSES.includes(request.status);
+
+  // Live-subscribed so status changes and driver location pings show up
+  // without needing to back out and reopen this screen. TripRequestForm
+  // only reads its `initial` prop once on mount, so this doesn't clobber
+  // any unsaved edits the customer is mid-typing.
+  useEffect(() => {
+    const unsubscribe = subscribeToTripRequest(
+      initialRequest.id,
+      setRequest,
+      (err) => console.error("subscribeToTripRequest error:", err)
+    );
+    return unsubscribe;
+  }, [initialRequest.id]);
 
   const handleSubmit = async (values: TripRequestFormValues) => {
     await updateTripRequest(request.id, values);
@@ -87,25 +107,28 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
       {locked ? (
         <TripRequestReadOnly request={request} />
       ) : (
-        <TripRequestForm
-          customerId={request.customerId}
-          requestId={request.id}
-          initial={{
-            tripDate: request.tripDate,
-            from: request.from,
-            to: request.to,
-            personRequesting: request.personRequesting,
-            awbLines: request.awbLines,
-            importFeeFiles: request.importFeeFiles,
-          }}
-          submitLabel="Save Changes"
-          onSubmit={handleSubmit}
-          footer={
-            <TouchableOpacity style={styles.cancelButton} onPress={confirmCancel}>
-              <Text style={styles.cancelButtonText}>Cancel Request</Text>
-            </TouchableOpacity>
-          }
-        />
+        <>
+          <TripRequestForm
+            customerId={request.customerId}
+            requestId={request.id}
+            initial={{
+              tripDate: request.tripDate,
+              from: request.from,
+              pickupTime: request.pickupTime ?? "",
+              to: request.to,
+              personRequesting: request.personRequesting,
+              awbLines: request.awbLines,
+              importFeeFiles: request.importFeeFiles,
+            }}
+            submitLabel="Save Changes"
+            onSubmit={handleSubmit}
+            footer={
+              <TouchableOpacity style={styles.cancelButton} onPress={confirmCancel}>
+                <Text style={styles.cancelButtonText}>Cancel Request</Text>
+              </TouchableOpacity>
+            }
+          />
+        </>
       )}
     </ScrollView>
   );

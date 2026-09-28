@@ -16,6 +16,7 @@
       "infoPlist": {
         "NSCameraUsageInfo": "ACK Freight needs camera access so drivers can photograph proof of delivery documents.",
         "NSPhotoLibraryUsageInfo": "ACK Freight needs photo library access so drivers can attach proof of delivery photos.",
+        "NSLocationWhenInUseUsageDescription": "ACK Freight shares your location with dispatch and the customer while you have a trip in progress, so they can track it live.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -29,8 +30,15 @@
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.RECORD_AUDIO"
-      ]
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCXKoI3S_ZdqZPWP_k4Nuq4uxYDGmOvKk8"
+        }
+      }
     },
     "web": {
       "bundler": "metro"
@@ -48,6 +56,12 @@
         {
           "icon": "./assets/icon.png",
           "color": "#1d4ed8"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "ACK Freight shares your location with dispatch and the customer while you have a trip in progress, so they can track it live."
         }
       ]
     ],

@@ -4,9 +4,12 @@ import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import AdminDashboardScreen from "../screens/AdminDashboardScreen";
 import CustomerHomeScreen from "../screens/CustomerHomeScreen";
+import CustomerTripRequestsScreen from "../screens/CustomerTripRequestsScreen";
 import DispatchDetailScreen from "../screens/DispatchDetailScreen";
 import DispatchNewRequestScreen from "../screens/DispatchNewRequestScreen";
 import DispatchScreen from "../screens/DispatchScreen";
+import DeletedTripsScreen from "../screens/DeletedTripsScreen";
+import DriverPayrollScreen from "../screens/DriverPayrollScreen";
 import DriversLogScreen from "../screens/DriversLogScreen";
 import DriversRecordScreen from "../screens/DriversRecordScreen";
 import DriverHomeScreen from "../screens/DriverHomeScreen";
@@ -66,6 +69,11 @@ export default function RootNavigator() {
           options={{ title: "Drivers Record" }}
         />
         <Stack.Screen
+          name="DriverPayroll"
+          component={DriverPayrollScreen}
+          options={{ title: "Driver Payroll" }}
+        />
+        <Stack.Screen
           name="Dispatch"
           component={DispatchScreen}
           options={{ headerShown: false }}
@@ -80,6 +88,11 @@ export default function RootNavigator() {
           component={DispatchNewRequestScreen}
           options={{ title: "New Trip Request" }}
         />
+        <Stack.Screen
+          name="DeletedTrips"
+          component={DeletedTripsScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     );
   }
@@ -90,6 +103,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="CustomerHome"
           component={CustomerHomeScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="CustomerTripRequests"
+          component={CustomerTripRequestsScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

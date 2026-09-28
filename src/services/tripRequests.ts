@@ -1,15 +1,49 @@
 import {
   collection,
+  deleteField,
   doc,
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
-import { db } from "../firebase/config";
-import { NewTripRequestInput, TripRequest } from "../types";
+import { HttpsCallable, httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "../firebase/config";
+import {
+  AwbLine,
+  computeTripRequestRollup,
+  NewTripRequestInput,
+  TripRequest,
+  TripRequestStatus,
+} from "../types";
+
+// Force a fresh ID token before calling, and retry once on "unauthenticated":
+// on native the cached token can lag behind sign-in state, which makes a
+// callable function see no auth even though the user is logged in. Mirrors
+// the same helper in services/trips.ts.
+async function callWithFreshToken<Req, Res>(
+  fn: HttpsCallable<Req, Res>,
+  data: Req
+): Promise<Res> {
+  if (auth.currentUser) {
+    await auth.currentUser.getIdToken(true);
+  }
+  try {
+    const result = await fn(data);
+    return result.data;
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === "functions/unauthenticated" && auth.currentUser) {
+      await auth.currentUser.getIdToken(true);
+      const retry = await fn(data);
+      return retry.data;
+    }
+    throw err;
+  }
+}
 
 const tripRequestsCollection = collection(db, "tripRequests");
 
@@ -40,6 +74,7 @@ export async function updateTripRequest(
       TripRequest,
       | "tripDate"
       | "from"
+      | "pickupTime"
       | "to"
       | "personRequesting"
       | "awbLines"
@@ -58,6 +93,26 @@ export async function cancelTripRequest(requestId: string): Promise<void> {
     status: "cancelled",
     updatedAt: Date.now(),
   });
+}
+
+// A single request's own detail screens (Dispatch, customer, driver) held a
+// static snapshot from navigation params — fine for most fields, but it
+// means live tracking would never actually update once you opened the
+// screen. This gives those screens a live subscription instead.
+export function subscribeToTripRequest(
+  requestId: string,
+  onChange: (request: TripRequest) => void,
+  onError: (error: Error) => void
+) {
+  return onSnapshot(
+    doc(db, "tripRequests", requestId),
+    (snap) => {
+      if (snap.exists()) {
+        onChange({ id: snap.id, ...snap.data() } as TripRequest);
+      }
+    },
+    onError
+  );
 }
 
 export function subscribeToCustomerTripRequests(
@@ -100,16 +155,51 @@ export function subscribeToAllTripRequests(
   );
 }
 
-export async function assignDriversToTripRequest(
+// Admin has unrestricted write access to tripRequests (see firestore.rules),
+// so this stays a direct client write rather than a Cloud Function — the
+// transaction just guards against two admins assigning at nearly the same
+// moment from clobbering each other's read-modify-write of the array.
+export async function assignAwbDriver(
   requestId: string,
-  driverIds: string[],
-  driverNames: string[]
+  awbIndex: number,
+  driverId: string | null,
+  driverName: string | null
 ): Promise<void> {
-  await updateDoc(doc(db, "tripRequests", requestId), {
-    assignedDriverIds: driverIds,
-    assignedDriverNames: driverNames,
-    status: "assigned",
-    updatedAt: Date.now(),
+  const ref = doc(db, "tripRequests", requestId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Trip request not found.");
+    const data = snap.data() as TripRequest;
+    const previousDriverId = data.awbLines[awbIndex]?.assignedDriverId ?? null;
+    const awbLines: AwbLine[] = data.awbLines.map((line, i) =>
+      i === awbIndex
+        ? {
+            ...line,
+            assignedDriverId: driverId,
+            assignedDriverName: driverName,
+            status: (driverId ? "assigned" : "submitted") as TripRequestStatus,
+          }
+        : line
+    );
+    const rollup = computeTripRequestRollup(awbLines);
+    const updates: Record<string, unknown> = {
+      awbLines,
+      ...rollup,
+      updatedAt: Date.now(),
+    };
+    // Reassigning a line away from a driver who was mid-trip on it (this is
+    // allowed — e.g. swapping in a replacement driver) can leave their pin
+    // stuck on the live tracking map if this was their only in-progress line
+    // on the request. Clear it in that case so the map doesn't keep showing
+    // someone no longer working this request.
+    if (
+      previousDriverId &&
+      previousDriverId !== driverId &&
+      !awbLines.some((l) => l.assignedDriverId === previousDriverId && l.status === "in_progress")
+    ) {
+      updates[`driverLocations.${previousDriverId}`] = deleteField();
+    }
+    tx.update(ref, updates);
   });
 }
 
@@ -145,20 +235,36 @@ export function subscribeToDriverTripRequests(
   );
 }
 
-export async function startTripRequest(requestId: string): Promise<void> {
-  await updateDoc(doc(db, "tripRequests", requestId), {
-    status: "in_progress",
-    updatedAt: Date.now(),
-  });
+const startMyAwbLinesFn = httpsCallable<{ requestId: string }, { success: boolean }>(
+  functions,
+  "startMyAwbLines"
+);
+
+export async function startMyAwbLines(requestId: string): Promise<void> {
+  await callWithFreshToken(startMyAwbLinesFn, { requestId });
 }
 
-export async function completeTripRequest(
+const completeMyAwbLinesFn = httpsCallable<
+  { requestId: string; tripLogId: string },
+  { success: boolean }
+>(functions, "completeMyAwbLines");
+
+export async function completeMyAwbLines(
   requestId: string,
   tripLogId: string
 ): Promise<void> {
-  await updateDoc(doc(db, "tripRequests", requestId), {
-    status: "completed",
-    tripLogId,
-    updatedAt: Date.now(),
-  });
+  await callWithFreshToken(completeMyAwbLinesFn, { requestId, tripLogId });
+}
+
+const updateMyLiveLocationFn = httpsCallable<
+  { requestId: string; lat: number; lng: number },
+  { success: boolean }
+>(functions, "updateMyLiveLocation");
+
+export async function updateMyLiveLocation(
+  requestId: string,
+  lat: number,
+  lng: number
+): Promise<void> {
+  await callWithFreshToken(updateMyLiveLocationFn, { requestId, lat, lng });
 }

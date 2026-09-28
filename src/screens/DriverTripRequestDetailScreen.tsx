@@ -1,9 +1,10 @@
-import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState } from "react";
+import * as Location from "expo-location";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -12,14 +13,21 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import DateField from "../components/DateField";
 import TripRequestReadOnly from "../components/TripRequestReadOnly";
 import { useAuth } from "../context/AuthContext";
 import { syncBadgeCount } from "../services/notifications";
 import { uploadProofFile } from "../services/storage";
 import { checkDuplicateUld, createTrip } from "../services/trips";
-import { completeTripRequest, startTripRequest } from "../services/tripRequests";
-import { ProofFile, TripRequest, TripRequestStatus } from "../types";
+import {
+  completeMyAwbLines,
+  startMyAwbLines,
+  updateMyLiveLocation,
+} from "../services/tripRequests";
+import { computeTripRequestRollup, ProofFile, TripRequest, TripRequestStatus } from "../types";
 import { confirmAction, notify } from "../utils/alert";
+
+const LOCATION_PING_INTERVAL_MS = 25000;
 
 type PendingFile = { uri: string; name: string; kind: ProofFile["kind"] };
 
@@ -42,11 +50,73 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
   const [request, setRequest] = useState(initialRequest);
   const [starting, setStarting] = useState(false);
 
+  // Only this driver's own AWB lines are relevant here — a trip request can
+  // have other lines assigned to other drivers, at a completely different
+  // stage, which this screen never shows or acts on.
+  const myLines = request.awbLines.filter((l) => l.assignedDriverId === user?.uid);
+  const myAssignedLines = myLines.filter((l) => l.status === "assigned");
+  const myInProgressLines = myLines.filter((l) => l.status === "in_progress");
+  const myStatus = computeTripRequestRollup(myLines).status;
+  const isSharingLocation = Platform.OS !== "web" && myInProgressLines.length > 0;
+  const [locationDenied, setLocationDenied] = useState(false);
+
+  const promptToEnableLocation = () => {
+    confirmAction(
+      {
+        title: "Location sharing is off",
+        message:
+          "Dispatch and the customer can't see this trip on the map without it. Turn it on in Settings.",
+        confirmLabel: "Open Settings",
+        cancelLabel: "Not now",
+      },
+      () => Linking.openSettings()
+    );
+  };
+
+  // Pings this driver's current location every ~25s for as long as they
+  // have an in-progress line on this request — the server clears it the
+  // moment they complete, so nothing to stop explicitly on that side.
+  useEffect(() => {
+    if (!isSharingLocation || !user) return;
+
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const shareLocation = async () => {
+      try {
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (cancelled) return;
+        await updateMyLiveLocation(request.id, pos.coords.latitude, pos.coords.longitude);
+      } catch (err) {
+        console.error("Failed to share location:", err);
+      }
+    };
+
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled) return;
+      if (status !== "granted") {
+        setLocationDenied(true);
+        promptToEnableLocation();
+        return;
+      }
+      setLocationDenied(false);
+      shareLocation();
+      intervalId = setInterval(shareLocation, LOCATION_PING_INTERVAL_MS);
+    })();
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [isSharingLocation, request.id, user]);
+
   const [timeStart, setTimeStart] = useState(new Date());
   const [timeFinish, setTimeFinish] = useState(new Date());
-  const [showPicker, setShowPicker] = useState<"start" | "finish" | null>(null);
   const [uldNumbers, setUldNumbers] = useState<string[]>(
-    request.awbLines.map(() => "")
+    myInProgressLines.map(() => "")
   );
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [completing, setCompleting] = useState(false);
@@ -122,11 +192,20 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
     confirmAction(
       { title: "Start this trip?", confirmLabel: "Start Trip" },
       async () => {
+        if (!user) return;
         setStarting(true);
         try {
-          await startTripRequest(request.id);
-          setRequest((prev) => ({ ...prev, status: "in_progress" }));
-          if (user) syncBadgeCount(user.uid);
+          await startMyAwbLines(request.id);
+          setRequest((prev) => ({
+            ...prev,
+            awbLines: prev.awbLines.map((l) =>
+              l.assignedDriverId === user.uid && l.status === "assigned"
+                ? { ...l, status: "in_progress" as const }
+                : l
+            ),
+          }));
+          setUldNumbers((prev) => [...prev, ...myAssignedLines.map(() => "")]);
+          syncBadgeCount(user.uid);
         } catch (e: any) {
           notify("Couldn't start trip", e?.message ?? "Something went wrong. Please try again.");
         } finally {
@@ -162,7 +241,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
     setCompleting(true);
     try {
       const trimmedUlds = uldNumbers.map((u) => u.trim());
-      const joinedAwb = request.awbLines.map((l) => l.awbNumber).join(",");
+      const joinedAwb = myInProgressLines.map((l) => l.awbNumber).join(",");
       const dup = await checkDuplicateUld(joinedAwb, trimmedUlds);
       if (dup.duplicate) {
         notify(
@@ -188,16 +267,24 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
         timeFinish: formatTime(timeFinish),
         from: request.from,
         to: request.to,
-        qty: request.awbLines.length,
-        unitTypes: request.awbLines.map((l) => l.type),
+        qty: myInProgressLines.length,
+        unitTypes: myInProgressLines.map((l) => l.type),
         uldNumbers: trimmedUlds,
         awbNumber: joinedAwb,
+        kilograms: myInProgressLines.reduce((sum, l) => sum + l.kilograms, 0),
         notes: `From dispatch request for ${request.customerName}.`,
         proofFiles: uploaded,
       });
 
-      await completeTripRequest(request.id, tripId);
-      setRequest((prev) => ({ ...prev, status: "completed" }));
+      await completeMyAwbLines(request.id, tripId);
+      setRequest((prev) => ({
+        ...prev,
+        awbLines: prev.awbLines.map((l) =>
+          l.assignedDriverId === user.uid && l.status === "in_progress"
+            ? { ...l, status: "completed" as const, tripLogId: tripId }
+            : l
+        ),
+      }));
       notify("Trip completed", "Logged and marked completed.");
       navigation.goBack();
     } catch (e: any) {
@@ -217,14 +304,14 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
       <View style={styles.headerRow}>
         <Text style={styles.title}>Trip Request</Text>
         <View style={styles.statusBadge}>
-          <Text style={styles.statusBadgeText}>{STATUS_LABELS[request.status]}</Text>
+          <Text style={styles.statusBadgeText}>{STATUS_LABELS[myStatus]}</Text>
         </View>
       </View>
       <Text style={styles.meta}>Customer: {request.customerName}</Text>
 
       <TripRequestReadOnly request={request} />
 
-      {request.status === "assigned" && (
+      {myAssignedLines.length > 0 && (
         <TouchableOpacity
           style={styles.primaryButton}
           onPress={handleStart}
@@ -238,45 +325,29 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
         </TouchableOpacity>
       )}
 
-      {request.status === "in_progress" && (
+      {myInProgressLines.length > 0 && (
         <View style={{ marginTop: 10 }}>
+          {isSharingLocation && locationDenied && (
+            <TouchableOpacity style={styles.locationDeniedBanner} onPress={promptToEnableLocation}>
+              <Text style={styles.locationDeniedText}>
+                📍 Location sharing is off — tap to turn it on so dispatch and the customer can track this trip
+              </Text>
+            </TouchableOpacity>
+          )}
           <Text style={styles.sectionTitle}>Complete Trip</Text>
 
           <View style={styles.row}>
             <View style={styles.half}>
               <Text style={styles.label}>Time start</Text>
-              <TouchableOpacity style={styles.pickerButton} onPress={() => setShowPicker("start")}>
-                <Text style={styles.pickerText}>{formatTime(timeStart)}</Text>
-              </TouchableOpacity>
+              <DateField value={timeStart} mode="time" onChange={setTimeStart} />
             </View>
             <View style={styles.half}>
               <Text style={styles.label}>Time finish</Text>
-              <TouchableOpacity style={styles.pickerButton} onPress={() => setShowPicker("finish")}>
-                <Text style={styles.pickerText}>{formatTime(timeFinish)}</Text>
-              </TouchableOpacity>
+              <DateField value={timeFinish} mode="time" onChange={setTimeFinish} />
             </View>
           </View>
 
-          {showPicker && (
-            <DateTimePicker
-              value={showPicker === "start" ? timeStart : timeFinish}
-              mode="time"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={(_, selected) => {
-                if (Platform.OS === "android") setShowPicker(null);
-                if (!selected) return;
-                if (showPicker === "start") setTimeStart(selected);
-                if (showPicker === "finish") setTimeFinish(selected);
-              }}
-            />
-          )}
-          {showPicker && Platform.OS === "ios" && (
-            <TouchableOpacity onPress={() => setShowPicker(null)} style={styles.doneButton}>
-              <Text style={styles.doneButtonText}>Done</Text>
-            </TouchableOpacity>
-          )}
-
-          {request.awbLines.map((line, i) => (
+          {myInProgressLines.map((line, i) => (
             <View key={i}>
               <Text style={styles.label}>
                 ULD # for {line.awbNumber} ({line.type})
@@ -347,20 +418,16 @@ const styles = StyleSheet.create({
   statusBadgeText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   meta: { fontSize: 13, color: "#666", marginTop: 4 },
   sectionTitle: { fontSize: 15, fontWeight: "800", color: "#111", marginTop: 10, marginBottom: 10 },
+  locationDeniedBanner: {
+    backgroundColor: "#fdecea",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+  },
+  locationDeniedText: { fontSize: 12, color: "#c0392b", fontWeight: "600" },
   row: { flexDirection: "row", gap: 10 },
   half: { flex: 1 },
   label: { fontSize: 13, fontWeight: "700", color: "#444", marginTop: 16, marginBottom: 6 },
-  pickerButton: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  pickerText: { fontSize: 15, color: "#111" },
-  doneButton: { alignSelf: "flex-end", padding: 8 },
-  doneButtonText: { color: "#1d4ed8", fontWeight: "700" },
   input: {
     backgroundColor: "#fff",
     borderRadius: 10,
