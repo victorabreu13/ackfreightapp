@@ -1,7 +1,7 @@
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -55,9 +55,15 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
   // stage, which this screen never shows or acts on.
   const myLines = request.awbLines.filter((l) => l.assignedDriverId === user?.uid);
   const myAssignedLines = myLines.filter((l) => l.status === "assigned");
-  const myInProgressLines = myLines.filter((l) => l.status === "in_progress");
+  // Keep the original awbLines index alongside each line — a driver can run
+  // several in-progress AWBs as separate physical trips, so completion needs
+  // to target specific lines rather than always all of them, and the index
+  // is what identifies a line to completeMyAwbLines.
+  const myInProgressEntries = request.awbLines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => line.assignedDriverId === user?.uid && line.status === "in_progress");
   const myStatus = computeTripRequestRollup(myLines).status;
-  const isSharingLocation = Platform.OS !== "web" && myInProgressLines.length > 0;
+  const isSharingLocation = Platform.OS !== "web" && myInProgressEntries.length > 0;
   const [locationDenied, setLocationDenied] = useState(false);
 
   const promptToEnableLocation = () => {
@@ -115,19 +121,49 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
 
   const [timeStart, setTimeStart] = useState(new Date());
   const [timeFinish, setTimeFinish] = useState(new Date());
-  const [uldNumbers, setUldNumbers] = useState<string[]>(
-    myInProgressLines.map(() => "")
-  );
+  // Keyed by the AWB line's index (not position in myInProgressEntries, which
+  // shifts as lines complete) so selection survives across re-renders.
+  const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(new Set());
+  const [uldByIndex, setUldByIndex] = useState<Record<number, string>>({});
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [completing, setCompleting] = useState(false);
 
-  const setUldNumberAt = (index: number, value: string) => {
-    setUldNumbers((prev) => {
-      const next = [...prev];
-      next[index] = value;
+  // Newly in-progress lines default to selected (matches the old
+  // all-at-once behavior); a line the driver already unchecked stays
+  // unchecked even if this effect re-runs for an unrelated reason, since it
+  // only fires when the actual set of in-progress indexes changes.
+  const seenIndexesRef = useRef<Set<number>>(new Set());
+  const inProgressIndexKey = myInProgressEntries.map((e) => e.index).join(",");
+  useEffect(() => {
+    const currentIdx = myInProgressEntries.map((e) => e.index);
+    setSelectedIndexes((prev) => {
+      const next = new Set<number>();
+      currentIdx.forEach((i) => {
+        if (prev.has(i) || !seenIndexesRef.current.has(i)) next.add(i);
+      });
+      return next;
+    });
+    setUldByIndex((prev) => {
+      const next: Record<number, string> = {};
+      currentIdx.forEach((i) => {
+        next[i] = prev[i] ?? "";
+      });
+      return next;
+    });
+    seenIndexesRef.current = new Set(currentIdx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inProgressIndexKey]);
+
+  const toggleSelected = (index: number) => {
+    setSelectedIndexes((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
       return next;
     });
   };
+
+  const selectedEntries = myInProgressEntries.filter((e) => selectedIndexes.has(e.index));
 
   const addPhoto = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -204,7 +240,6 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
                 : l
             ),
           }));
-          setUldNumbers((prev) => [...prev, ...myAssignedLines.map(() => "")]);
           syncBadgeCount(user.uid);
         } catch (e: any) {
           notify("Couldn't start trip", e?.message ?? "Something went wrong. Please try again.");
@@ -217,8 +252,12 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
 
   const handleComplete = async () => {
     if (!user || !profile) return;
-    if (uldNumbers.some((u) => !u.trim())) {
-      notify("Missing info", "Enter the ULD # for each AWB.");
+    if (selectedEntries.length === 0) {
+      notify("Select an AWB", "Check at least one AWB to mark completed on this trip.");
+      return;
+    }
+    if (selectedEntries.some(({ index }) => !uldByIndex[index]?.trim())) {
+      notify("Missing info", "Enter the ULD # for each checked AWB.");
       return;
     }
     if (files.length === 0) {
@@ -240,8 +279,8 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
     if (!user || !profile) return;
     setCompleting(true);
     try {
-      const trimmedUlds = uldNumbers.map((u) => u.trim());
-      const joinedAwb = myInProgressLines.map((l) => l.awbNumber).join(",");
+      const trimmedUlds = selectedEntries.map(({ index }) => uldByIndex[index]?.trim() ?? "");
+      const joinedAwb = selectedEntries.map(({ line }) => line.awbNumber).join(",");
       const dup = await checkDuplicateUld(joinedAwb, trimmedUlds);
       if (dup.duplicate) {
         notify(
@@ -267,20 +306,21 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
         timeFinish: formatTime(timeFinish),
         from: request.from,
         to: request.to,
-        qty: myInProgressLines.length,
-        unitTypes: myInProgressLines.map((l) => l.type),
+        qty: selectedEntries.length,
+        unitTypes: selectedEntries.map(({ line }) => line.type),
         uldNumbers: trimmedUlds,
         awbNumber: joinedAwb,
-        kilograms: myInProgressLines.reduce((sum, l) => sum + l.kilograms, 0),
+        kilograms: selectedEntries.reduce((sum, { line }) => sum + line.kilograms, 0),
         notes: `From dispatch request for ${request.customerName}.`,
         proofFiles: uploaded,
       });
 
-      await completeMyAwbLines(request.id, tripId);
+      const completedIndexes = selectedEntries.map(({ index }) => index);
+      await completeMyAwbLines(request.id, tripId, completedIndexes);
       setRequest((prev) => ({
         ...prev,
-        awbLines: prev.awbLines.map((l) =>
-          l.assignedDriverId === user.uid && l.status === "in_progress"
+        awbLines: prev.awbLines.map((l, i) =>
+          completedIndexes.includes(i)
             ? { ...l, status: "completed" as const, tripLogId: tripId }
             : l
         ),
@@ -325,7 +365,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
         </TouchableOpacity>
       )}
 
-      {myInProgressLines.length > 0 && (
+      {myInProgressEntries.length > 0 && (
         <View style={{ marginTop: 10 }}>
           {isSharingLocation && locationDenied && (
             <TouchableOpacity style={styles.locationDeniedBanner} onPress={promptToEnableLocation}>
@@ -347,20 +387,42 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
             </View>
           </View>
 
-          {myInProgressLines.map((line, i) => (
-            <View key={i}>
-              <Text style={styles.label}>
-                ULD # for {line.awbNumber} ({line.type})
-              </Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. AKE12345AA"
-                value={uldNumbers[i] ?? ""}
-                onChangeText={(v) => setUldNumberAt(i, v)}
-                autoCapitalize="characters"
-              />
-            </View>
-          ))}
+          <Text style={styles.label}>
+            {myInProgressEntries.length > 1
+              ? "Which AWBs did you complete on this trip?"
+              : "AWB for this trip"}
+          </Text>
+          {myInProgressEntries.map(({ line, index }) => {
+            const checked = selectedIndexes.has(index);
+            return (
+              <View key={index} style={styles.awbCheckCard}>
+                <TouchableOpacity
+                  style={styles.checkboxRow}
+                  onPress={() => toggleSelected(index)}
+                  disabled={myInProgressEntries.length === 1}
+                >
+                  <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+                    {checked && <Text style={styles.checkboxMark}>✓</Text>}
+                  </View>
+                  <Text style={styles.checkboxLabel}>
+                    {line.awbNumber} ({line.type})
+                  </Text>
+                </TouchableOpacity>
+                {checked && (
+                  <>
+                    <Text style={styles.label}>ULD #</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g. AKE12345AA"
+                      value={uldByIndex[index] ?? ""}
+                      onChangeText={(v) => setUldByIndex((prev) => ({ ...prev, [index]: v }))}
+                      autoCapitalize="characters"
+                    />
+                  </>
+                )}
+              </View>
+            );
+          })}
 
           <Text style={styles.label}>Proof of freight</Text>
           <View style={styles.row}>
@@ -405,6 +467,26 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f6fa" },
+  awbCheckCard: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 10,
+  },
+  checkboxRow: { flexDirection: "row", alignItems: "center" },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: "#ccc",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  checkboxChecked: { backgroundColor: "#1d4ed8", borderColor: "#1d4ed8" },
+  checkboxMark: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  checkboxLabel: { fontSize: 14, fontWeight: "700", color: "#111" },
   backButton: { marginBottom: 14, alignSelf: "flex-start" },
   backButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 16 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

@@ -4,6 +4,7 @@ import {
   FlatList,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -45,6 +46,7 @@ export default function CustomerTripRequestsScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<TripRequestStatus | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -64,10 +66,17 @@ export default function CustomerTripRequestsScreen({ navigation }: any) {
     return unsubscribe;
   }, [user]);
 
-  const filtered = useMemo(
-    () => (filter === "all" ? requests : requests.filter((r) => r.status === filter)),
-    [requests, filter]
-  );
+  // A search takes priority over the status filter — you're looking for one
+  // specific AWB wherever it is, not narrowing within the current filter.
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      return requests.filter((r) =>
+        r.awbLines.some((l) => l.awbNumber.toLowerCase().includes(q))
+      );
+    }
+    return filter === "all" ? requests : requests.filter((r) => r.status === filter);
+  }, [requests, filter, searchQuery]);
 
   return (
     <View style={styles.container}>
@@ -78,6 +87,16 @@ export default function CustomerTripRequestsScreen({ navigation }: any) {
       <Text style={styles.subtitle}>Your submitted and assigned trips</Text>
 
       {requests.length > 0 && (
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by AWB #"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="characters"
+        />
+      )}
+
+      {requests.length > 0 && !searchQuery.trim() && (
         <View style={styles.filterRow}>
           {FILTERS.map((f) => (
             <TouchableOpacity
@@ -107,7 +126,11 @@ export default function CustomerTripRequestsScreen({ navigation }: any) {
           No trip requests yet. Create one from the home screen.
         </Text>
       ) : filtered.length === 0 ? (
-        <Text style={styles.empty}>No trip requests with this status.</Text>
+        <Text style={styles.empty}>
+          {searchQuery.trim()
+            ? "No trip request has an AWB matching that search."
+            : "No trip requests with this status."}
+        </Text>
       ) : (
         <FlatList
           data={filtered}
@@ -156,6 +179,16 @@ const styles = StyleSheet.create({
   backButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 16 },
   title: { fontSize: 22, fontWeight: "800", color: "#111" },
   subtitle: { fontSize: 13, color: "#666", marginBottom: 10 },
+  searchInput: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    marginTop: 4,
+  },
   filterRow: {
     flexDirection: "row",
     flexWrap: "wrap",

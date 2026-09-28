@@ -5,6 +5,7 @@ import {
   Platform,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -49,6 +50,7 @@ export default function DispatchScreen({ navigation }: any) {
   const [requests, setRequests] = useState<TripRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<TripRequestStatus | "all">("submitted");
+  const [searchQuery, setSearchQuery] = useState("");
   const [qbStatus, setQbStatus] = useState<{
     connected: boolean;
     companyName?: string | null;
@@ -107,10 +109,17 @@ export default function DispatchScreen({ navigation }: any) {
     );
   };
 
-  const filtered = useMemo(
-    () => (filter === "all" ? requests : requests.filter((r) => r.status === filter)),
-    [requests, filter]
-  );
+  // A search takes priority over the status filter — you're looking for one
+  // specific AWB wherever it is, not narrowing within the current filter.
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      return requests.filter((r) =>
+        r.awbLines.some((l) => l.awbNumber.toLowerCase().includes(q))
+      );
+    }
+    return filter === "all" ? requests : requests.filter((r) => r.status === filter);
+  }, [requests, filter, searchQuery]);
 
   return (
     <View style={styles.container}>
@@ -154,29 +163,43 @@ export default function DispatchScreen({ navigation }: any) {
         </View>
       )}
 
-      <View style={styles.filterRow}>
-        {FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f.key}
-            style={[styles.filterButton, filter === f.key && styles.filterButtonActive]}
-            onPress={() => setFilter(f.key)}
-          >
-            <Text
-              style={[
-                styles.filterButtonText,
-                filter === f.key && styles.filterButtonTextActive,
-              ]}
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search by AWB #"
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        autoCapitalize="characters"
+      />
+
+      {!searchQuery.trim() && (
+        <View style={styles.filterRow}>
+          {FILTERS.map((f) => (
+            <TouchableOpacity
+              key={f.key}
+              style={[styles.filterButton, filter === f.key && styles.filterButtonActive]}
+              onPress={() => setFilter(f.key)}
             >
-              {f.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+              <Text
+                style={[
+                  styles.filterButtonText,
+                  filter === f.key && styles.filterButtonTextActive,
+                ]}
+              >
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} />
       ) : filtered.length === 0 ? (
-        <Text style={styles.empty}>No requests for this filter.</Text>
+        <Text style={styles.empty}>
+          {searchQuery.trim()
+            ? "No trip request has an AWB matching that search."
+            : "No requests for this filter."}
+        </Text>
       ) : (
         <FlatList
           data={filtered}
@@ -253,6 +276,17 @@ const styles = StyleSheet.create({
   qbConnectText: { color: "#1d4ed8", fontWeight: "700", fontSize: 13 },
   qbConnectedText: { color: "#15803d", fontWeight: "600", fontSize: 13 },
   qbDisconnectText: { color: "#c0392b", fontWeight: "600", fontSize: 12 },
+  searchInput: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
   filterRow: {
     flexDirection: "row",
     flexWrap: "wrap",

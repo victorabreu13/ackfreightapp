@@ -619,14 +619,22 @@ exports.startMyAwbLines = onCall({ invoker: "public" }, async (request) => {
   return { success: true };
 });
 
+// A driver can have several AWBs in progress on one trip request but run
+// them as separate physical trips (e.g. one drop-off this morning, another
+// this afternoon) — awbIndexes lets them complete just the subset they
+// actually finished just now, leaving the rest in_progress for later.
 exports.completeMyAwbLines = onCall({ invoker: "public" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be signed in.");
   }
-  const { requestId, tripLogId } = request.data || {};
-  if (!requestId || !tripLogId) {
-    throw new HttpsError("invalid-argument", "requestId and tripLogId are required.");
+  const { requestId, tripLogId, awbIndexes } = request.data || {};
+  if (!requestId || !tripLogId || !Array.isArray(awbIndexes) || awbIndexes.length === 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      "requestId, tripLogId, and a non-empty awbIndexes array are required."
+    );
   }
+  const indexSet = new Set(awbIndexes);
 
   const db = admin.firestore();
   const ref = db.collection("tripRequests").doc(requestId);
@@ -639,8 +647,8 @@ exports.completeMyAwbLines = onCall({ invoker: "public" }, async (request) => {
     const data = snap.data();
     const awbLines = data.awbLines || [];
     let changed = false;
-    const nextLines = awbLines.map((l) => {
-      if (l.assignedDriverId === request.auth.uid && l.status === "in_progress") {
+    const nextLines = awbLines.map((l, i) => {
+      if (indexSet.has(i) && l.assignedDriverId === request.auth.uid && l.status === "in_progress") {
         changed = true;
         return { ...l, status: "completed", tripLogId };
       }
@@ -649,20 +657,27 @@ exports.completeMyAwbLines = onCall({ invoker: "public" }, async (request) => {
     if (!changed) {
       throw new HttpsError(
         "failed-precondition",
-        "No in-progress AWB lines to complete for this driver."
+        "No matching in-progress AWB lines to complete for this driver."
       );
     }
     const rollup = computeRollup(nextLines);
-    tx.update(ref, {
+    const updates = {
       awbLines: nextLines,
       status: rollup.status,
       assignedDriverIds: rollup.assignedDriverIds,
       assignedDriverNames: rollup.assignedDriverNames,
-      // Live tracking stops the moment this driver's lines are done — clear
-      // their last-known pin rather than leaving a stale dot on the map.
-      [`driverLocations.${request.auth.uid}`]: admin.firestore.FieldValue.delete(),
       updatedAt: Date.now(),
-    });
+    };
+    // Only clear this driver's live-tracking pin once none of their lines on
+    // this request are still in progress — they may have other AWBs left to
+    // finish as a separate trip.
+    const stillInProgress = nextLines.some(
+      (l) => l.assignedDriverId === request.auth.uid && l.status === "in_progress"
+    );
+    if (!stillInProgress) {
+      updates[`driverLocations.${request.auth.uid}`] = admin.firestore.FieldValue.delete();
+    }
+    tx.update(ref, updates);
   });
 
   return { success: true };

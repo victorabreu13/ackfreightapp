@@ -266,15 +266,16 @@ export async function startMyAwbLines(requestId: string): Promise<void> {
 }
 
 const completeMyAwbLinesFn = httpsCallable<
-  { requestId: string; tripLogId: string },
+  { requestId: string; tripLogId: string; awbIndexes: number[] },
   { success: boolean }
 >(functions, "completeMyAwbLines");
 
 export async function completeMyAwbLines(
   requestId: string,
-  tripLogId: string
+  tripLogId: string,
+  awbIndexes: number[]
 ): Promise<void> {
-  await callWithFreshToken(completeMyAwbLinesFn, { requestId, tripLogId });
+  await callWithFreshToken(completeMyAwbLinesFn, { requestId, tripLogId, awbIndexes });
 }
 
 const updateMyLiveLocationFn = httpsCallable<
