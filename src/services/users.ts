@@ -1,8 +1,34 @@
 import { collection, doc, getDoc, onSnapshot, orderBy, query, updateDoc, where } from "firebase/firestore";
-import { db } from "../firebase/config";
-import { DriverPayType, UserProfile } from "../types";
+import { HttpsCallable, httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "../firebase/config";
+import { DriverPayType, UserProfile, UserRole } from "../types";
 
 const usersCollection = collection(db, "users");
+
+// Force a fresh ID token before calling, and retry once on "unauthenticated":
+// on native the cached token can lag behind sign-in state, which makes a
+// callable function see no auth even though the user is logged in. Mirrors
+// the same helper in services/trips.ts.
+async function callWithFreshToken<Req, Res>(
+  fn: HttpsCallable<Req, Res>,
+  data: Req
+): Promise<Res> {
+  if (auth.currentUser) {
+    await auth.currentUser.getIdToken(true);
+  }
+  try {
+    const result = await fn(data);
+    return result.data;
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === "functions/unauthenticated" && auth.currentUser) {
+      await auth.currentUser.getIdToken(true);
+      const retry = await fn(data);
+      return retry.data;
+    }
+    throw err;
+  }
+}
 
 export function subscribeToDrivers(
   onChange: (drivers: UserProfile[]) => void,
@@ -61,4 +87,25 @@ export async function setCustomerBillRate(
   billRate: number
 ): Promise<void> {
   await updateDoc(doc(db, "users", customerId), { billType, billRate });
+}
+
+export function subscribeToAllUsers(
+  onChange: (users: UserProfile[]) => void,
+  onError: (error: Error) => void
+) {
+  const q = query(usersCollection, orderBy("name"));
+  return onSnapshot(
+    q,
+    (snapshot) => onChange(snapshot.docs.map((d) => d.data() as UserProfile)),
+    onError
+  );
+}
+
+const setUserRoleFn = httpsCallable<{ uid: string; role: UserRole }, { success: boolean }>(
+  functions,
+  "setUserRole"
+);
+
+export async function setUserRole(uid: string, role: UserRole): Promise<void> {
+  await callWithFreshToken(setUserRoleFn, { uid, role });
 }

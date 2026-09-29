@@ -40,6 +40,12 @@ const WEB_TILES = [
     label: "Drivers Available",
     description: "Who's free right now, and what they're carrying today",
   },
+  {
+    key: "ManageUsers",
+    icon: "👤",
+    label: "Manage Users",
+    description: "Fix a wrong role from signup, or change one as needed",
+  },
 ] as const;
 
 // The native app keeps a lighter menu for now — Drivers Record, Driver

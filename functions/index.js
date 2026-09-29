@@ -1245,3 +1245,30 @@ exports.restoreDeletedTrip = onCall({ invoker: "public" }, async (request) => {
 
   return { success: true, tripId: data.tripId };
 });
+
+// The users collection's own Firestore rules only let an admin touch
+// payType/payRate/billType/billRate directly — role is deliberately not
+// client-writable, so fixing a wrong signup (e.g. a customer who signed up
+// as a driver by mistake) has to go through here instead.
+const VALID_ROLES = ["admin", "driver", "customer"];
+exports.setUserRole = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
+  }
+  await requireAdmin(request.auth.uid);
+
+  const { uid, role } = request.data || {};
+  if (!uid || !VALID_ROLES.includes(role)) {
+    throw new HttpsError("invalid-argument", "uid and a valid role are required.");
+  }
+
+  const db = admin.firestore();
+  const ref = db.collection("users").doc(uid);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "User not found.");
+  }
+
+  await ref.update({ role });
+  return { success: true };
+});

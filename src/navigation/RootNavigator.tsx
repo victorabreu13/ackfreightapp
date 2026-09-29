@@ -11,6 +11,7 @@ import DispatchScreen from "../screens/DispatchScreen";
 import DeletedTripsScreen from "../screens/DeletedTripsScreen";
 import DriversAvailableScreen from "../screens/DriversAvailableScreen";
 import DriverPayrollScreen from "../screens/DriverPayrollScreen";
+import ManageUsersScreen from "../screens/ManageUsersScreen";
 import DriversLogScreen from "../screens/DriversLogScreen";
 import DriversRecordScreen from "../screens/DriversRecordScreen";
 import DriverHomeScreen from "../screens/DriverHomeScreen";
@@ -97,6 +98,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="DriversAvailable"
           component={DriversAvailableScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ManageUsers"
+          component={ManageUsersScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
