@@ -109,3 +109,21 @@ const setUserRoleFn = httpsCallable<{ uid: string; role: UserRole }, { success: 
 export async function setUserRole(uid: string, role: UserRole): Promise<void> {
   await callWithFreshToken(setUserRoleFn, { uid, role });
 }
+
+const updateUserEmailFn = httpsCallable<{ uid: string; email: string }, { success: boolean }>(
+  functions,
+  "updateUserEmail"
+);
+
+export async function updateUserEmail(uid: string, email: string): Promise<void> {
+  await callWithFreshToken(updateUserEmailFn, { uid, email });
+}
+
+const deleteUserAccountFn = httpsCallable<{ uid: string }, { success: boolean }>(
+  functions,
+  "deleteUserAccount"
+);
+
+export async function deleteUserAccount(uid: string): Promise<void> {
+  await callWithFreshToken(deleteUserAccountFn, { uid });
+}

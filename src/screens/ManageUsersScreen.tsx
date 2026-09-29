@@ -9,7 +9,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { setUserRole, subscribeToAllUsers } from "../services/users";
+import {
+  deleteUserAccount,
+  setUserRole,
+  subscribeToAllUsers,
+  updateUserEmail,
+} from "../services/users";
 import { UserProfile, UserRole } from "../types";
 import { confirmAction, notify } from "../utils/alert";
 
@@ -27,6 +32,8 @@ export default function ManageUsersScreen({ navigation }: any) {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleModalUid, setRoleModalUid] = useState<string | null>(null);
   const [savingUid, setSavingUid] = useState<string | null>(null);
+  const [editingEmailUid, setEditingEmailUid] = useState<string | null>(null);
+  const [editEmailValue, setEditEmailValue] = useState("");
 
   useEffect(() => {
     const unsubscribe = subscribeToAllUsers(
@@ -70,6 +77,55 @@ export default function ManageUsersScreen({ navigation }: any) {
     );
   };
 
+  const startEditingEmail = (user: UserProfile) => {
+    setEditingEmailUid(user.uid);
+    setEditEmailValue(user.email);
+  };
+
+  const saveEmail = async (user: UserProfile) => {
+    const email = editEmailValue.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      notify("Enter a valid email", "That doesn't look like a valid email address.");
+      return;
+    }
+    if (email === user.email) {
+      setEditingEmailUid(null);
+      return;
+    }
+    setSavingUid(user.uid);
+    try {
+      await updateUserEmail(user.uid, email);
+      setUsers((prev) => prev.map((u) => (u.uid === user.uid ? { ...u, email } : u)));
+      setEditingEmailUid(null);
+    } catch (e: any) {
+      notify("Couldn't change email", e?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setSavingUid(null);
+    }
+  };
+
+  const confirmDelete = (user: UserProfile) => {
+    confirmAction(
+      {
+        title: `Delete ${user.name}'s account?`,
+        message: `This permanently removes their login and profile (${user.email}). This can't be undone. Their past trips and trip requests stay on record.`,
+        confirmLabel: "Delete Account",
+        destructive: true,
+      },
+      async () => {
+        setSavingUid(user.uid);
+        try {
+          await deleteUserAccount(user.uid);
+          setUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+        } catch (e: any) {
+          notify("Couldn't delete account", e?.message ?? "Something went wrong. Please try again.");
+        } finally {
+          setSavingUid(null);
+        }
+      }
+    );
+  };
+
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
@@ -100,21 +156,47 @@ export default function ManageUsersScreen({ navigation }: any) {
           contentContainerStyle={{ padding: 16 }}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <View style={styles.cardInfo}>
+              <View style={styles.cardTopRow}>
                 <Text style={styles.userName}>{item.name}</Text>
-                <Text style={styles.userEmail}>{item.email}</Text>
+                {savingUid === item.uid ? (
+                  <ActivityIndicator />
+                ) : (
+                  <TouchableOpacity
+                    style={styles.roleButton}
+                    onPress={() => setRoleModalUid(item.uid)}
+                  >
+                    <Text style={styles.roleButtonText}>{ROLE_LABELS[item.role]}</Text>
+                    <Text style={styles.chevron}>▾</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-              {savingUid === item.uid ? (
-                <ActivityIndicator />
+
+              {editingEmailUid === item.uid ? (
+                <View style={styles.emailEditRow}>
+                  <TextInput
+                    style={styles.emailInput}
+                    value={editEmailValue}
+                    onChangeText={setEditEmailValue}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    autoFocus
+                  />
+                  <TouchableOpacity style={styles.saveButton} onPress={() => saveEmail(item)}>
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setEditingEmailUid(null)}>
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
               ) : (
-                <TouchableOpacity
-                  style={styles.roleButton}
-                  onPress={() => setRoleModalUid(item.uid)}
-                >
-                  <Text style={styles.roleButtonText}>{ROLE_LABELS[item.role]}</Text>
-                  <Text style={styles.chevron}>▾</Text>
+                <TouchableOpacity onPress={() => startEditingEmail(item)}>
+                  <Text style={styles.userEmail}>{item.email} · Edit</Text>
                 </TouchableOpacity>
               )}
+
+              <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteRow}>
+                <Text style={styles.deleteText}>Delete Account</Text>
+              </TouchableOpacity>
             </View>
           )}
         />
@@ -175,13 +257,35 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
+  },
+  cardTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  cardInfo: { flex: 1, marginRight: 10 },
-  userName: { fontSize: 15, fontWeight: "700", color: "#111" },
-  userEmail: { fontSize: 13, color: "#666", marginTop: 2 },
+  userName: { fontSize: 15, fontWeight: "700", color: "#111", flex: 1, marginRight: 10 },
+  userEmail: { fontSize: 13, color: "#1d4ed8", marginTop: 4 },
+  emailEditRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
+  emailInput: {
+    flex: 1,
+    backgroundColor: "#f5f6fa",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    fontSize: 13,
+  },
+  saveButton: {
+    backgroundColor: "#1d4ed8",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  saveButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  cancelText: { color: "#888", fontWeight: "600", fontSize: 13 },
+  deleteRow: { marginTop: 8, alignSelf: "flex-start" },
+  deleteText: { color: "#c0392b", fontWeight: "600", fontSize: 12 },
   roleButton: {
     flexDirection: "row",
     alignItems: "center",

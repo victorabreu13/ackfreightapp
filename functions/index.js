@@ -1272,3 +1272,73 @@ exports.setUserRole = onCall({ invoker: "public" }, async (request) => {
   await ref.update({ role });
   return { success: true };
 });
+
+// Changes both the Auth login credential and the denormalized Firestore
+// copy — updating only the Firestore doc would leave the user logging in
+// with their old email while the app shows the new one.
+exports.updateUserEmail = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
+  }
+  await requireAdmin(request.auth.uid);
+
+  const { uid, email } = request.data || {};
+  if (!uid || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new HttpsError("invalid-argument", "uid and a valid email are required.");
+  }
+
+  const db = admin.firestore();
+  const ref = db.collection("users").doc(uid);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "User not found.");
+  }
+
+  try {
+    await admin.auth().updateUser(uid, { email });
+  } catch (err) {
+    if (err.code === "auth/email-already-exists") {
+      throw new HttpsError("already-exists", "Another account already uses that email.");
+    }
+    throw new HttpsError("internal", err.message || "Failed to update the login email.");
+  }
+  await ref.update({ email });
+
+  return { success: true };
+});
+
+// Removes the account entirely — both the Auth login and the Firestore
+// profile. Historical trips/trip requests keep their own denormalized copy
+// of the driver/customer name and email, so they stay readable afterward.
+exports.deleteUserAccount = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
+  }
+  await requireAdmin(request.auth.uid);
+
+  const { uid } = request.data || {};
+  if (!uid) {
+    throw new HttpsError("invalid-argument", "uid is required.");
+  }
+  if (uid === request.auth.uid) {
+    throw new HttpsError("failed-precondition", "You can't delete your own account.");
+  }
+
+  const db = admin.firestore();
+  const ref = db.collection("users").doc(uid);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "User not found.");
+  }
+
+  try {
+    await admin.auth().deleteUser(uid);
+  } catch (err) {
+    if (err.code !== "auth/user-not-found") {
+      throw new HttpsError("internal", err.message || "Failed to delete the login account.");
+    }
+  }
+  await ref.delete();
+
+  return { success: true };
+});
