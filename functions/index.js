@@ -596,7 +596,7 @@ exports.startMyAwbLines = onCall({ invoker: "public" }, async (request) => {
     const nextLines = awbLines.map((l) => {
       if (l.assignedDriverId === request.auth.uid && l.status === "assigned") {
         changed = true;
-        return { ...l, status: "in_progress" };
+        return { ...l, status: "in_progress", startedAt: Date.now() };
       }
       return l;
     });

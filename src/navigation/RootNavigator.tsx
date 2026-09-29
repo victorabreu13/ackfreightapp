@@ -9,6 +9,7 @@ import DispatchDetailScreen from "../screens/DispatchDetailScreen";
 import DispatchNewRequestScreen from "../screens/DispatchNewRequestScreen";
 import DispatchScreen from "../screens/DispatchScreen";
 import DeletedTripsScreen from "../screens/DeletedTripsScreen";
+import DriversAvailableScreen from "../screens/DriversAvailableScreen";
 import DriverPayrollScreen from "../screens/DriverPayrollScreen";
 import DriversLogScreen from "../screens/DriversLogScreen";
 import DriversRecordScreen from "../screens/DriversRecordScreen";
@@ -91,6 +92,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="DeletedTrips"
           component={DeletedTripsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="DriversAvailable"
+          component={DriversAvailableScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

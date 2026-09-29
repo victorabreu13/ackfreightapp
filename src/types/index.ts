@@ -95,6 +95,7 @@ export interface AwbLine {
   assignedDriverName: string | null;
   status: TripRequestStatus; // this line only ever moves through submitted/assigned/in_progress/completed
   tripLogId?: string; // set once this line is completed, links to the driver's Trip Log entry
+  startedAt?: number; // stamped when this line flips to in_progress, powers the Drivers Available screen
 }
 
 export interface DriverLocation {

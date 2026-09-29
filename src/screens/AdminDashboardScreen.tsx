@@ -34,13 +34,23 @@ const WEB_TILES = [
     label: "Deleted Trips",
     description: "Restore a trip that was deleted by mistake",
   },
+  {
+    key: "DriversAvailable",
+    icon: "🟢",
+    label: "Drivers Available",
+    description: "Who's free right now, and what they're carrying today",
+  },
 ] as const;
 
 // The native app keeps a lighter menu for now — Drivers Record, Driver
-// Payroll, and Deleted Trips (heavier on filters/tables, or rarely needed
-// on the go) stay web-only.
+// Payroll, Deleted Trips (heavier on filters/tables, or rarely needed on the
+// go), and Drivers Available (new, trying it on web first) stay web-only.
 const NATIVE_TILES = WEB_TILES.filter(
-  (t) => t.key !== "DriversRecord" && t.key !== "DriverPayroll" && t.key !== "DeletedTrips"
+  (t) =>
+    t.key !== "DriversRecord" &&
+    t.key !== "DriverPayroll" &&
+    t.key !== "DeletedTrips" &&
+    t.key !== "DriversAvailable"
 );
 
 const TILES = Platform.OS === "web" ? WEB_TILES : NATIVE_TILES;
