@@ -5,14 +5,22 @@ import { Trip } from "../types";
 interface Props {
   trip: Trip;
   showDriver?: boolean;
+  invoiced?: boolean;
   onPress: () => void;
 }
 
-export default function TripCard({ trip, showDriver, onPress }: Props) {
+export default function TripCard({ trip, showDriver, invoiced, onPress }: Props) {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
       <View style={styles.row}>
-        <Text style={styles.date}>{trip.date}</Text>
+        <View style={styles.rowLeft}>
+          <Text style={styles.date}>{trip.date}</Text>
+          {invoiced && (
+            <View style={styles.invoicedBadge}>
+              <Text style={styles.invoicedBadgeText}>Invoiced</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.time}>
           {trip.timeStart} – {trip.timeFinish}
         </Text>
@@ -58,6 +66,14 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 4,
   },
+  rowLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  invoicedBadge: {
+    backgroundColor: "#ede7fa",
+    borderRadius: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+  },
+  invoicedBadgeText: { color: "#6d28d9", fontSize: 11, fontWeight: "700" },
   date: { fontWeight: "700", fontSize: 15, color: "#111" },
   time: { fontSize: 14, color: "#555" },
   driver: { fontSize: 14, color: "#1d4ed8", fontWeight: "600", marginBottom: 2 },

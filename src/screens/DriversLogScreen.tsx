@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { subscribeToAllTrips } from "../services/trips";
+import { subscribeToAllTripRequests } from "../services/tripRequests";
 import { Trip } from "../types";
 import DateField from "../components/DateField";
 import TripCard from "../components/TripCard";
@@ -20,6 +21,7 @@ export default function DriversLogScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [filterDate, setFilterDate] = useState<Date | null>(new Date());
   const [searchQuery, setSearchQuery] = useState("");
+  const [invoicedTripLogIds, setInvoicedTripLogIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const unsubscribe = subscribeToAllTrips(
@@ -28,6 +30,26 @@ export default function DriversLogScreen({ navigation }: any) {
         setLoading(false);
       },
       () => setLoading(false)
+    );
+    return unsubscribe;
+  }, []);
+
+  // A Trip Log entry is "invoiced" once the trip request it came from has
+  // been invoiced — invoicing happens at the whole-request level, not per
+  // AWB line, so every tripLogId under an invoiced request counts.
+  useEffect(() => {
+    const unsubscribe = subscribeToAllTripRequests(
+      (requests) => {
+        const ids = new Set<string>();
+        for (const request of requests) {
+          if (request.status !== "invoiced") continue;
+          for (const line of request.awbLines) {
+            if (line.tripLogId) ids.add(line.tripLogId);
+          }
+        }
+        setInvoicedTripLogIds(ids);
+      },
+      () => {}
     );
     return unsubscribe;
   }, []);
@@ -113,6 +135,7 @@ export default function DriversLogScreen({ navigation }: any) {
             <TripCard
               trip={item}
               showDriver
+              invoiced={invoicedTripLogIds.has(item.id)}
               onPress={() => navigation.navigate("TripDetail", { trip: item })}
             />
           )}

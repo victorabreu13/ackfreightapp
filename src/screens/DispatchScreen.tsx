@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -53,7 +55,10 @@ export default function DispatchScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<TripRequestStatus | "all">("submitted");
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterDate, setFilterDate] = useState<Date | null>(null);
+  const [filterStartDate, setFilterStartDate] = useState<Date | null>(null);
+  const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
+  const [customerFilter, setCustomerFilter] = useState<string | null>(null);
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [qbStatus, setQbStatus] = useState<{
     connected: boolean;
     companyName?: string | null;
@@ -112,20 +117,44 @@ export default function DispatchScreen({ navigation }: any) {
     );
   };
 
-  // A search takes priority over the status filter — you're looking for one
-  // specific AWB wherever it is, not narrowing within the current filter.
+  // Customers who actually have trip requests, for the customer filter.
+  const customers = useMemo(() => {
+    const map = new Map<string, string>();
+    requests.forEach((r) => map.set(r.customerId, r.customerName));
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [requests]);
+  const customerName = customerFilter
+    ? customers.find((c) => c.id === customerFilter)?.name ?? "Unknown"
+    : "All Customers";
+
+  // Customer filter stays applied even while searching (narrowing an AWB
+  // search to one customer is useful); status and date only apply outside
+  // of a search — you're looking for one specific AWB wherever it is, not
+  // narrowing within the current status/date filter.
   const filtered = useMemo(() => {
+    const byCustomer = customerFilter
+      ? requests.filter((r) => r.customerId === customerFilter)
+      : requests;
+
     const q = searchQuery.trim().toLowerCase();
     if (q) {
-      return requests.filter((r) =>
+      return byCustomer.filter((r) =>
         r.awbLines.some((l) => l.awbNumber.toLowerCase().includes(q))
       );
     }
-    const byStatus = filter === "all" ? requests : requests.filter((r) => r.status === filter);
-    if (!filterDate) return byStatus;
-    const targetDate = toLocalDateString(filterDate);
-    return byStatus.filter((r) => r.tripDate === targetDate);
-  }, [requests, filter, searchQuery, filterDate]);
+    let result = filter === "all" ? byCustomer : byCustomer.filter((r) => r.status === filter);
+    if (filterStartDate) {
+      const start = toLocalDateString(filterStartDate);
+      result = result.filter((r) => r.tripDate >= start);
+    }
+    if (filterEndDate) {
+      const end = toLocalDateString(filterEndDate);
+      result = result.filter((r) => r.tripDate <= end);
+    }
+    return result;
+  }, [requests, filter, searchQuery, filterStartDate, filterEndDate, customerFilter]);
 
   return (
     <View style={styles.container}>
@@ -169,6 +198,14 @@ export default function DispatchScreen({ navigation }: any) {
         </View>
       )}
 
+      <TouchableOpacity
+        style={styles.customerButton}
+        onPress={() => setCustomerModalOpen(true)}
+      >
+        <Text style={styles.customerButtonText}>Customer: {customerName}</Text>
+        <Text style={styles.chevron}>▾</Text>
+      </TouchableOpacity>
+
       <TextInput
         style={[styles.searchInput, Platform.OS === "web" && styles.searchInputWeb]}
         placeholder="Search by AWB #"
@@ -199,22 +236,39 @@ export default function DispatchScreen({ navigation }: any) {
           </View>
           <View style={styles.dateFilterRow}>
             <View style={styles.filterDateField}>
+              <Text style={styles.miniLabel}>From</Text>
               <DateField
-                value={filterDate ?? new Date()}
+                value={filterStartDate ?? new Date()}
                 mode="date"
-                onChange={setFilterDate}
-                label={filterDate ? undefined : "All dates"}
+                onChange={setFilterStartDate}
+                label={filterStartDate ? undefined : "Any"}
+              />
+            </View>
+            <View style={styles.filterDateField}>
+              <Text style={styles.miniLabel}>To</Text>
+              <DateField
+                value={filterEndDate ?? new Date()}
+                mode="date"
+                onChange={setFilterEndDate}
+                label={filterEndDate ? undefined : "Any"}
               />
             </View>
             <TouchableOpacity
               style={styles.filterButtonSecondary}
-              onPress={() => setFilterDate(new Date())}
+              onPress={() => {
+                const today = new Date();
+                setFilterStartDate(today);
+                setFilterEndDate(today);
+              }}
             >
               <Text style={styles.filterButtonSecondaryText}>Today</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.filterButtonSecondary}
-              onPress={() => setFilterDate(null)}
+              onPress={() => {
+                setFilterStartDate(null);
+                setFilterEndDate(null);
+              }}
             >
               <Text style={styles.filterButtonSecondaryText}>All</Text>
             </TouchableOpacity>
@@ -267,6 +321,45 @@ export default function DispatchScreen({ navigation }: any) {
           )}
         />
       )}
+
+      <Modal
+        visible={customerModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCustomerModalOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setCustomerModalOpen(false)}
+        >
+          <View style={styles.modalCard}>
+            <ScrollView>
+              <TouchableOpacity
+                style={styles.modalOption}
+                onPress={() => {
+                  setCustomerFilter(null);
+                  setCustomerModalOpen(false);
+                }}
+              >
+                <Text style={styles.modalOptionText}>All Customers</Text>
+              </TouchableOpacity>
+              {customers.map((c) => (
+                <TouchableOpacity
+                  key={c.id}
+                  style={styles.modalOption}
+                  onPress={() => {
+                    setCustomerFilter(c.id);
+                    setCustomerModalOpen(false);
+                  }}
+                >
+                  <Text style={styles.modalOptionText}>{c.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -318,6 +411,43 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   searchInputWeb: { width: "25%" as any, minWidth: 160, marginHorizontal: 16 },
+  customerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  customerButtonText: { color: "#111", fontWeight: "600", fontSize: 14 },
+  chevron: { color: "#888", fontSize: 12 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingVertical: 8,
+    minWidth: 220,
+    maxHeight: "70%",
+  },
+  modalOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  modalOptionText: { fontSize: 16, color: "#111" },
+  miniLabel: { fontSize: 11, fontWeight: "700", color: "#888", marginBottom: 4 },
   filterRow: {
     flexDirection: "row",
     flexWrap: "wrap",
