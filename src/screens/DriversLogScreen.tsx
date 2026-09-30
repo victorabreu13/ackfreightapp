@@ -9,11 +9,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { subscribeToAllTrips } from "../services/trips";
+import { setTripInvoiced, subscribeToAllTrips } from "../services/trips";
 import { subscribeToAllTripRequests } from "../services/tripRequests";
 import { Trip } from "../types";
 import DateField from "../components/DateField";
 import TripCard from "../components/TripCard";
+import { notify } from "../utils/alert";
 import { toLocalDateString as formatDate } from "../utils/date";
 
 export default function DriversLogScreen({ navigation }: any) {
@@ -70,6 +71,14 @@ export default function DriversLogScreen({ navigation }: any) {
     () => new Set(filteredTrips.map((t) => t.driverId)).size,
     [filteredTrips]
   );
+
+  const toggleInvoiced = async (trip: Trip) => {
+    try {
+      await setTripInvoiced(trip.id, !trip.invoiced);
+    } catch (e: any) {
+      notify("Couldn't update", e?.message ?? "Something went wrong. Please try again.");
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -135,7 +144,9 @@ export default function DriversLogScreen({ navigation }: any) {
             <TripCard
               trip={item}
               showDriver
-              invoiced={invoicedTripLogIds.has(item.id)}
+              invoiced={invoicedTripLogIds.has(item.id) || !!item.invoiced}
+              invoicedLocked={invoicedTripLogIds.has(item.id)}
+              onToggleInvoiced={() => toggleInvoiced(item)}
               onPress={() => navigation.navigate("TripDetail", { trip: item })}
             />
           )}

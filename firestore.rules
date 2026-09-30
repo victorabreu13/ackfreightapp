@@ -15,9 +15,11 @@ service cloud.firestore {
     // Users can read/create their own profile. Only the owner can create it
     // (at sign-up); nobody can change their own role after that. A user can
     // update their own push-notification token; an admin can set a driver's
-    // payroll rate (payType/payRate) or a customer's billing rate
-    // (billType/billRate) — nothing else about another user's profile is
-    // writable from the client. quickbooksCustomerId is written only by the
+    // payroll rate (payType/payRate), a customer's billing rate
+    // (billType/billRate), or a customer's company name — nothing else about
+    // another user's profile is writable from the client (role/email/password
+    // go through their respective Cloud Functions instead, since those touch
+    // the Auth account too). quickbooksCustomerId is written only by the
     // sendQuickBooksInvoice Cloud Function (Admin SDK bypasses these rules).
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
@@ -27,20 +29,20 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pushToken"])) ||
         (isAdmin() &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-            ["payType", "payRate", "billType", "billRate"])));
+            ["payType", "payRate", "billType", "billRate", "companyName"])));
       allow delete: if false;
     }
 
     // Drivers can create and read their own trips. Admins can read every trip
-    // and toggle a trip's payroll-paid status. Trips can't otherwise be
-    // edited or deleted directly by clients — deletion only happens through
-    // the deleteTrip Cloud Function, which audits it.
+    // and toggle a trip's payroll-paid or invoiced status. Trips can't
+    // otherwise be edited or deleted directly by clients — deletion only
+    // happens through the deleteTrip Cloud Function, which audits it.
     match /trips/{tripId} {
       allow create: if isSignedIn() && request.resource.data.driverId == request.auth.uid;
       allow read: if isSignedIn() &&
         (resource.data.driverId == request.auth.uid || isAdmin());
       allow update: if isSignedIn() && isAdmin() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["paid"]);
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["paid", "invoiced"]);
       allow delete: if false;
     }
 

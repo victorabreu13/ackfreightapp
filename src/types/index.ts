@@ -29,6 +29,7 @@ export interface UserProfile {
   billType?: DriverPayType; // customer billing basis, admin-configured (same shape as driver pay)
   billRate?: number; // dollars per trip, or dollars per kilogram, depending on billType
   quickbooksCustomerId?: string; // set by the server once this customer exists in QuickBooks
+  companyName?: string; // admin-editable, separate from the person's own name
 }
 
 export interface ProofFile {
@@ -55,6 +56,8 @@ export interface Trip {
   notes: string;
   proofFiles: ProofFile[];
   paid: boolean; // driver payroll status for this trip, admin-toggled
+  invoiced?: boolean; // admin-toggled directly; also true whenever the trip's
+  // originating trip request (if any) has been invoiced
   createdAt: number;
 }
 

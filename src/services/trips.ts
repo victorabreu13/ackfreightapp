@@ -98,6 +98,10 @@ export async function setTripPaid(tripId: string, paid: boolean): Promise<void> 
   await updateDoc(doc(db, "trips", tripId), { paid });
 }
 
+export async function setTripInvoiced(tripId: string, invoiced: boolean): Promise<void> {
+  await updateDoc(doc(db, "trips", tripId), { invoiced });
+}
+
 export function subscribeToDriverTrips(
   driverId: string,
   onChange: (trips: Trip[]) => void,

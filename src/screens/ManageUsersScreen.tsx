@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import {
   deleteUserAccount,
+  setUserCompanyName,
   setUserRole,
   subscribeToAllUsers,
   updateUserEmail,
@@ -37,6 +38,8 @@ export default function ManageUsersScreen({ navigation }: any) {
   const [editEmailValue, setEditEmailValue] = useState("");
   const [editingPasswordUid, setEditingPasswordUid] = useState<string | null>(null);
   const [editPasswordValue, setEditPasswordValue] = useState("");
+  const [editingCompanyUid, setEditingCompanyUid] = useState<string | null>(null);
+  const [editCompanyValue, setEditCompanyValue] = useState("");
 
   useEffect(() => {
     const unsubscribe = subscribeToAllUsers(
@@ -130,6 +133,25 @@ export default function ManageUsersScreen({ navigation }: any) {
     }
   };
 
+  const startEditingCompany = (user: UserProfile) => {
+    setEditingCompanyUid(user.uid);
+    setEditCompanyValue(user.companyName ?? "");
+  };
+
+  const saveCompany = async (user: UserProfile) => {
+    const companyName = editCompanyValue.trim();
+    setSavingUid(user.uid);
+    try {
+      await setUserCompanyName(user.uid, companyName);
+      setUsers((prev) => prev.map((u) => (u.uid === user.uid ? { ...u, companyName } : u)));
+      setEditingCompanyUid(null);
+    } catch (e: any) {
+      notify("Couldn't save company name", e?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setSavingUid(null);
+    }
+  };
+
   const confirmDelete = (user: UserProfile) => {
     confirmAction(
       {
@@ -217,6 +239,30 @@ export default function ManageUsersScreen({ navigation }: any) {
               ) : (
                 <TouchableOpacity onPress={() => startEditingEmail(item)}>
                   <Text style={styles.userEmail}>{item.email} · Edit</Text>
+                </TouchableOpacity>
+              )}
+
+              {editingCompanyUid === item.uid ? (
+                <View style={styles.emailEditRow}>
+                  <TextInput
+                    style={styles.emailInput}
+                    placeholder="Company name"
+                    value={editCompanyValue}
+                    onChangeText={setEditCompanyValue}
+                    autoFocus
+                  />
+                  <TouchableOpacity style={styles.saveButton} onPress={() => saveCompany(item)}>
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setEditingCompanyUid(null)}>
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={() => startEditingCompany(item)}>
+                  <Text style={styles.companyText}>
+                    {item.companyName ? item.companyName : "No company set"} · Edit
+                  </Text>
                 </TouchableOpacity>
               )}
 
@@ -335,6 +381,7 @@ const styles = StyleSheet.create({
   saveButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   cancelText: { color: "#888", fontWeight: "600", fontSize: 13 },
   passwordText: { color: "#1d4ed8", fontWeight: "600", fontSize: 13, marginTop: 6 },
+  companyText: { color: "#666", fontWeight: "600", fontSize: 13, marginTop: 6 },
   deleteRow: { marginTop: 8, alignSelf: "flex-start" },
   deleteText: { color: "#c0392b", fontWeight: "600", fontSize: 12 },
   roleButton: {
@@ -352,9 +399,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
+    alignItems: "center",
     padding: 32,
   },
-  modalCard: { backgroundColor: "#fff", borderRadius: 12, paddingVertical: 8 },
+  modalCard: { backgroundColor: "#fff", borderRadius: 12, paddingVertical: 8, minWidth: 160 },
   modalOption: {
     paddingVertical: 14,
     paddingHorizontal: 20,

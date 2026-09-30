@@ -89,6 +89,10 @@ export async function setCustomerBillRate(
   await updateDoc(doc(db, "users", customerId), { billType, billRate });
 }
 
+export async function setUserCompanyName(uid: string, companyName: string): Promise<void> {
+  await updateDoc(doc(db, "users", uid), { companyName });
+}
+
 export function subscribeToAllUsers(
   onChange: (users: UserProfile[]) => void,
   onError: (error: Error) => void

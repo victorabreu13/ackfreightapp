@@ -6,20 +6,57 @@ interface Props {
   trip: Trip;
   showDriver?: boolean;
   invoiced?: boolean;
+  // True when "invoiced" came from the trip's own linked trip request being
+  // invoiced (the real source of truth for that path) — the badge shows but
+  // isn't toggleable, since flipping it here wouldn't undo the actual
+  // invoice. Untoggleable and toggleable badges both only ever appear when
+  // onToggleInvoiced is provided; without it the card renders exactly as
+  // before (no badge at all when not invoiced).
+  invoicedLocked?: boolean;
+  onToggleInvoiced?: () => void;
   onPress: () => void;
 }
 
-export default function TripCard({ trip, showDriver, invoiced, onPress }: Props) {
+export default function TripCard({
+  trip,
+  showDriver,
+  invoiced,
+  invoicedLocked,
+  onToggleInvoiced,
+  onPress,
+}: Props) {
+  const showBadge = invoiced || (!!onToggleInvoiced && !invoicedLocked);
+  const badge = showBadge ? (
+    <View
+      style={[
+        styles.invoicedBadge,
+        !invoiced && styles.invoicedBadgeOff,
+      ]}
+    >
+      <Text style={[styles.invoicedBadgeText, !invoiced && styles.invoicedBadgeTextOff]}>
+        {invoiced ? "Invoiced" : "Mark Invoiced"}
+      </Text>
+    </View>
+  ) : null;
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
       <View style={styles.row}>
         <View style={styles.rowLeft}>
           <Text style={styles.date}>{trip.date}</Text>
-          {invoiced && (
-            <View style={styles.invoicedBadge}>
-              <Text style={styles.invoicedBadgeText}>Invoiced</Text>
-            </View>
-          )}
+          {badge &&
+            (onToggleInvoiced && !invoicedLocked ? (
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onToggleInvoiced();
+                }}
+              >
+                {badge}
+              </TouchableOpacity>
+            ) : (
+              badge
+            ))}
         </View>
         <Text style={styles.time}>
           {trip.timeStart} – {trip.timeFinish}
@@ -73,7 +110,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     paddingHorizontal: 8,
   },
+  invoicedBadgeOff: { backgroundColor: "#f0f0f0" },
   invoicedBadgeText: { color: "#6d28d9", fontSize: 11, fontWeight: "700" },
+  invoicedBadgeTextOff: { color: "#888" },
   date: { fontWeight: "700", fontSize: 15, color: "#111" },
   time: { fontSize: 14, color: "#555" },
   driver: { fontSize: 14, color: "#1d4ed8", fontWeight: "600", marginBottom: 2 },
