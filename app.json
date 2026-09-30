@@ -43,6 +43,12 @@
     "web": {
       "bundler": "metro"
     },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b0fd7a62-0ec4-40aa-bcff-8a9b454d30f4"
+    },
     "plugins": [
       [
         "expo-image-picker",

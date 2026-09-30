@@ -4,6 +4,7 @@ import React from "react";
 import { Platform, View } from "react-native";
 import AppHeader from "./src/components/AppHeader";
 import AutoReload from "./src/components/AutoReload";
+import NativeAutoUpdate from "./src/components/NativeAutoUpdate";
 import { AuthProvider } from "./src/context/AuthContext";
 import { navigationRef } from "./src/navigation/navigationRef";
 import RootNavigator from "./src/navigation/RootNavigator";
@@ -42,6 +43,7 @@ export default function App() {
     <AuthProvider>
       <View style={{ flex: 1 }}>
         {Platform.OS === "web" && <AutoReload />}
+        {Platform.OS !== "web" && <NativeAutoUpdate />}
         {Platform.OS === "web" && <AppHeader />}
         <NavigationContainer ref={navigationRef} linking={linking}>
           <StatusBar style="dark" />
