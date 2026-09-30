@@ -596,9 +596,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
+    alignItems: "center",
     padding: 32,
   },
-  modalCard: { backgroundColor: "#fff", borderRadius: 12, paddingVertical: 8 },
+  modalCard: { backgroundColor: "#fff", borderRadius: 12, paddingVertical: 8, minWidth: 160 },
   modalOption: {
     paddingVertical: 14,
     paddingHorizontal: 20,

@@ -80,9 +80,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
+    alignItems: "center",
     padding: 32,
   },
-  card: { backgroundColor: "#fff", borderRadius: 12, paddingVertical: 8 },
+  card: { backgroundColor: "#fff", borderRadius: 12, paddingVertical: 8, minWidth: 160 },
   option: {
     paddingVertical: 14,
     paddingHorizontal: 20,

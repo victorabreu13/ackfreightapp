@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,8 +18,11 @@ import {
   setTripRequestStatus,
   subscribeToTripRequest,
   updateAwbKilograms,
+  updateAwbPriority,
 } from "../services/tripRequests";
 import {
+  AWB_PRIORITIES,
+  AwbPriority,
   computeTripRequestRollup,
   DriverPayType,
   TripRequest,
@@ -27,6 +31,12 @@ import {
 } from "../types";
 import { confirmAction, notify } from "../utils/alert";
 import { toLocalDateString } from "../utils/date";
+
+const PRIORITY_COLORS: Record<AwbPriority, { text: string }> = {
+  Low: { text: "#888" },
+  Normal: { text: "#1d4ed8" },
+  High: { text: "#c0392b" },
+};
 
 const BILL_TYPE_LABELS: Record<DriverPayType, string> = {
   perTrip: "per trip",
@@ -51,6 +61,8 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
   const [editingKgIndex, setEditingKgIndex] = useState<number | null>(null);
   const [editKgValue, setEditKgValue] = useState("");
   const [savingKg, setSavingKg] = useState(false);
+  const [priorityModalIndex, setPriorityModalIndex] = useState<number | null>(null);
+  const [savingPriorityIndex, setSavingPriorityIndex] = useState<number | null>(null);
 
   // Live-subscribed so status changes and driver location pings show up
   // without backing out and reopening — the various optimistic setRequest
@@ -206,6 +218,23 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
     }
   };
 
+  const changePriority = async (awbIndex: number, priority: AwbPriority) => {
+    setPriorityModalIndex(null);
+    if (request.awbLines[awbIndex].priority === priority) return;
+    setSavingPriorityIndex(awbIndex);
+    try {
+      await updateAwbPriority(request.id, awbIndex, priority);
+      setRequest((prev) => ({
+        ...prev,
+        awbLines: prev.awbLines.map((line, i) => (i === awbIndex ? { ...line, priority } : line)),
+      }));
+    } catch (e: any) {
+      notify("Couldn't change priority", e?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setSavingPriorityIndex(null);
+    }
+  };
+
   const changeStatus = (status: TripRequestStatus, confirmTitle: string) => {
     confirmAction(
       { title: confirmTitle, confirmLabel: "Confirm", destructive: status === "cancelled" },
@@ -253,17 +282,27 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
           // reassigned (e.g. swapping in a replacement driver), with a
           // confirmation since it resets the line for the new driver.
           const locked = line.status === "completed";
+          const priority = line.priority ?? "Normal";
           return (
             <View key={i} style={styles.awbAssignRow}>
-              <Text style={styles.awbAssignLabel}>
-                {line.awbNumber}
-                {line.priority && line.priority !== "Normal" && (
-                  <Text style={line.priority === "High" ? styles.priorityHighText : styles.priorityLowText}>
-                    {"  "}
-                    {line.priority === "High" ? "High !" : line.priority}
+              <Text style={styles.awbAssignLabel}>{line.awbNumber}</Text>
+              {savingPriorityIndex === i ? (
+                <ActivityIndicator style={styles.priorityButton} />
+              ) : (
+                <TouchableOpacity
+                  style={styles.priorityButton}
+                  onPress={() => setPriorityModalIndex(i)}
+                >
+                  <Text
+                    style={[
+                      styles.priorityButtonText,
+                      { color: PRIORITY_COLORS[priority].text },
+                    ]}
+                  >
+                    {priority === "High" ? "High !" : priority}
                   </Text>
-                )}
-              </Text>
+                </TouchableOpacity>
+              )}
               {assigningIndex === i ? (
                 <ActivityIndicator />
               ) : (
@@ -428,6 +467,33 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
           </TouchableOpacity>
         )}
       </View>
+
+      <Modal
+        visible={priorityModalIndex !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPriorityModalIndex(null)}
+      >
+        <TouchableOpacity
+          style={styles.priorityModalOverlay}
+          activeOpacity={1}
+          onPress={() => setPriorityModalIndex(null)}
+        >
+          <View style={styles.priorityModalCard}>
+            {AWB_PRIORITIES.map((p) => (
+              <TouchableOpacity
+                key={p}
+                style={styles.priorityModalOption}
+                onPress={() => priorityModalIndex !== null && changePriority(priorityModalIndex, p)}
+              >
+                <Text style={[styles.priorityModalOptionText, { color: PRIORITY_COLORS[p].text }]}>
+                  {p}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 }
@@ -469,8 +535,29 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   awbAssignLabel: { fontSize: 14, fontWeight: "700", color: "#111", flex: 1, marginRight: 10 },
-  priorityHighText: { fontSize: 12, fontWeight: "800", color: "#c0392b" },
-  priorityLowText: { fontSize: 12, fontWeight: "700", color: "#888" },
+  priorityButton: {
+    backgroundColor: "#f5f6fa",
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginRight: 10,
+  },
+  priorityButtonText: { fontWeight: "700", fontSize: 13 },
+  priorityModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  priorityModalCard: { backgroundColor: "#fff", borderRadius: 12, paddingVertical: 8, minWidth: 160 },
+  priorityModalOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  priorityModalOptionText: { fontSize: 16, fontWeight: "600" },
   rateText: { fontSize: 13, color: "#1d4ed8", fontWeight: "600" },
   rateEditor: {},
   payTypeRow: { flexDirection: "row", gap: 8, marginBottom: 8 },

@@ -14,6 +14,7 @@ import { HttpsCallable, httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "../firebase/config";
 import {
   AwbLine,
+  AwbPriority,
   computeTripRequestRollup,
   NewTripRequestInput,
   TripRequest,
@@ -220,6 +221,23 @@ export async function updateAwbKilograms(
     const data = snap.data() as TripRequest;
     const awbLines: AwbLine[] = data.awbLines.map((line, i) =>
       i === awbIndex ? { ...line, kilograms } : line
+    );
+    tx.update(ref, { awbLines, updatedAt: Date.now() });
+  });
+}
+
+export async function updateAwbPriority(
+  requestId: string,
+  awbIndex: number,
+  priority: AwbPriority
+): Promise<void> {
+  const ref = doc(db, "tripRequests", requestId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Trip request not found.");
+    const data = snap.data() as TripRequest;
+    const awbLines: AwbLine[] = data.awbLines.map((line, i) =>
+      i === awbIndex ? { ...line, priority } : line
     );
     tx.update(ref, { awbLines, updatedAt: Date.now() });
   });
