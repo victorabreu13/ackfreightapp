@@ -14,6 +14,7 @@ import {
   setUserRole,
   subscribeToAllUsers,
   updateUserEmail,
+  updateUserPassword,
 } from "../services/users";
 import { UserProfile, UserRole } from "../types";
 import { confirmAction, notify } from "../utils/alert";
@@ -34,6 +35,8 @@ export default function ManageUsersScreen({ navigation }: any) {
   const [savingUid, setSavingUid] = useState<string | null>(null);
   const [editingEmailUid, setEditingEmailUid] = useState<string | null>(null);
   const [editEmailValue, setEditEmailValue] = useState("");
+  const [editingPasswordUid, setEditingPasswordUid] = useState<string | null>(null);
+  const [editPasswordValue, setEditPasswordValue] = useState("");
 
   useEffect(() => {
     const unsubscribe = subscribeToAllUsers(
@@ -99,6 +102,29 @@ export default function ManageUsersScreen({ navigation }: any) {
       setEditingEmailUid(null);
     } catch (e: any) {
       notify("Couldn't change email", e?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setSavingUid(null);
+    }
+  };
+
+  const startEditingPassword = (user: UserProfile) => {
+    setEditingPasswordUid(user.uid);
+    setEditPasswordValue("");
+  };
+
+  const savePassword = async (user: UserProfile) => {
+    if (editPasswordValue.length < 6) {
+      notify("Password too short", "Enter at least 6 characters.");
+      return;
+    }
+    setSavingUid(user.uid);
+    try {
+      await updateUserPassword(user.uid, editPasswordValue);
+      setEditingPasswordUid(null);
+      setEditPasswordValue("");
+      notify("Password changed", `${user.name}'s password has been updated.`);
+    } catch (e: any) {
+      notify("Couldn't change password", e?.message ?? "Something went wrong. Please try again.");
     } finally {
       setSavingUid(null);
     }
@@ -194,6 +220,30 @@ export default function ManageUsersScreen({ navigation }: any) {
                 </TouchableOpacity>
               )}
 
+              {editingPasswordUid === item.uid ? (
+                <View style={styles.emailEditRow}>
+                  <TextInput
+                    style={styles.emailInput}
+                    placeholder="New password (min. 6 characters)"
+                    value={editPasswordValue}
+                    onChangeText={setEditPasswordValue}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoFocus
+                  />
+                  <TouchableOpacity style={styles.saveButton} onPress={() => savePassword(item)}>
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setEditingPasswordUid(null)}>
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={() => startEditingPassword(item)}>
+                  <Text style={styles.passwordText}>Reset Password</Text>
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteRow}>
                 <Text style={styles.deleteText}>Delete Account</Text>
               </TouchableOpacity>
@@ -284,6 +334,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   cancelText: { color: "#888", fontWeight: "600", fontSize: 13 },
+  passwordText: { color: "#1d4ed8", fontWeight: "600", fontSize: 13, marginTop: 6 },
   deleteRow: { marginTop: 8, alignSelf: "flex-start" },
   deleteText: { color: "#c0392b", fontWeight: "600", fontSize: 12 },
   roleButton: {

@@ -1307,6 +1307,38 @@ exports.updateUserEmail = onCall({ invoker: "public" }, async (request) => {
   return { success: true };
 });
 
+// Sets a user's password directly — no need to know their old one. Useful
+// for a locked-out user or fixing a bad signup. Firebase Auth requires at
+// least 6 characters; nothing here ever logs the password value itself.
+exports.updateUserPassword = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
+  }
+  await requireAdmin(request.auth.uid);
+
+  const { uid, password } = request.data || {};
+  if (!uid || typeof password !== "string" || password.length < 6) {
+    throw new HttpsError(
+      "invalid-argument",
+      "uid and a password of at least 6 characters are required."
+    );
+  }
+
+  const db = admin.firestore();
+  const snap = await db.collection("users").doc(uid).get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "User not found.");
+  }
+
+  try {
+    await admin.auth().updateUser(uid, { password });
+  } catch (err) {
+    throw new HttpsError("internal", err.message || "Failed to update the password.");
+  }
+
+  return { success: true };
+});
+
 // Removes the account entirely — both the Auth login and the Firestore
 // profile. Historical trips/trip requests keep their own denormalized copy
 // of the driver/customer name and email, so they stay readable afterward.
