@@ -118,15 +118,24 @@ export default function DispatchScreen({ navigation }: any) {
   };
 
   // Customer names who actually have trip requests, for the customer filter
-  // — unified by name rather than customerId, since the same real-world
-  // customer can have multiple login accounts (different emails) that now
-  // share one name after a rename, and should filter together as one entry.
+  // — unified by name (case-insensitively) rather than customerId, since the
+  // same real-world customer can have multiple login accounts (different
+  // emails, or names typed with different capitalization) that should
+  // filter together as one entry. customerFilter holds the lowercase key;
+  // the button/modal show the first-seen casing as the display label.
   const customerNames = useMemo(() => {
-    const names = new Set<string>();
-    requests.forEach((r) => names.add(r.customerName));
-    return Array.from(names).sort((a, b) => a.localeCompare(b));
+    const map = new Map<string, string>();
+    requests.forEach((r) => {
+      const key = r.customerName.trim().toLowerCase();
+      if (key && !map.has(key)) map.set(key, r.customerName.trim());
+    });
+    return Array.from(map.entries())
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }, [requests]);
-  const customerName = customerFilter ?? "All Customers";
+  const customerName = customerFilter
+    ? customerNames.find((c) => c.key === customerFilter)?.label ?? customerFilter
+    : "All Customers";
 
   // Customer filter stays applied even while searching (narrowing an AWB
   // search to one customer is useful); status and date only apply outside
@@ -134,7 +143,7 @@ export default function DispatchScreen({ navigation }: any) {
   // narrowing within the current status/date filter.
   const filtered = useMemo(() => {
     const byCustomer = customerFilter
-      ? requests.filter((r) => r.customerName === customerFilter)
+      ? requests.filter((r) => r.customerName.trim().toLowerCase() === customerFilter)
       : requests;
 
     const q = searchQuery.trim().toLowerCase();
@@ -343,16 +352,16 @@ export default function DispatchScreen({ navigation }: any) {
               >
                 <Text style={styles.modalOptionText}>All Customers</Text>
               </TouchableOpacity>
-              {customerNames.map((name) => (
+              {customerNames.map(({ key, label }) => (
                 <TouchableOpacity
-                  key={name}
+                  key={key}
                   style={styles.modalOption}
                   onPress={() => {
-                    setCustomerFilter(name);
+                    setCustomerFilter(key);
                     setCustomerModalOpen(false);
                   }}
                 >
-                  <Text style={styles.modalOptionText}>{name}</Text>
+                  <Text style={styles.modalOptionText}>{label}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
