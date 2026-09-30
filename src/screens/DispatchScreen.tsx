@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
   filterButtonText: { color: "#333", fontWeight: "600", fontSize: 13 },
   filterButtonTextActive: { color: "#fff" },
   dateFilterRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 8 },
-  filterDateField: { flex: 1 },
+  filterDateField: {},
   filterButtonSecondary: {
     backgroundColor: "#e8edff",
     borderRadius: 10,
