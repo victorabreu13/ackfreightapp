@@ -13,10 +13,7 @@ import { subscribeToAllTrips } from "../services/trips";
 import { Trip } from "../types";
 import DateField from "../components/DateField";
 import TripCard from "../components/TripCard";
-
-function formatDate(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
+import { toLocalDateString as formatDate } from "../utils/date";
 
 export default function DriversLogScreen({ navigation }: any) {
   const [trips, setTrips] = useState<Trip[]>([]);

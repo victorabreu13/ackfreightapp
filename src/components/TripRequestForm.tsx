@@ -15,10 +15,7 @@ import DateField from "./DateField";
 import { uploadTripRequestFile } from "../services/storage";
 import { AwbLine, RequestFile, ULD_TYPES, UldType, UserProfile, newAwbLine } from "../types";
 import { notify } from "../utils/alert";
-
-function formatDate(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
+import { toLocalDateString as formatDate } from "../utils/date";
 
 function formatTime(d: Date) {
   return d.toTimeString().slice(0, 5);

@@ -3,10 +3,7 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View }
 import { subscribeToDrivers } from "../services/users";
 import { subscribeToAllTripRequests } from "../services/tripRequests";
 import { AwbLine, TripRequest, UserProfile } from "../types";
-
-function todayDateString() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { toLocalDateString } from "../utils/date";
 
 function formatElapsed(startedAt: number, nowMs: number): string {
   const minutes = Math.max(0, Math.floor((nowMs - startedAt) / 60000));
@@ -62,7 +59,7 @@ export default function DriversAvailableScreen({ navigation }: any) {
   }, []);
 
   const rows = useMemo<DriverRow[]>(() => {
-    const today = todayDateString();
+    const today = toLocalDateString(new Date());
     return drivers.map((driver) => {
       const entries: DriverAwbEntry[] = [];
       for (const request of requests) {

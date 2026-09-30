@@ -26,6 +26,7 @@ import {
   UserProfile,
 } from "../types";
 import { confirmAction, notify } from "../utils/alert";
+import { toLocalDateString } from "../utils/date";
 
 const BILL_TYPE_LABELS: Record<DriverPayType, string> = {
   perTrip: "per trip",
@@ -237,7 +238,7 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
       <Text style={styles.meta}>Customer: {request.customerName}</Text>
       <Text style={styles.meta}>Contact email: {request.customerEmail}</Text>
       <Text style={styles.meta}>
-        Submitted: {new Date(request.submittedAt).toISOString().slice(0, 10)}
+        Submitted: {toLocalDateString(new Date(request.submittedAt))}
       </Text>
 
       <TripRequestReadOnly request={request} />
@@ -406,7 +407,7 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
         )}
         {request.status === "invoiced" && request.quickbooksInvoiceId && (
           <Text style={styles.statusHint}>
-            ✅ Invoiced via QuickBooks{request.invoicedAt ? ` on ${new Date(request.invoicedAt).toISOString().slice(0, 10)}` : ""}.
+            ✅ Invoiced via QuickBooks{request.invoicedAt ? ` on ${toLocalDateString(new Date(request.invoicedAt))}` : ""}.
           </Text>
         )}
         {(request.status === "submitted" || request.status === "assigned") && (

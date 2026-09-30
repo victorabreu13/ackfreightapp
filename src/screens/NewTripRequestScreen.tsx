@@ -5,6 +5,7 @@ import TripRequestForm, {
 } from "../components/TripRequestForm";
 import { useAuth } from "../context/AuthContext";
 import { createTripRequest, newTripRequestId } from "../services/tripRequests";
+import { toLocalDateString } from "../utils/date";
 
 export default function NewTripRequestScreen({ navigation }: any) {
   const { user, profile } = useAuth();
@@ -35,7 +36,7 @@ export default function NewTripRequestScreen({ navigation }: any) {
       <Text style={styles.title}>New Trip Request</Text>
       <Text style={styles.meta}>Customer: {profile.name}</Text>
       <Text style={styles.meta}>
-        Submitted: {new Date().toISOString().slice(0, 10)}
+        Submitted: {toLocalDateString(new Date())}
       </Text>
 
       <TripRequestForm

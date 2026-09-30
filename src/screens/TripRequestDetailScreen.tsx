@@ -17,6 +17,7 @@ import {
 } from "../services/tripRequests";
 import { TripRequest } from "../types";
 import { confirmAction, notify } from "../utils/alert";
+import { toLocalDateString } from "../utils/date";
 
 const STATUS_LABELS: Record<TripRequest["status"], string> = {
   submitted: "Submitted",
@@ -95,7 +96,7 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
       </View>
       <Text style={styles.meta}>Customer: {request.customerName}</Text>
       <Text style={styles.meta}>
-        Submitted: {new Date(request.submittedAt).toISOString().slice(0, 10)}
+        Submitted: {toLocalDateString(new Date(request.submittedAt))}
       </Text>
       <Text style={styles.meta}>
         Assigned Driver:{" "}

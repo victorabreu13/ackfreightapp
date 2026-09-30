@@ -9,6 +9,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
+import { toLocalDateString } from "../utils/date";
 
 interface Props {
   value: Date;
@@ -21,7 +22,7 @@ interface Props {
 }
 
 function formatLabel(value: Date, mode: "date" | "time") {
-  return mode === "date" ? value.toISOString().slice(0, 10) : value.toTimeString().slice(0, 5);
+  return mode === "date" ? toLocalDateString(value) : value.toTimeString().slice(0, 5);
 }
 
 function pad(n: number) {
@@ -30,7 +31,7 @@ function pad(n: number) {
 
 // Local (not UTC) calendar/clock components — matches what a date/time
 // picker widget shows and lets the user change. Callers apply the app's own
-// toISOString-based date-string convention afterward, same as before.
+// local-calendar-day string convention afterward (see utils/date.ts).
 function toWebInputValue(value: Date, mode: "date" | "time") {
   if (mode === "date") {
     return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;

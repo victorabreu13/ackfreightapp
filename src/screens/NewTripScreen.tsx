@@ -17,16 +17,13 @@ import { checkDuplicateUld, createTrip } from "../services/trips";
 import { uploadProofFile } from "../services/storage";
 import { ProofFile, ULD_TYPES, UldType } from "../types";
 import { confirmAction, notify } from "../utils/alert";
+import { toLocalDateString as formatDate } from "../utils/date";
 
 type PendingFile = {
   uri: string;
   name: string;
   kind: ProofFile["kind"];
 };
-
-function formatDate(d: Date) {
-  return d.toISOString().slice(0, 10); // YYYY-MM-DD
-}
 
 function formatTime(d: Date) {
   return d.toTimeString().slice(0, 5); // HH:mm

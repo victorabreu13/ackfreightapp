@@ -13,41 +13,41 @@ import { setTripPaid, subscribeToAllTrips } from "../services/trips";
 import { setDriverPayRate, subscribeToDrivers } from "../services/users";
 import { DriverPayType, Trip, UserProfile } from "../types";
 import { notify } from "../utils/alert";
+import { toLocalDateString as toDateStr } from "../utils/date";
 
-function toDateStr(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
-
+// All local-calendar-day arithmetic below (not UTC) — trip.date strings are
+// local calendar days (see utils/date.ts), so period boundaries need to be
+// computed the same way or they'll drift a day off near midnight.
 function parseDateStr(s: string) {
-  return new Date(`${s}T00:00:00Z`);
+  return new Date(`${s}T00:00:00`);
 }
 
 function addDays(d: Date, days: number) {
   const copy = new Date(d);
-  copy.setUTCDate(copy.getUTCDate() + days);
+  copy.setDate(copy.getDate() + days);
   return copy;
 }
 
 function startOfWeek(d: Date) {
-  const day = d.getUTCDay(); // 0 = Sunday
+  const day = d.getDay(); // 0 = Sunday
   const diffFromMonday = (day + 6) % 7;
   return addDays(d, -diffFromMonday);
 }
 
 function startOfMonth(d: Date) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
 function endOfMonth(d: Date) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
 }
 
 function dayOfMonth(d: Date, day: number) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), day));
+  return new Date(d.getFullYear(), d.getMonth(), day);
 }
 
 function formatWithYear(d: Date) {
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function money(n: number) {
@@ -152,7 +152,7 @@ export default function DriverPayrollScreen({ navigation }: any) {
       return { periodStart: startOfMonth(today), periodEnd: endOfMonth(today) };
     }
     if (preset === "lastMonth") {
-      const lastMonthDate = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+      const lastMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
       return { periodStart: startOfMonth(lastMonthDate), periodEnd: endOfMonth(lastMonthDate) };
     }
     if (preset === "firstHalf") {
