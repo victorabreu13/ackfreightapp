@@ -16,9 +16,9 @@ service cloud.firestore {
     // (at sign-up); nobody can change their own role after that. A user can
     // update their own push-notification token; an admin can set a driver's
     // payroll rate (payType/payRate), a customer's billing rate
-    // (billType/billRate), or a customer's company name — nothing else about
-    // another user's profile is writable from the client (role/email/password
-    // go through their respective Cloud Functions instead, since those touch
+    // (billType/billRate), or fix a user's display name — nothing else about
+    // another user's profile is writable from the client (email/password go
+    // through their respective Cloud Functions instead, since those touch
     // the Auth account too). quickbooksCustomerId is written only by the
     // sendQuickBooksInvoice Cloud Function (Admin SDK bypasses these rules).
     match /users/{userId} {
@@ -29,7 +29,7 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pushToken"])) ||
         (isAdmin() &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-            ["payType", "payRate", "billType", "billRate", "companyName"])));
+            ["payType", "payRate", "billType", "billRate", "name"])));
       allow delete: if false;
     }
 

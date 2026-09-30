@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import {
   deleteUserAccount,
-  setUserCompanyName,
+  setUserName,
   setUserRole,
   subscribeToAllUsers,
   updateUserEmail,
@@ -38,8 +38,8 @@ export default function ManageUsersScreen({ navigation }: any) {
   const [editEmailValue, setEditEmailValue] = useState("");
   const [editingPasswordUid, setEditingPasswordUid] = useState<string | null>(null);
   const [editPasswordValue, setEditPasswordValue] = useState("");
-  const [editingCompanyUid, setEditingCompanyUid] = useState<string | null>(null);
-  const [editCompanyValue, setEditCompanyValue] = useState("");
+  const [editingNameUid, setEditingNameUid] = useState<string | null>(null);
+  const [editNameValue, setEditNameValue] = useState("");
 
   useEffect(() => {
     const unsubscribe = subscribeToAllUsers(
@@ -133,20 +133,28 @@ export default function ManageUsersScreen({ navigation }: any) {
     }
   };
 
-  const startEditingCompany = (user: UserProfile) => {
-    setEditingCompanyUid(user.uid);
-    setEditCompanyValue(user.companyName ?? "");
+  const startEditingName = (user: UserProfile) => {
+    setEditingNameUid(user.uid);
+    setEditNameValue(user.name);
   };
 
-  const saveCompany = async (user: UserProfile) => {
-    const companyName = editCompanyValue.trim();
+  const saveName = async (user: UserProfile) => {
+    const name = editNameValue.trim();
+    if (!name) {
+      notify("Enter a name", "Name can't be empty.");
+      return;
+    }
+    if (name === user.name) {
+      setEditingNameUid(null);
+      return;
+    }
     setSavingUid(user.uid);
     try {
-      await setUserCompanyName(user.uid, companyName);
-      setUsers((prev) => prev.map((u) => (u.uid === user.uid ? { ...u, companyName } : u)));
-      setEditingCompanyUid(null);
+      await setUserName(user.uid, name);
+      setUsers((prev) => prev.map((u) => (u.uid === user.uid ? { ...u, name } : u)));
+      setEditingNameUid(null);
     } catch (e: any) {
-      notify("Couldn't save company name", e?.message ?? "Something went wrong. Please try again.");
+      notify("Couldn't save name", e?.message ?? "Something went wrong. Please try again.");
     } finally {
       setSavingUid(null);
     }
@@ -205,7 +213,26 @@ export default function ManageUsersScreen({ navigation }: any) {
           renderItem={({ item }) => (
             <View style={styles.card}>
               <View style={styles.cardTopRow}>
-                <Text style={styles.userName}>{item.name}</Text>
+                {editingNameUid === item.uid ? (
+                  <View style={styles.nameEditRow}>
+                    <TextInput
+                      style={styles.emailInput}
+                      value={editNameValue}
+                      onChangeText={setEditNameValue}
+                      autoFocus
+                    />
+                    <TouchableOpacity style={styles.saveButton} onPress={() => saveName(item)}>
+                      <Text style={styles.saveButtonText}>Save</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setEditingNameUid(null)}>
+                      <Text style={styles.cancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.nameTouchable} onPress={() => startEditingName(item)}>
+                    <Text style={styles.userName}>{item.name} · Edit</Text>
+                  </TouchableOpacity>
+                )}
                 {savingUid === item.uid ? (
                   <ActivityIndicator />
                 ) : (
@@ -239,30 +266,6 @@ export default function ManageUsersScreen({ navigation }: any) {
               ) : (
                 <TouchableOpacity onPress={() => startEditingEmail(item)}>
                   <Text style={styles.userEmail}>{item.email} · Edit</Text>
-                </TouchableOpacity>
-              )}
-
-              {editingCompanyUid === item.uid ? (
-                <View style={styles.emailEditRow}>
-                  <TextInput
-                    style={styles.emailInput}
-                    placeholder="Company name"
-                    value={editCompanyValue}
-                    onChangeText={setEditCompanyValue}
-                    autoFocus
-                  />
-                  <TouchableOpacity style={styles.saveButton} onPress={() => saveCompany(item)}>
-                    <Text style={styles.saveButtonText}>Save</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setEditingCompanyUid(null)}>
-                    <Text style={styles.cancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <TouchableOpacity onPress={() => startEditingCompany(item)}>
-                  <Text style={styles.companyText}>
-                    {item.companyName ? item.companyName : "No company set"} · Edit
-                  </Text>
                 </TouchableOpacity>
               )}
 
@@ -359,7 +362,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  userName: { fontSize: 15, fontWeight: "700", color: "#111", flex: 1, marginRight: 10 },
+  nameTouchable: { flex: 1, marginRight: 10 },
+  userName: { fontSize: 15, fontWeight: "700", color: "#111" },
+  nameEditRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1, marginRight: 10 },
   userEmail: { fontSize: 13, color: "#1d4ed8", marginTop: 4 },
   emailEditRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
   emailInput: {
@@ -381,7 +386,6 @@ const styles = StyleSheet.create({
   saveButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   cancelText: { color: "#888", fontWeight: "600", fontSize: 13 },
   passwordText: { color: "#1d4ed8", fontWeight: "600", fontSize: 13, marginTop: 6 },
-  companyText: { color: "#666", fontWeight: "600", fontSize: 13, marginTop: 6 },
   deleteRow: { marginTop: 8, alignSelf: "flex-start" },
   deleteText: { color: "#c0392b", fontWeight: "600", fontSize: 12 },
   roleButton: {
