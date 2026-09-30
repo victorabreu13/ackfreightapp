@@ -181,11 +181,11 @@ const styles = StyleSheet.create({
   filterDateField: { flex: 1 },
   filterButtonSecondary: {
     backgroundColor: "#e8edff",
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     alignItems: "center",
   },
-  filterButtonSecondaryText: { color: "#1d4ed8", fontWeight: "700" },
+  filterButtonSecondaryText: { color: "#1d4ed8", fontWeight: "700", fontSize: 13 },
   empty: { textAlign: "center", color: "#888", marginTop: 40, paddingHorizontal: 40 },
 });
