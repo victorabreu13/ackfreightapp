@@ -67,57 +67,59 @@ export default function LoginScreen({ navigation }: any) {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Text style={styles.title}>ACK Freight</Text>
-      <Text style={styles.subtitle}>Driver Log</Text>
+      <View style={Platform.OS === "web" && styles.webBox}>
+        <Text style={styles.title}>ACK Freight</Text>
+        <Text style={styles.subtitle}>Driver Log</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
 
-      {!!(error || authError) && (
-        <Text style={styles.error}>{error || authError}</Text>
-      )}
-
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleLogin}
-        disabled={submitting}
-      >
-        {submitting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>Log In</Text>
+        {!!(error || authError) && (
+          <Text style={styles.error}>{error || authError}</Text>
         )}
-      </TouchableOpacity>
 
-      <TouchableOpacity onPress={handleForgotPassword} disabled={sendingReset}>
-        <Text style={styles.link}>
-          {sendingReset ? "Sending…" : "Forgot your password?"}
-        </Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleLogin}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Log In</Text>
+          )}
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        onPress={() => navigation.navigate("SignUp", { role: "driver" })}
-      >
-        <Text style={styles.link}>New driver? Create an account</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        onPress={() => navigation.navigate("SignUp", { role: "customer" })}
-      >
-        <Text style={styles.link}>New customer? Create an account</Text>
-      </TouchableOpacity>
+        <TouchableOpacity onPress={handleForgotPassword} disabled={sendingReset}>
+          <Text style={styles.link}>
+            {sendingReset ? "Sending…" : "Forgot your password?"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => navigation.navigate("SignUp", { role: "driver" })}
+        >
+          <Text style={styles.link}>New driver? Create an account</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("SignUp", { role: "customer" })}
+        >
+          <Text style={styles.link}>New customer? Create an account</Text>
+        </TouchableOpacity>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -144,6 +146,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     backgroundColor: "#f5f6fa",
   },
+  webBox: { width: "100%" as any, maxWidth: 380, alignSelf: "center" },
   title: {
     fontSize: 30,
     fontWeight: "800",

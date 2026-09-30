@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  View,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
 
@@ -49,49 +50,51 @@ export default function SignUpScreen({ route, navigation }: any) {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Text style={styles.title}>
-        {isCustomer ? "Create Customer Account" : "Create Account"}
-      </Text>
+      <View style={Platform.OS === "web" && styles.webBox}>
+        <Text style={styles.title}>
+          {isCustomer ? "Create Customer Account" : "Create Account"}
+        </Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder={isCustomer ? "Company / customer name" : "Full name"}
-        value={name}
-        onChangeText={setName}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password (min 6 characters)"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+        <TextInput
+          style={styles.input}
+          placeholder={isCustomer ? "Company / customer name" : "Full name"}
+          value={name}
+          onChangeText={setName}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Password (min 6 characters)"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
 
-      {!!error && <Text style={styles.error}>{error}</Text>}
+        {!!error && <Text style={styles.error}>{error}</Text>}
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleSignUp}
-        disabled={submitting}
-      >
-        {submitting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>Sign Up</Text>
-        )}
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleSignUp}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Sign Up</Text>
+          )}
+        </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate("Login")}>
-        <Text style={styles.link}>Already have an account? Log in</Text>
-      </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+          <Text style={styles.link}>Already have an account? Log in</Text>
+        </TouchableOpacity>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -116,6 +119,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     backgroundColor: "#f5f6fa",
   },
+  webBox: { width: "100%" as any, maxWidth: 380, alignSelf: "center" },
   title: {
     fontSize: 26,
     fontWeight: "800",
