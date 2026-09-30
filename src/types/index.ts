@@ -14,6 +14,9 @@ export type UldType = (typeof ULD_TYPES)[number];
 
 export type DriverPayType = "perTrip" | "perKilogram";
 
+export const AWB_PRIORITIES = ["Low", "Normal", "High"] as const;
+export type AwbPriority = (typeof AWB_PRIORITIES)[number];
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -96,6 +99,7 @@ export interface AwbLine {
   status: TripRequestStatus; // this line only ever moves through submitted/assigned/in_progress/completed
   tripLogId?: string; // set once this line is completed, links to the driver's Trip Log entry
   startedAt?: number; // stamped when this line flips to in_progress, powers the Drivers Available screen
+  priority: AwbPriority;
 }
 
 export interface DriverLocation {
@@ -115,6 +119,7 @@ export interface TripRequest {
   pickupTime: string; // HH:mm, editable
   to: string;
   personRequesting: string;
+  notes?: string; // optional free-text note from the customer to admins/drivers
   awbLines: AwbLine[]; // 1..10 entries
   importFeeFiles: RequestFile[]; // shared across AWBs
   assignedDriverIds: string[];
@@ -149,6 +154,7 @@ export function newAwbLine(): AwbLine {
     assignedDriverId: null,
     assignedDriverName: null,
     status: "submitted",
+    priority: "Normal",
   };
 }
 

@@ -9,9 +9,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import DateField from "../components/DateField";
 import { useAuth } from "../context/AuthContext";
 import { subscribeToCustomerTripRequests } from "../services/tripRequests";
 import { TripRequest, TripRequestStatus } from "../types";
+import { toLocalDateString } from "../utils/date";
 
 const STATUS_LABELS: Record<TripRequest["status"], string> = {
   submitted: "Submitted",
@@ -48,6 +50,7 @@ export default function CustomerTripRequestsScreen({ navigation }: any) {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<TripRequestStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterDate, setFilterDate] = useState<Date | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -76,8 +79,11 @@ export default function CustomerTripRequestsScreen({ navigation }: any) {
         r.awbLines.some((l) => l.awbNumber.toLowerCase().includes(q))
       );
     }
-    return filter === "all" ? requests : requests.filter((r) => r.status === filter);
-  }, [requests, filter, searchQuery]);
+    const byStatus = filter === "all" ? requests : requests.filter((r) => r.status === filter);
+    if (!filterDate) return byStatus;
+    const targetDate = toLocalDateString(filterDate);
+    return byStatus.filter((r) => r.tripDate === targetDate);
+  }, [requests, filter, searchQuery, filterDate]);
 
   return (
     <View style={styles.container}>
@@ -98,24 +104,48 @@ export default function CustomerTripRequestsScreen({ navigation }: any) {
       )}
 
       {requests.length > 0 && !searchQuery.trim() && (
-        <View style={styles.filterRow}>
-          {FILTERS.map((f) => (
-            <TouchableOpacity
-              key={f.key}
-              style={[styles.filterButton, filter === f.key && styles.filterButtonActive]}
-              onPress={() => setFilter(f.key)}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  filter === f.key && styles.filterButtonTextActive,
-                ]}
+        <>
+          <View style={styles.filterRow}>
+            {FILTERS.map((f) => (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.filterButton, filter === f.key && styles.filterButtonActive]}
+                onPress={() => setFilter(f.key)}
               >
-                {f.label}
-              </Text>
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filter === f.key && styles.filterButtonTextActive,
+                  ]}
+                >
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.dateFilterRow}>
+            <View style={styles.filterDateField}>
+              <DateField
+                value={filterDate ?? new Date()}
+                mode="date"
+                onChange={setFilterDate}
+                label={filterDate ? undefined : "All dates"}
+              />
+            </View>
+            <TouchableOpacity
+              style={styles.filterButtonSecondary}
+              onPress={() => setFilterDate(new Date())}
+            >
+              <Text style={styles.filterButtonSecondaryText}>Today</Text>
             </TouchableOpacity>
-          ))}
-        </View>
+            <TouchableOpacity
+              style={styles.filterButtonSecondary}
+              onPress={() => setFilterDate(null)}
+            >
+              <Text style={styles.filterButtonSecondaryText}>All</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       )}
 
       {error ? (
@@ -209,6 +239,16 @@ const styles = StyleSheet.create({
   filterButtonActive: { backgroundColor: "#1d4ed8", borderColor: "#1d4ed8" },
   filterButtonText: { color: "#333", fontWeight: "600", fontSize: 13 },
   filterButtonTextActive: { color: "#fff" },
+  dateFilterRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  filterDateField: { flex: 1 },
+  filterButtonSecondary: {
+    backgroundColor: "#e8edff",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: "center",
+  },
+  filterButtonSecondaryText: { color: "#1d4ed8", fontWeight: "700" },
   empty: { textAlign: "center", color: "#888", marginTop: 40, paddingHorizontal: 20 },
   error: { textAlign: "center", color: "#c0392b", marginTop: 40, paddingHorizontal: 20 },
   card: {

@@ -118,6 +118,7 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
               pickupTime: request.pickupTime ?? "",
               to: request.to,
               personRequesting: request.personRequesting,
+              notes: request.notes ?? "",
               awbLines: request.awbLines,
               importFeeFiles: request.importFeeFiles,
             }}

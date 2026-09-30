@@ -13,9 +13,24 @@ import {
 import AwbDriverPicker from "./AwbDriverPicker";
 import DateField from "./DateField";
 import { uploadTripRequestFile } from "../services/storage";
-import { AwbLine, RequestFile, ULD_TYPES, UldType, UserProfile, newAwbLine } from "../types";
+import {
+  AWB_PRIORITIES,
+  AwbLine,
+  AwbPriority,
+  RequestFile,
+  ULD_TYPES,
+  UldType,
+  UserProfile,
+  newAwbLine,
+} from "../types";
 import { notify } from "../utils/alert";
 import { toLocalDateString as formatDate } from "../utils/date";
+
+const PRIORITY_COLORS: Record<AwbPriority, { bg: string; text: string }> = {
+  Low: { bg: "#f0f0f0", text: "#666" },
+  Normal: { bg: "#fff", text: "#111" },
+  High: { bg: "#fdecea", text: "#c0392b" },
+};
 
 function formatTime(d: Date) {
   return d.toTimeString().slice(0, 5);
@@ -44,6 +59,7 @@ interface LineState {
   assignedDriverId: string | null;
   assignedDriverName: string | null;
   status: AwbLine["status"];
+  priority: AwbPriority;
 }
 
 function lineFromAwbLine(line?: AwbLine): LineState {
@@ -58,6 +74,7 @@ function lineFromAwbLine(line?: AwbLine): LineState {
     assignedDriverId: line?.assignedDriverId ?? null,
     assignedDriverName: line?.assignedDriverName ?? null,
     status: line?.status ?? "submitted",
+    priority: line?.priority ?? "Normal",
   };
 }
 
@@ -67,6 +84,7 @@ export interface TripRequestFormValues {
   pickupTime: string;
   to: string;
   personRequesting: string;
+  notes: string;
   awbLines: AwbLine[];
   importFeeFiles: RequestFile[];
 }
@@ -80,6 +98,7 @@ interface Props {
     pickupTime: string;
     to: string;
     personRequesting: string;
+    notes?: string;
     awbLines: AwbLine[];
     importFeeFiles: RequestFile[];
   };
@@ -114,6 +133,7 @@ export default function TripRequestForm({
   const [personRequesting, setPersonRequesting] = useState(
     initial?.personRequesting ?? ""
   );
+  const [notes, setNotes] = useState(initial?.notes ?? "");
   const [lines, setLines] = useState<LineState[]>(
     initial?.awbLines?.length
       ? initial.awbLines.map(lineFromAwbLine)
@@ -123,6 +143,7 @@ export default function TripRequestForm({
     (initial?.importFeeFiles ?? []).map((file) => ({ kind: "uploaded", file }))
   );
   const [typeModalIndex, setTypeModalIndex] = useState<number | null>(null);
+  const [priorityModalIndex, setPriorityModalIndex] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const updateLine = (index: number, patch: Partial<LineState>) => {
@@ -210,6 +231,7 @@ export default function TripRequestForm({
           assignedDriverId: l.assignedDriverId,
           assignedDriverName: l.assignedDriverName,
           status: l.status,
+          priority: l.priority,
         });
       }
 
@@ -225,6 +247,7 @@ export default function TripRequestForm({
         pickupTime: formatTime(pickupTime),
         to: to.trim(),
         personRequesting: personRequesting.trim(),
+        notes: notes.trim(),
         awbLines,
         importFeeFiles,
       });
@@ -262,6 +285,15 @@ export default function TripRequestForm({
         onChangeText={setPersonRequesting}
       />
 
+      <Text style={styles.label}>Note (optional)</Text>
+      <TextInput
+        style={[styles.input, styles.notesInput]}
+        placeholder="Anything admins or the driver should know about this trip"
+        value={notes}
+        onChangeText={setNotes}
+        multiline
+      />
+
       <Text style={styles.sectionTitle}>AWBs ({lines.length}/{MAX_AWB_LINES})</Text>
       {lines.map((line, i) => (
         <View key={i} style={styles.awbCard}>
@@ -274,14 +306,33 @@ export default function TripRequestForm({
             )}
           </View>
 
-          <Text style={styles.label}>AWB #</Text>
-          <TextInput
-            style={[styles.input, Platform.OS === "web" && styles.quarterWidthWeb]}
-            placeholder="e.g. AWB-102938"
-            value={line.awbNumber}
-            onChangeText={(v) => updateLine(i, { awbNumber: v })}
-            autoCapitalize="characters"
-          />
+          <View style={styles.row}>
+            <View style={styles.awbNumberCol}>
+              <Text style={styles.label}>AWB #</Text>
+              <TextInput
+                style={[styles.input, Platform.OS === "web" && styles.quarterWidthWeb]}
+                placeholder="e.g. AWB-102938"
+                value={line.awbNumber}
+                onChangeText={(v) => updateLine(i, { awbNumber: v })}
+                autoCapitalize="characters"
+              />
+            </View>
+            <View style={styles.priorityCol}>
+              <Text style={styles.label}>Priority</Text>
+              <TouchableOpacity
+                style={[
+                  styles.pickerButton,
+                  { backgroundColor: PRIORITY_COLORS[line.priority].bg },
+                ]}
+                onPress={() => setPriorityModalIndex(i)}
+              >
+                <Text style={[styles.pickerText, { color: PRIORITY_COLORS[line.priority].text }]}>
+                  {line.priority}
+                  {line.priority === "High" ? " !" : ""}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
           <View style={styles.row}>
             <View style={styles.third}>
@@ -397,6 +448,36 @@ export default function TripRequestForm({
         </TouchableOpacity>
       </Modal>
 
+      <Modal
+        visible={priorityModalIndex !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPriorityModalIndex(null)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setPriorityModalIndex(null)}
+        >
+          <View style={styles.modalCard}>
+            {AWB_PRIORITIES.map((p) => (
+              <TouchableOpacity
+                key={p}
+                style={styles.modalOption}
+                onPress={() => {
+                  if (priorityModalIndex !== null) updateLine(priorityModalIndex, { priority: p });
+                  setPriorityModalIndex(null);
+                }}
+              >
+                <Text style={[styles.modalOptionText, { color: PRIORITY_COLORS[p].text }]}>
+                  {p}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {footer}
 
       <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
@@ -475,6 +556,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   quarterWidthWeb: { width: "25%" as any, minWidth: 160 },
+  notesInput: { minHeight: 70, textAlignVertical: "top" },
+  awbNumberCol: { flex: 3 },
+  priorityCol: { flex: 1, minWidth: 100 },
   awbCard: {
     backgroundColor: "#f0f2fa",
     borderRadius: 12,

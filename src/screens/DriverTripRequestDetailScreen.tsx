@@ -126,6 +126,8 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
   const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(new Set());
   const [uldByIndex, setUldByIndex] = useState<Record<number, string>>({});
   const [files, setFiles] = useState<PendingFile[]>([]);
+  const [showNoteField, setShowNoteField] = useState(false);
+  const [driverNote, setDriverNote] = useState("");
   const [completing, setCompleting] = useState(false);
 
   // Newly in-progress lines default to selected (matches the old
@@ -311,7 +313,9 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
         uldNumbers: trimmedUlds,
         awbNumber: joinedAwb,
         kilograms: selectedEntries.reduce((sum, { line }) => sum + line.kilograms, 0),
-        notes: `From dispatch request for ${request.customerName}.`,
+        notes: driverNote.trim()
+          ? `From dispatch request for ${request.customerName}. Driver note: ${driverNote.trim()}`
+          : `From dispatch request for ${request.customerName}.`,
         proofFiles: uploaded,
       });
 
@@ -406,6 +410,11 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
                   </View>
                   <Text style={styles.checkboxLabel}>
                     {line.awbNumber} ({line.type})
+                    {line.priority && line.priority !== "Normal"
+                      ? line.priority === "High"
+                        ? " · High priority !"
+                        : ` · ${line.priority} priority`
+                      : ""}
                   </Text>
                 </TouchableOpacity>
                 {checked && (
@@ -447,6 +456,24 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
               </TouchableOpacity>
             </View>
           ))}
+
+          {showNoteField ? (
+            <>
+              <Text style={styles.label}>Note</Text>
+              <TextInput
+                style={[styles.input, styles.notesInput]}
+                placeholder="Anything dispatch should know about this trip"
+                value={driverNote}
+                onChangeText={setDriverNote}
+                multiline
+                autoFocus
+              />
+            </>
+          ) : (
+            <TouchableOpacity onPress={() => setShowNoteField(true)} style={styles.addNoteLink}>
+              <Text style={styles.addNoteLinkText}>+ Add a note</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.primaryButton}
@@ -519,6 +546,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
   },
+  notesInput: { minHeight: 70, textAlignVertical: "top" },
+  addNoteLink: { marginTop: 14, alignSelf: "flex-start" },
+  addNoteLinkText: { color: "#1d4ed8", fontWeight: "700", fontSize: 14 },
   attachButton: {
     flex: 1,
     backgroundColor: "#e8edff",

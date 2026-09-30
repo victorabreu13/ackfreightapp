@@ -5,6 +5,7 @@ import { Platform, View } from "react-native";
 import AppHeader from "./src/components/AppHeader";
 import AutoReload from "./src/components/AutoReload";
 import { AuthProvider } from "./src/context/AuthContext";
+import { navigationRef } from "./src/navigation/navigationRef";
 import RootNavigator from "./src/navigation/RootNavigator";
 
 // Gives the web build real URL/history integration so the browser's own
@@ -42,7 +43,7 @@ export default function App() {
       <View style={{ flex: 1 }}>
         {Platform.OS === "web" && <AutoReload />}
         {Platform.OS === "web" && <AppHeader />}
-        <NavigationContainer linking={linking}>
+        <NavigationContainer ref={navigationRef} linking={linking}>
           <StatusBar style="dark" />
           <RootNavigator />
         </NavigationContainer>

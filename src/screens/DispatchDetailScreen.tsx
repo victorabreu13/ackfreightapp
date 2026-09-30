@@ -255,7 +255,15 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
           const locked = line.status === "completed";
           return (
             <View key={i} style={styles.awbAssignRow}>
-              <Text style={styles.awbAssignLabel}>{line.awbNumber}</Text>
+              <Text style={styles.awbAssignLabel}>
+                {line.awbNumber}
+                {line.priority && line.priority !== "Normal" && (
+                  <Text style={line.priority === "High" ? styles.priorityHighText : styles.priorityLowText}>
+                    {"  "}
+                    {line.priority === "High" ? "High !" : line.priority}
+                  </Text>
+                )}
+              </Text>
               {assigningIndex === i ? (
                 <ActivityIndicator />
               ) : (
@@ -461,6 +469,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   awbAssignLabel: { fontSize: 14, fontWeight: "700", color: "#111", flex: 1, marginRight: 10 },
+  priorityHighText: { fontSize: 12, fontWeight: "800", color: "#c0392b" },
+  priorityLowText: { fontSize: 12, fontWeight: "700", color: "#888" },
   rateText: { fontSize: 13, color: "#1d4ed8", fontWeight: "600" },
   rateEditor: {},
   payTypeRow: { flexDirection: "row", gap: 8, marginBottom: 8 },

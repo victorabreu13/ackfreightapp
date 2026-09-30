@@ -77,6 +77,7 @@ export async function updateTripRequest(
       | "pickupTime"
       | "to"
       | "personRequesting"
+      | "notes"
       | "awbLines"
       | "importFeeFiles"
     >

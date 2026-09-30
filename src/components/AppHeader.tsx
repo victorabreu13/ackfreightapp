@@ -1,15 +1,31 @@
 import React from "react";
 import { Image, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useAuth } from "../context/AuthContext";
+import { navigationRef } from "../navigation/navigationRef";
+
+const HOME_ROUTE_BY_ROLE: Record<string, string> = {
+  admin: "AdminDashboard",
+  customer: "CustomerHome",
+  driver: "DriverHome",
+};
 
 export default function AppHeader() {
+  const { profile } = useAuth();
+
+  const goHome = () => {
+    if (!navigationRef.isReady() || !profile) return;
+    const routeName = HOME_ROUTE_BY_ROLE[profile.role] ?? "DriverHome";
+    navigationRef.navigate(routeName as never);
+  };
+
   return (
     <View style={styles.container}>
-      <View style={styles.brand}>
+      <TouchableOpacity style={styles.brand} onPress={goHome}>
         <Image source={require("../../assets/icon.png")} style={styles.logo} />
         <Text style={styles.wordmark}>
           <Text style={styles.wordmarkBold}>ACK</Text> Freight
         </Text>
-      </View>
+      </TouchableOpacity>
       <TouchableOpacity onPress={() => Linking.openURL("mailto:victor.abreu@ackfreight.com")}>
         <Text style={styles.support}>Support</Text>
       </TouchableOpacity>
