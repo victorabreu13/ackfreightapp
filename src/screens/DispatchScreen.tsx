@@ -117,17 +117,16 @@ export default function DispatchScreen({ navigation }: any) {
     );
   };
 
-  // Customers who actually have trip requests, for the customer filter.
-  const customers = useMemo(() => {
-    const map = new Map<string, string>();
-    requests.forEach((r) => map.set(r.customerId, r.customerName));
-    return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+  // Customer names who actually have trip requests, for the customer filter
+  // — unified by name rather than customerId, since the same real-world
+  // customer can have multiple login accounts (different emails) that now
+  // share one name after a rename, and should filter together as one entry.
+  const customerNames = useMemo(() => {
+    const names = new Set<string>();
+    requests.forEach((r) => names.add(r.customerName));
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [requests]);
-  const customerName = customerFilter
-    ? customers.find((c) => c.id === customerFilter)?.name ?? "Unknown"
-    : "All Customers";
+  const customerName = customerFilter ?? "All Customers";
 
   // Customer filter stays applied even while searching (narrowing an AWB
   // search to one customer is useful); status and date only apply outside
@@ -135,7 +134,7 @@ export default function DispatchScreen({ navigation }: any) {
   // narrowing within the current status/date filter.
   const filtered = useMemo(() => {
     const byCustomer = customerFilter
-      ? requests.filter((r) => r.customerId === customerFilter)
+      ? requests.filter((r) => r.customerName === customerFilter)
       : requests;
 
     const q = searchQuery.trim().toLowerCase();
@@ -344,16 +343,16 @@ export default function DispatchScreen({ navigation }: any) {
               >
                 <Text style={styles.modalOptionText}>All Customers</Text>
               </TouchableOpacity>
-              {customers.map((c) => (
+              {customerNames.map((name) => (
                 <TouchableOpacity
-                  key={c.id}
+                  key={name}
                   style={styles.modalOption}
                   onPress={() => {
-                    setCustomerFilter(c.id);
+                    setCustomerFilter(name);
                     setCustomerModalOpen(false);
                   }}
                 >
-                  <Text style={styles.modalOptionText}>{c.name}</Text>
+                  <Text style={styles.modalOptionText}>{name}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
