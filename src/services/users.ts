@@ -49,6 +49,22 @@ export function subscribeToDrivers(
   );
 }
 
+// For driver-assignment pickers specifically — payroll/records screens still
+// need subscribeToDrivers' full list (a deactivated driver still has trips to
+// get paid for), but an inactive driver shouldn't be assignable to new work.
+// Filtered client-side rather than via a Firestore "active != false" query,
+// since that operator excludes documents missing the field entirely (true
+// for every driver who's never been deactivated).
+export function subscribeToActiveDrivers(
+  onChange: (drivers: UserProfile[]) => void,
+  onError: (error: Error) => void
+) {
+  return subscribeToDrivers(
+    (drivers) => onChange(drivers.filter((d) => d.active !== false)),
+    onError
+  );
+}
+
 export async function setDriverPayRate(
   driverId: string,
   payType: DriverPayType,

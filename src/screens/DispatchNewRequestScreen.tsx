@@ -12,7 +12,7 @@ import TripRequestForm, {
   TripRequestFormValues,
 } from "../components/TripRequestForm";
 import { createCustomer } from "../services/customers";
-import { subscribeToCustomers, subscribeToDrivers } from "../services/users";
+import { subscribeToActiveDrivers, subscribeToCustomers } from "../services/users";
 import { createTripRequest, newTripRequestId } from "../services/tripRequests";
 import { computeTripRequestRollup, UserProfile } from "../types";
 import { notify } from "../utils/alert";
@@ -29,7 +29,7 @@ export default function DispatchNewRequestScreen({ navigation }: any) {
 
   useEffect(() => {
     const unsubCustomers = subscribeToCustomers(setCustomers, () => {});
-    const unsubDrivers = subscribeToDrivers(setDrivers, () => {});
+    const unsubDrivers = subscribeToActiveDrivers(setDrivers, () => {});
     return () => {
       unsubCustomers();
       unsubDrivers();

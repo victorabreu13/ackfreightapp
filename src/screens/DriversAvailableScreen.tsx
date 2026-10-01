@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { subscribeToDrivers } from "../services/users";
+import { subscribeToActiveDrivers } from "../services/users";
 import { subscribeToAllTripRequests } from "../services/tripRequests";
 import { AwbLine, TripRequest, UserProfile } from "../types";
 import { toLocalDateString } from "../utils/date";
@@ -33,7 +33,7 @@ export default function DriversAvailableScreen({ navigation }: any) {
   const [nowMs, setNowMs] = useState(Date.now());
 
   useEffect(() => {
-    const unsubscribe = subscribeToDrivers(
+    const unsubscribe = subscribeToActiveDrivers(
       (data) => {
         setDrivers(data);
         setLoading(false);

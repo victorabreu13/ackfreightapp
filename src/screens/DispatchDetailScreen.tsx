@@ -12,7 +12,7 @@ import {
 import AwbDriverPicker from "../components/AwbDriverPicker";
 import TripRequestReadOnly from "../components/TripRequestReadOnly";
 import { sendQuickBooksInvoice } from "../services/quickbooks";
-import { getUserProfile, setCustomerBillRate, subscribeToDrivers } from "../services/users";
+import { getUserProfile, setCustomerBillRate, subscribeToActiveDrivers } from "../services/users";
 import {
   assignAwbDriver,
   setTripRequestStatus,
@@ -85,10 +85,10 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
   const [sendingInvoice, setSendingInvoice] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = subscribeToDrivers(
+    const unsubscribe = subscribeToActiveDrivers(
       (data) => setDrivers(data),
       (err) => {
-        console.error("subscribeToDrivers error:", err);
+        console.error("subscribeToActiveDrivers error:", err);
         notify("Couldn't load drivers", err.message);
       }
     );
