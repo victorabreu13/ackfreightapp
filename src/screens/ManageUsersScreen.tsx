@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import {
   deleteUserAccount,
+  setUserActive,
   setUserName,
   setUserRole,
   subscribeToAllUsers,
@@ -160,6 +161,35 @@ export default function ManageUsersScreen({ navigation }: any) {
     }
   };
 
+  const toggleActive = (user: UserProfile) => {
+    const willActivate = user.active === false;
+    confirmAction(
+      {
+        title: willActivate
+          ? `Reactivate ${user.name}'s account?`
+          : `Deactivate ${user.name}'s account?`,
+        message: willActivate
+          ? "They'll be able to log in again."
+          : "They won't be able to log in until reactivated. Their profile and trip history stay intact.",
+        confirmLabel: willActivate ? "Reactivate" : "Deactivate",
+        destructive: !willActivate,
+      },
+      async () => {
+        setSavingUid(user.uid);
+        try {
+          await setUserActive(user.uid, willActivate);
+          setUsers((prev) =>
+            prev.map((u) => (u.uid === user.uid ? { ...u, active: willActivate } : u))
+          );
+        } catch (e: any) {
+          notify("Couldn't update account", e?.message ?? "Something went wrong. Please try again.");
+        } finally {
+          setSavingUid(null);
+        }
+      }
+    );
+  };
+
   const confirmDelete = (user: UserProfile) => {
     confirmAction(
       {
@@ -230,7 +260,12 @@ export default function ManageUsersScreen({ navigation }: any) {
                   </View>
                 ) : (
                   <TouchableOpacity style={styles.nameTouchable} onPress={() => startEditingName(item)}>
-                    <Text style={styles.userName}>{item.name} · Edit</Text>
+                    <Text style={styles.userName}>
+                      {item.name} · Edit
+                      {item.active === false && (
+                        <Text style={styles.inactiveBadgeText}>  ·  Inactive</Text>
+                      )}
+                    </Text>
                   </TouchableOpacity>
                 )}
                 {savingUid === item.uid ? (
@@ -293,9 +328,16 @@ export default function ManageUsersScreen({ navigation }: any) {
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteRow}>
-                <Text style={styles.deleteText}>Delete Account</Text>
-              </TouchableOpacity>
+              <View style={styles.bottomActionsRow}>
+                <TouchableOpacity onPress={() => toggleActive(item)}>
+                  <Text style={styles.deactivateText}>
+                    {item.active === false ? "Reactivate Account" : "Deactivate Account"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => confirmDelete(item)}>
+                  <Text style={styles.deleteText}>Delete Account</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
         />
@@ -364,6 +406,7 @@ const styles = StyleSheet.create({
   },
   nameTouchable: { flex: 1, marginRight: 10 },
   userName: { fontSize: 15, fontWeight: "700", color: "#111" },
+  inactiveBadgeText: { fontSize: 13, fontWeight: "700", color: "#c0392b" },
   nameEditRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1, marginRight: 10 },
   userEmail: { fontSize: 13, color: "#1d4ed8", marginTop: 4 },
   emailEditRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
@@ -386,7 +429,8 @@ const styles = StyleSheet.create({
   saveButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   cancelText: { color: "#888", fontWeight: "600", fontSize: 13 },
   passwordText: { color: "#1d4ed8", fontWeight: "600", fontSize: 13, marginTop: 6 },
-  deleteRow: { marginTop: 8, alignSelf: "flex-start" },
+  bottomActionsRow: { flexDirection: "row", gap: 20, marginTop: 8 },
+  deactivateText: { color: "#b45309", fontWeight: "600", fontSize: 12 },
   deleteText: { color: "#c0392b", fontWeight: "600", fontSize: 12 },
   roleButton: {
     flexDirection: "row",

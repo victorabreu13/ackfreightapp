@@ -132,6 +132,15 @@ export async function updateUserPassword(uid: string, password: string): Promise
   await callWithFreshToken(updateUserPasswordFn, { uid, password });
 }
 
+const setUserActiveFn = httpsCallable<{ uid: string; active: boolean }, { success: boolean }>(
+  functions,
+  "setUserActive"
+);
+
+export async function setUserActive(uid: string, active: boolean): Promise<void> {
+  await callWithFreshToken(setUserActiveFn, { uid, active });
+}
+
 const deleteUserAccountFn = httpsCallable<{ uid: string }, { success: boolean }>(
   functions,
   "deleteUserAccount"

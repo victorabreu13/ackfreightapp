@@ -134,6 +134,8 @@ function friendlyError(code?: string) {
       return "Incorrect email or password.";
     case "auth/too-many-requests":
       return "Too many attempts. Try again later.";
+    case "auth/user-disabled":
+      return "This account has been deactivated. Contact your admin.";
     default:
       return "Couldn't log in. Please try again.";
   }

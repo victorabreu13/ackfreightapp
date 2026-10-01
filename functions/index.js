@@ -1339,6 +1339,44 @@ exports.updateUserPassword = onCall({ invoker: "public" }, async (request) => {
   return { success: true };
 });
 
+// Alternative to deleteUserAccount for a user with trip history — deleting
+// them would orphan nothing (trips/trip requests denormalize their own
+// name/email), but it's nicer to keep the account around for the record.
+// Disabling at the Auth level actually blocks sign-in (not just an app-side
+// flag), and the mirrored Firestore field lets the UI show status without
+// an extra Auth lookup.
+exports.setUserActive = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
+  }
+  await requireAdmin(request.auth.uid);
+
+  const { uid, active } = request.data || {};
+  if (!uid || typeof active !== "boolean") {
+    throw new HttpsError("invalid-argument", "uid and a boolean active are required.");
+  }
+  if (uid === request.auth.uid) {
+    throw new HttpsError("failed-precondition", "You can't deactivate your own account.");
+  }
+
+  const db = admin.firestore();
+  const snap = await db.collection("users").doc(uid).get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "User not found.");
+  }
+
+  try {
+    await admin.auth().updateUser(uid, { disabled: !active });
+  } catch (err) {
+    if (err.code !== "auth/user-not-found") {
+      throw new HttpsError("internal", err.message || "Failed to update the account.");
+    }
+  }
+  await db.collection("users").doc(uid).update({ active });
+
+  return { success: true };
+});
+
 // Removes the account entirely — both the Auth login and the Firestore
 // profile. Historical trips/trip requests keep their own denormalized copy
 // of the driver/customer name and email, so they stay readable afterward.
