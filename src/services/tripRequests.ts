@@ -15,11 +15,10 @@ import { auth, db, functions } from "../firebase/config";
 import {
   AwbLine,
   AwbPriority,
-  computeTripRequestRollup,
   NewTripRequestInput,
   TripRequest,
-  TripRequestStatus,
 } from "../types";
+import { applyAwbAssignment } from "../utils/awbMutations";
 
 // Force a fresh ID token before calling, and retry once on "unauthenticated":
 // on native the cached token can lag behind sign-in state, which makes a
@@ -172,21 +171,13 @@ export async function assignAwbDriver(
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("Trip request not found.");
     const data = snap.data() as TripRequest;
-    const previousDriverId = data.awbLines[awbIndex]?.assignedDriverId ?? null;
-    const awbLines: AwbLine[] = data.awbLines.map((line, i) =>
-      i === awbIndex
-        ? {
-            ...line,
-            assignedDriverId: driverId,
-            assignedDriverName: driverName,
-            status: (driverId ? "assigned" : "submitted") as TripRequestStatus,
-          }
-        : line
-    );
-    const rollup = computeTripRequestRollup(awbLines);
+    const assigned = applyAwbAssignment(data.awbLines, awbIndex, driverId, driverName);
+    const { previousDriverId, awbLines } = assigned;
     const updates: Record<string, unknown> = {
       awbLines,
-      ...rollup,
+      status: assigned.status,
+      assignedDriverIds: assigned.assignedDriverIds,
+      assignedDriverNames: assigned.assignedDriverNames,
       updatedAt: Date.now(),
     };
     // Reassigning a line away from a driver who was mid-trip on it (this is
@@ -308,4 +299,20 @@ export async function updateMyLiveLocation(
   lng: number
 ): Promise<void> {
   await callWithFreshToken(updateMyLiveLocationFn, { requestId, lat, lng });
+}
+
+export interface TripProofGroup {
+  tripLogId: string;
+  awbNumbers: string[];
+  proofFiles: { url: string; name: string; kind: "image" | "document" }[];
+}
+
+const getTripRequestProofsFn = httpsCallable<
+  { requestId: string },
+  { proofs: TripProofGroup[] }
+>(functions, "getTripRequestProofs");
+
+export async function getTripRequestProofs(requestId: string): Promise<TripProofGroup[]> {
+  const result = await callWithFreshToken(getTripRequestProofsFn, { requestId });
+  return result.proofs;
 }

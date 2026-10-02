@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import CustomerProofSection from "../components/CustomerProofSection";
 import TripRequestForm, {
   TripRequestFormValues,
 } from "../components/TripRequestForm";
@@ -106,7 +107,12 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
       </Text>
 
       {locked ? (
-        <TripRequestReadOnly request={request} />
+        <>
+          <TripRequestReadOnly request={request} />
+          {request.awbLines.some((line) => line.tripLogId) && (
+            <CustomerProofSection requestId={request.id} />
+          )}
+        </>
       ) : (
         <>
           <TripRequestForm

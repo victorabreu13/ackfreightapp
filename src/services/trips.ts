@@ -1,5 +1,4 @@
 import {
-  addDoc,
   collection,
   doc,
   onSnapshot,
@@ -41,8 +40,14 @@ async function callWithFreshToken<Req, Res>(
 interface DuplicateUldResult {
   duplicate: boolean;
   uldNumber?: string;
-  conflictingDriverName?: string;
-  conflictingDate?: string;
+}
+
+export function duplicateUldMessage(
+  uldNumber: string | undefined,
+  action: "submitting" | "completing"
+) {
+  const which = uldNumber ? `ULD #${uldNumber}` : "This ULD";
+  return `${which} is already logged under this AWB. Double-check the number before ${action}.`;
 }
 
 const checkDuplicateUldFn = httpsCallable<
@@ -85,13 +90,14 @@ export async function restoreDeletedTrip(deletedTripId: string): Promise<void> {
   await callWithFreshToken(restoreDeletedTripFn, { deletedTripId });
 }
 
+const submitTripLogFn = httpsCallable<{ trip: NewTripInput }, { id: string }>(
+  functions,
+  "submitTripLog"
+);
+
 export async function createTrip(input: NewTripInput): Promise<string> {
-  const docRef = await addDoc(tripsCollection, {
-    ...input,
-    paid: false,
-    createdAt: Date.now(),
-  });
-  return docRef.id;
+  const result = await callWithFreshToken(submitTripLogFn, { trip: input });
+  return result.id;
 }
 
 export async function setTripPaid(tripId: string, paid: boolean): Promise<void> {

@@ -2,6 +2,7 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const {
   onDocumentCreated,
+  onDocumentDeleted,
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
 const { defineSecret } = require("firebase-functions/params");
@@ -9,6 +10,18 @@ const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
+const {
+  applyComplete,
+  applyStart,
+  driversGainingAwbLines,
+} = require("./awbLogic");
+const { proofsForRequest } = require("./proofs");
+const {
+  addTripUldKeys,
+  commitTripIfUnique,
+  findDuplicateUld,
+  removeTripUldKeys,
+} = require("./uldKeys");
 
 admin.initializeApp();
 
@@ -248,32 +261,8 @@ async function sendDailySummary() {
   logger.info(`Sent daily summary for ${dateStr} to ${adminEmails.join(", ")} (${trips.length} trips).`);
 }
 
-function normalize(value) {
-  return String(value ?? "").trim().toUpperCase();
-}
-
-// Mirrors computeTripRequestRollup in src/types/index.ts — kept as a small
-// duplicate here since functions/ is a separate Node project from the app.
-function computeRollup(awbLines) {
-  const assignedDriverIds = [...new Set((awbLines || []).map((l) => l.assignedDriverId).filter(Boolean))];
-  const assignedDriverNames = [...new Set((awbLines || []).map((l) => l.assignedDriverName).filter(Boolean))];
-
-  let status = "submitted";
-  if (awbLines.length > 0 && awbLines.every((l) => l.status === "completed")) {
-    status = "completed";
-  } else if (awbLines.some((l) => l.status === "in_progress" || l.status === "completed")) {
-    status = "in_progress";
-  } else if (awbLines.some((l) => l.status === "assigned")) {
-    status = "assigned";
-  }
-
-  return { status, assignedDriverIds, assignedDriverNames };
-}
-
-// Drivers can only read their own trips under the Firestore security rules,
-// so checking for a duplicate ULD#/AWB# combo across *every* driver's trips
-// has to happen server-side, with admin privileges, instead of a client
-// query. Called from the app right before a new trip is submitted.
+// Duplicate AWB+ULD check. Reads claim documents only (tripUldKeys), never
+// the trips collection, and does not return who already logged the number.
 exports.checkDuplicateUld = onCall({ invoker: "public" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be signed in.");
@@ -287,30 +276,103 @@ exports.checkDuplicateUld = onCall({ invoker: "public" }, async (request) => {
     );
   }
 
-  const targetAwb = normalize(awbNumber);
-  const targetUlds = uldNumbers.map(normalize);
+  return findDuplicateUld(admin.firestore(), awbNumber, uldNumbers);
+});
 
-  const db = admin.firestore();
-  const snap = await db.collection("trips").get();
-
-  for (const doc of snap.docs) {
-    const data = doc.data();
-    if (normalize(data.awbNumber) !== targetAwb) continue;
-    const existingUlds = (data.uldNumbers || []).map(normalize);
-    for (const uld of targetUlds) {
-      if (uld && existingUlds.includes(uld)) {
-        return {
-          duplicate: true,
-          uldNumber: uld,
-          conflictingDriverName: data.driverName || "another driver",
-          conflictingDate: data.date || "",
-        };
-      }
-    }
+// Writes the trip and its ULD claims in one transaction. Direct client
+// creates are still allowed by the security rules for already-shipped
+// builds; those are indexed by onTripCreatedIndexUldKeys.
+exports.submitTripLog = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
   }
 
-  return { duplicate: false };
+  const input = (request.data && request.data.trip) || {};
+  if (input.driverId !== request.auth.uid) {
+    throw new HttpsError("permission-denied", "You can only log your own trips.");
+  }
+  if (!input.awbNumber || !Array.isArray(input.uldNumbers)) {
+    throw new HttpsError("invalid-argument", "awbNumber and uldNumbers are required.");
+  }
+
+  const db = admin.firestore();
+  const tripId = db.collection("trips").doc().id;
+  const trip = {
+    driverId: request.auth.uid,
+    driverName: String(input.driverName || ""),
+    driverEmail: String(input.driverEmail || request.auth.token.email || ""),
+    date: String(input.date || ""),
+    timeStart: String(input.timeStart || ""),
+    timeFinish: String(input.timeFinish || ""),
+    from: String(input.from || ""),
+    to: String(input.to || ""),
+    qty: Number(input.qty) || 0,
+    unitTypes: Array.isArray(input.unitTypes) ? input.unitTypes : [],
+    uldNumbers: input.uldNumbers.map((value) => String(value ?? "")),
+    awbNumber: String(input.awbNumber),
+    kilograms: Number(input.kilograms) || 0,
+    notes: String(input.notes || ""),
+    proofFiles: Array.isArray(input.proofFiles) ? input.proofFiles : [],
+    paid: false,
+    createdAt: Date.now(),
+  };
+
+  const result = await commitTripIfUnique(db, tripId, trip);
+  if (result.duplicate) {
+    throw new HttpsError(
+      "already-exists",
+      `ULD #${result.uldNumber} is already logged under this AWB.`
+    );
+  }
+  return { id: result.id };
 });
+
+exports.onTripCreatedIndexUldKeys = onDocumentCreated(
+  { document: "trips/{tripId}" },
+  async (event) => {
+    const trip = event.data?.data();
+    if (!trip) return;
+    await addTripUldKeys(admin.firestore(), event.params.tripId, trip);
+  }
+);
+
+exports.onTripDeletedIndexUldKeys = onDocumentDeleted(
+  { document: "trips/{tripId}" },
+  async (event) => {
+    const trip = event.data?.data();
+    if (!trip) return;
+    await removeTripUldKeys(admin.firestore(), event.params.tripId, trip);
+  }
+);
+
+// One-time (re-runnable) index of trips that existed before tripUldKeys.
+// Idempotent: each trip id is set on its claim documents again.
+exports.backfillTripUldKeys = onCall(
+  { invoker: "public", timeoutSeconds: 540 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be signed in.");
+    }
+    await requireAdmin(request.auth.uid);
+
+    const db = admin.firestore();
+    let last = null;
+    let tripsIndexed = 0;
+    for (;;) {
+      let query = db.collection("trips").orderBy(admin.firestore.FieldPath.documentId()).limit(200);
+      if (last) query = query.startAfter(last);
+      const snap = await query.get();
+      if (snap.empty) break;
+      for (const doc of snap.docs) {
+        await addTripUldKeys(db, doc.id, doc.data());
+        tripsIndexed += 1;
+      }
+      last = snap.docs[snap.docs.length - 1];
+      if (snap.size < 200) break;
+    }
+    return { tripsIndexed };
+  }
+);
 
 // Trips are immutable via direct Firestore writes (see firestore.rules) — the
 // only way to remove one is through this function, so every deletion is
@@ -422,76 +484,88 @@ exports.onTripRequestCreated = onDocumentCreated(
       `${req.customerName}: ${req.from} → ${req.to}`,
       { type: "tripRequestCreated", requestId: event.params.requestId }
     );
+
+    // Phone-in orders can be assigned at create time. That is not an update,
+    // so onTripRequestAssigned never sees it.
+    await notifyDriversOfNewAwbs(db, [], req, event.params.requestId);
   }
 );
 
-// Fires whenever assignedDriverIds gains a new entry — covers Dispatch
-// assigning for the first time and reassigning/adding a driver to another
-// AWB line alike. Each newly-involved driver gets their own email/push,
-// scoped to just the AWB lines assigned to them (not every AWB on the trip).
+// Emails and pushes each driver who gained an AWB on this request. Scoped to
+// that driver's lines. Used for creates that are already assigned and for
+// later assignments, including a second AWB for a driver already on the job.
+async function notifyDriversOfNewAwbs(db, beforeLines, after, requestId) {
+  const driverIds = driversGainingAwbLines(beforeLines, after.awbLines || []);
+  if (driverIds.length === 0) return;
+
+  const driverDocs = await Promise.all(
+    driverIds.map((id) => db.collection("users").doc(id).get())
+  );
+
+  for (const driverDoc of driverDocs) {
+    const driver = driverDoc.data();
+    if (!driver) continue;
+
+    if (driver.email) {
+      try {
+        const transporter = buildTransporter();
+        await transporter.sendMail({
+          from: `"ACK Freight" <${GMAIL_USER.value()}>`,
+          to: driver.email,
+          subject: `ACK Freight — Trip Assigned to You (${after.tripDate})`,
+          html: buildTripRequestEmailHtml(
+            "Trip Assigned to You",
+            "You've been assigned a new trip. Details below.",
+            after,
+            driverDoc.id
+          ),
+        });
+      } catch (err) {
+        logger.error("Failed to send trip-assigned email:", err);
+      }
+    }
+
+    // Each driver's app icon badge tracks their own count of assigned-but-
+    // not-started AWB lines (not the trip's overall rollup status, which
+    // may already show in_progress/completed because of another driver's
+    // lines on the same request) — the push payload carries this number so
+    // the badge is correct even if the app is closed when the push lands.
+    const pushToken = driver.pushToken;
+    if (!pushToken) continue;
+    const assignedSnap = await db
+      .collection("tripRequests")
+      .where("assignedDriverIds", "array-contains", driverDoc.id)
+      .get();
+    const badge = assignedSnap.docs.filter((d) =>
+      (d.data().awbLines || []).some(
+        (l) => l.assignedDriverId === driverDoc.id && l.status === "assigned"
+      )
+    ).length;
+    await sendExpoPush(
+      [pushToken],
+      "New Trip Assigned",
+      `${after.from} → ${after.to} on ${after.tripDate}`,
+      { type: "tripRequestAssigned", requestId },
+      badge
+    );
+  }
+}
+
+// Fires when a driver gains an AWB, including another AWB for someone
+// already assigned on the same request (assignedDriverIds would not change
+// in that case).
 exports.onTripRequestAssigned = onDocumentUpdated(
   { document: "tripRequests/{requestId}", secrets: [GMAIL_USER, GMAIL_APP_PASSWORD] },
   async (event) => {
     const before = event.data?.before?.data();
     const after = event.data?.after?.data();
     if (!before || !after) return;
-
-    const beforeIds = new Set(before.assignedDriverIds || []);
-    const newDriverIds = (after.assignedDriverIds || []).filter((id) => !beforeIds.has(id));
-    if (newDriverIds.length === 0) return;
-
-    const db = admin.firestore();
-    const driverDocs = await Promise.all(
-      newDriverIds.map((id) => db.collection("users").doc(id).get())
+    await notifyDriversOfNewAwbs(
+      admin.firestore(),
+      before.awbLines || [],
+      after,
+      event.params.requestId
     );
-
-    for (const driverDoc of driverDocs) {
-      const driver = driverDoc.data();
-      if (!driver) continue;
-
-      if (driver.email) {
-        try {
-          const transporter = buildTransporter();
-          await transporter.sendMail({
-            from: `"ACK Freight" <${GMAIL_USER.value()}>`,
-            to: driver.email,
-            subject: `ACK Freight — Trip Assigned to You (${after.tripDate})`,
-            html: buildTripRequestEmailHtml(
-              "Trip Assigned to You",
-              "You've been assigned a new trip. Details below.",
-              after,
-              driverDoc.id
-            ),
-          });
-        } catch (err) {
-          logger.error("Failed to send trip-assigned email:", err);
-        }
-      }
-
-      // Each driver's app icon badge tracks their own count of assigned-but-
-      // not-started AWB lines (not the trip's overall rollup status, which
-      // may already show in_progress/completed because of another driver's
-      // lines on the same request) — the push payload carries this number so
-      // the badge is correct even if the app is closed when the push lands.
-      const pushToken = driver.pushToken;
-      if (!pushToken) continue;
-      const assignedSnap = await db
-        .collection("tripRequests")
-        .where("assignedDriverIds", "array-contains", driverDoc.id)
-        .get();
-      const badge = assignedSnap.docs.filter((d) =>
-        (d.data().awbLines || []).some(
-          (l) => l.assignedDriverId === driverDoc.id && l.status === "assigned"
-        )
-      ).length;
-      await sendExpoPush(
-        [pushToken],
-        "New Trip Assigned",
-        `${after.from} → ${after.to} on ${after.tripDate}`,
-        { type: "tripRequestAssigned", requestId: event.params.requestId },
-        badge
-      );
-    }
   }
 );
 
@@ -591,27 +665,18 @@ exports.startMyAwbLines = onCall({ invoker: "public" }, async (request) => {
       throw new HttpsError("not-found", "Trip request not found.");
     }
     const data = snap.data();
-    const awbLines = data.awbLines || [];
-    let changed = false;
-    const nextLines = awbLines.map((l) => {
-      if (l.assignedDriverId === request.auth.uid && l.status === "assigned") {
-        changed = true;
-        return { ...l, status: "in_progress", startedAt: Date.now() };
-      }
-      return l;
-    });
-    if (!changed) {
+    const started = applyStart(data.awbLines || [], request.auth.uid, Date.now());
+    if (!started.changed) {
       throw new HttpsError(
         "failed-precondition",
         "No assigned AWB lines to start for this driver."
       );
     }
-    const rollup = computeRollup(nextLines);
     tx.update(ref, {
-      awbLines: nextLines,
-      status: rollup.status,
-      assignedDriverIds: rollup.assignedDriverIds,
-      assignedDriverNames: rollup.assignedDriverNames,
+      awbLines: started.awbLines,
+      status: started.status,
+      assignedDriverIds: started.assignedDriverIds,
+      assignedDriverNames: started.assignedDriverNames,
       updatedAt: Date.now(),
     });
   });
@@ -645,33 +710,24 @@ exports.completeMyAwbLines = onCall({ invoker: "public" }, async (request) => {
       throw new HttpsError("not-found", "Trip request not found.");
     }
     const data = snap.data();
-    const awbLines = data.awbLines || [];
-    let changed = false;
-    const nextLines = awbLines.map((l, i) => {
-      if (indexSet.has(i) && l.assignedDriverId === request.auth.uid && l.status === "in_progress") {
-        changed = true;
-        return { ...l, status: "completed", tripLogId };
-      }
-      return l;
-    });
-    if (!changed) {
+    const completed = applyComplete(data.awbLines || [], request.auth.uid, indexSet, tripLogId);
+    if (!completed.changed) {
       throw new HttpsError(
         "failed-precondition",
         "No matching in-progress AWB lines to complete for this driver."
       );
     }
-    const rollup = computeRollup(nextLines);
     const updates = {
-      awbLines: nextLines,
-      status: rollup.status,
-      assignedDriverIds: rollup.assignedDriverIds,
-      assignedDriverNames: rollup.assignedDriverNames,
+      awbLines: completed.awbLines,
+      status: completed.status,
+      assignedDriverIds: completed.assignedDriverIds,
+      assignedDriverNames: completed.assignedDriverNames,
       updatedAt: Date.now(),
     };
     // Only clear this driver's live-tracking pin once none of their lines on
     // this request are still in progress — they may have other AWBs left to
     // finish as a separate trip.
-    const stillInProgress = nextLines.some(
+    const stillInProgress = completed.awbLines.some(
       (l) => l.assignedDriverId === request.auth.uid && l.status === "in_progress"
     );
     if (!stillInProgress) {
@@ -681,6 +737,39 @@ exports.completeMyAwbLines = onCall({ invoker: "public" }, async (request) => {
   });
 
   return { success: true };
+});
+
+// Customer-only. Returns proof files for trip logs linked from this request.
+// Does not open the trips collection to the client.
+exports.getTripRequestProofs = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be signed in.");
+  }
+  const { requestId } = request.data || {};
+  if (!requestId) {
+    throw new HttpsError("invalid-argument", "requestId is required.");
+  }
+
+  const db = admin.firestore();
+  const reqSnap = await db.collection("tripRequests").doc(requestId).get();
+  if (!reqSnap.exists) {
+    throw new HttpsError("not-found", "Trip request not found.");
+  }
+  const tripRequest = reqSnap.data();
+  if (tripRequest.customerId !== request.auth.uid) {
+    throw new HttpsError("permission-denied", "You can only view proof for your own requests.");
+  }
+
+  const tripIds = [
+    ...new Set((tripRequest.awbLines || []).map((line) => line.tripLogId).filter(Boolean)),
+  ];
+  const tripById = {};
+  const tripSnaps = await Promise.all(tripIds.map((id) => db.collection("trips").doc(id).get()));
+  tripSnaps.forEach((snap) => {
+    if (snap.exists) tripById[snap.id] = snap.data();
+  });
+
+  return { proofs: proofsForRequest(tripRequest, tripById) };
 });
 
 // Called every ~20-30s from a driver's phone while they have at least one

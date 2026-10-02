@@ -13,7 +13,7 @@ import {
   User,
 } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { ADMIN_EMAILS, auth, db } from "../firebase/config";
+import { auth, db } from "../firebase/config";
 import { UserProfile } from "../types";
 
 interface AuthContextValue {
@@ -77,20 +77,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     requestedRole: "driver" | "customer"
   ) => {
-    const trimmedEmail = email.trim();
     const credential = await createUserWithEmailAndPassword(
       auth,
-      trimmedEmail,
+      email.trim(),
       password
     );
-    const role = ADMIN_EMAILS.includes(trimmedEmail.toLowerCase())
-      ? "admin"
-      : requestedRole;
+    // The profile email has to match the Auth token. Security rules reject
+    // any other value, and reject role "admin" — an existing admin promotes
+    // accounts from Manage Users (setUserRole).
+    await credential.user.getIdToken(true);
+    const canonicalEmail = credential.user.email;
+    if (!canonicalEmail) {
+      throw new Error("Couldn't read the new account email.");
+    }
     const newProfile: UserProfile = {
       uid: credential.user.uid,
-      email: trimmedEmail,
+      email: canonicalEmail,
       name: name.trim(),
-      role,
+      role: requestedRole,
       createdAt: Date.now(),
     };
     await setDoc(doc(db, "users", credential.user.uid), newProfile);
