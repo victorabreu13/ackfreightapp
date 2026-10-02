@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SignaturePreview } from "./SignaturePad";
 import { getTripRequestProofs, TripProofGroup } from "../services/tripRequests";
 
 // Loaded through getTripRequestProofs so the customer never gets read access
@@ -63,7 +64,21 @@ export default function CustomerProofSection({ requestId }: { requestId: string 
           {group.awbNumbers.length > 0 && (
             <Text style={styles.awbLabel}>AWB {group.awbNumbers.join(", ")}</Text>
           )}
-          {group.proofFiles.length === 0 && (
+          {group.signatureStrokes?.length > 0 && (
+            <View style={{ marginBottom: 8 }}>
+              <Text style={styles.awbLabel}>Signature</Text>
+              <SignaturePreview strokes={group.signatureStrokes} />
+            </View>
+          )}
+          {group.signature?.url && (
+            <TouchableOpacity style={styles.docRow} onPress={() => Linking.openURL(group.signature!.url)}>
+              <Text style={styles.docName} numberOfLines={1}>
+                ✍️ {group.signature.name || "Signature"}
+              </Text>
+              <Text style={styles.docOpen}>Open</Text>
+            </TouchableOpacity>
+          )}
+          {group.proofFiles.length === 0 && !group.signature && (
             <Text style={styles.muted}>No files were attached for this drop.</Text>
           )}
           {group.proofFiles.map((file, index) =>

@@ -44,6 +44,7 @@ export default function NewTripRequestScreen({ navigation }: any) {
         requestId={requestId}
         submitLabel="Submit Trip Request"
         onSubmit={handleSubmit}
+        billing={profile}
       />
     </ScrollView>
   );

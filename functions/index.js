@@ -11,11 +11,19 @@ const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const {
+  applyAcceptAssigned,
+  applyBoardAccept,
   applyComplete,
+  applyDecline,
+  applyPickup,
   applyStart,
+  driverStillOnTrip,
   driversGainingAwbLines,
+  linesEnteringStatus,
 } = require("./awbLogic");
+const { intakeAuthorized, rateLimitDecision, validateIntakePayload } = require("./intake");
 const { proofsForRequest } = require("./proofs");
+const { quoteForRequest } = require("./quote");
 const {
   addTripUldKeys,
   commitTripIfUnique,
@@ -34,6 +42,10 @@ function isNotificationEmail(email) {
 
 const GMAIL_USER = defineSecret("GMAIL_USER");
 const GMAIL_APP_PASSWORD = defineSecret("GMAIL_APP_PASSWORD");
+// Required before deploying websiteIntake. Wix calls the function with this
+// value; it is not a client key. reCAPTCHA is optional via RECAPTCHA_SECRET
+// on the function's environment (see README).
+const INTAKE_SHARED_SECRET = defineSecret("INTAKE_SHARED_SECRET");
 
 // Switch back to "sandbox" any time to test again — the sandbox secrets
 // (QB_CLIENT_ID/QB_CLIENT_SECRET) are untouched and still live in Secret
@@ -313,6 +325,8 @@ exports.submitTripLog = onCall({ invoker: "public" }, async (request) => {
     kilograms: Number(input.kilograms) || 0,
     notes: String(input.notes || ""),
     proofFiles: Array.isArray(input.proofFiles) ? input.proofFiles : [],
+    signature: input.signature && input.signature.url ? input.signature : null,
+    signatureStrokes: Array.isArray(input.signatureStrokes) ? input.signatureStrokes : [],
     paid: false,
     createdAt: Date.now(),
   };
@@ -488,8 +502,21 @@ exports.onTripRequestCreated = onDocumentCreated(
     // Phone-in orders can be assigned at create time. That is not an update,
     // so onTripRequestAssigned never sees it.
     await notifyDriversOfNewAwbs(db, [], req, event.params.requestId);
+    await stampQuote(db, event.params.requestId, req);
   }
 );
+
+async function stampQuote(db, requestId, req) {
+  if (!req || !req.customerId) return;
+  const userSnap = await db.collection("users").doc(req.customerId).get();
+  const profile = userSnap.exists ? userSnap.data() : null;
+  const quote = quoteForRequest(profile, req.awbLines);
+  await db.collection("tripRequests").doc(requestId).update({
+    quotedAmount: quote.quotedAmount,
+    quoteStatus: quote.quoteStatus,
+    quoteBasis: quote.quoteBasis,
+  });
+}
 
 // Emails and pushes each driver who gained an AWB on this request. Scoped to
 // that driver's lines. Used for creates that are already assigned and for
@@ -569,39 +596,98 @@ exports.onTripRequestAssigned = onDocumentUpdated(
   }
 );
 
-// Fires when a trip request's status flips to "completed" (set by the
-// assigned driver from their app) — admins and the customer both want to
-// know right away, separate from the daily summary and from the driver's
-// own assignment email above.
+async function notifyCustomerProgress(db, req, title, body) {
+  const tokens = [];
+  if (req.customerId) {
+    const customerSnap = await db.collection("users").doc(req.customerId).get();
+    const token = customerSnap.exists ? customerSnap.data().pushToken : null;
+    if (token) tokens.push(token);
+  }
+  if (req.customerEmail && isNotificationEmail(req.customerEmail)) {
+    try {
+      const transporter = buildTransporter();
+      await transporter.sendMail({
+        from: `"ACK Freight" <${GMAIL_USER.value()}>`,
+        to: req.customerEmail,
+        subject: `ACK Freight — ${title}`,
+        html: buildTripRequestEmailHtml(title, body, req),
+      });
+    } catch (err) {
+      logger.error(`Failed to email customer (${title}):`, err);
+    }
+  }
+  await sendExpoPush(tokens, title, body, { type: "tripProgress" });
+}
+
+function awbList(lines) {
+  return (lines || []).map((line) => line.awbNumber).filter(Boolean).join(", ");
+}
+
+// Customer mail and push when a driver starts, picks up, or delivers.
+// Delivery also still emails admins, matching the previous completed notice.
 exports.onTripRequestStatusEmails = onDocumentUpdated(
   { document: "tripRequests/{requestId}", secrets: [GMAIL_USER, GMAIL_APP_PASSWORD] },
   async (event) => {
     const before = event.data?.before?.data();
     const after = event.data?.after?.data();
     if (!before || !after) return;
-    if (before.status === "completed" || after.status !== "completed") return;
 
     const db = admin.firestore();
+    const started = linesEnteringStatus(before.awbLines, after.awbLines, "in_progress");
+    const pickedUp = linesEnteringStatus(before.awbLines, after.awbLines, "picked_up");
+    if (started.length > 0) {
+      const which = awbList(started);
+      await notifyCustomerProgress(
+        db,
+        after,
+        "Driver started",
+        which
+          ? `Your driver started AWB ${which} (${after.from} → ${after.to}).`
+          : `Your driver started the trip (${after.from} → ${after.to}).`
+      );
+    }
+    if (pickedUp.length > 0) {
+      const which = awbList(pickedUp);
+      await notifyCustomerProgress(
+        db,
+        after,
+        "Freight picked up",
+        which
+          ? `AWB ${which} has been picked up and is on the way to ${after.to}.`
+          : `Your freight has been picked up and is on the way to ${after.to}.`
+      );
+    }
+
+    if (before.status === "completed" || after.status !== "completed") return;
+
     const adminsSnap = await db.collection("users").where("role", "==", "admin").get();
     const recipients = adminsSnap.docs.map((d) => d.data().email).filter(isNotificationEmail);
-    if (after.customerEmail) recipients.push(after.customerEmail);
-    if (recipients.length === 0) return;
-
-    try {
-      const transporter = buildTransporter();
-      await transporter.sendMail({
-        from: `"ACK Freight" <${GMAIL_USER.value()}>`,
-        to: recipients.join(","),
-        subject: `ACK Freight — Trip Completed (${after.tripDate})`,
-        html: buildTripRequestEmailHtml(
-          "Trip Completed",
-          "This trip has been marked completed.",
-          after
-        ),
-      });
-    } catch (err) {
-      logger.error("Failed to send trip-completed email:", err);
+    if (after.customerEmail && isNotificationEmail(after.customerEmail)) {
+      recipients.push(after.customerEmail);
     }
+    if (recipients.length > 0) {
+      try {
+        const transporter = buildTransporter();
+        await transporter.sendMail({
+          from: `"ACK Freight" <${GMAIL_USER.value()}>`,
+          to: recipients.join(","),
+          subject: `ACK Freight — Trip Completed (${after.tripDate})`,
+          html: buildTripRequestEmailHtml(
+            "Trip Completed",
+            "This trip has been marked completed.",
+            after
+          ),
+        });
+      } catch (err) {
+        logger.error("Failed to send trip-completed email:", err);
+      }
+    }
+    await notifyCustomerProgress(
+      db,
+      { ...after, customerEmail: null },
+      "Delivered",
+      `Your trip from ${after.from} to ${after.to} has been delivered.`
+    );
   }
 );
 
@@ -642,11 +728,216 @@ exports.createCustomer = onCall({ invoker: "public" }, async (request) => {
   return { uid: userRecord.uid };
 });
 
-// Drivers no longer write to tripRequests directly (see firestore.rules) —
-// validating "only my own AWB line changed" isn't expressible there. These
-// two callables do the read-modify-write server-side, in a transaction so
-// two drivers acting on the same trip request concurrently can't clobber
-// each other's lines, and check ownership in code instead of rules.
+async function driverProfileOrThrow(db, uid) {
+  const snap = await db.collection("users").doc(uid).get();
+  const profile = snap.exists ? snap.data() : null;
+  if (!profile || profile.role !== "driver" || profile.active === false) {
+    throw new HttpsError("permission-denied", "Only an active driver can do that.");
+  }
+  return profile;
+}
+
+function requireOnDuty(profile) {
+  if (profile.onDuty !== true) {
+    throw new HttpsError("failed-precondition", "Go on duty to see and accept open AWBs.");
+  }
+}
+
+// Drivers no longer write to tripRequests directly (see firestore.rules).
+// Accept, decline, start, pickup, and complete run in a transaction so two
+// drivers cannot take the same open line.
+exports.listOpenJobs = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const db = admin.firestore();
+  const profile = await driverProfileOrThrow(db, request.auth.uid);
+  requireOnDuty(profile);
+
+  const statuses = ["submitted", "assigned", "in_progress"];
+  const snaps = await Promise.all(
+    statuses.map((status) => db.collection("tripRequests").where("status", "==", status).limit(40).get())
+  );
+  const jobs = [];
+  for (const snap of snaps) {
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      (data.awbLines || []).forEach((line, index) => {
+        if (line.assignedDriverId || line.status !== "submitted") return;
+        jobs.push({
+          requestId: doc.id,
+          awbIndex: index,
+          awbNumber: line.awbNumber || "",
+          qtyPieces: line.qtyPieces || 0,
+          type: line.type || "",
+          kilograms: line.kilograms || 0,
+          priority: line.priority || "Normal",
+          hazmat: line.hazmat === true,
+          unNumber: line.unNumber || "",
+          hazmatClass: line.hazmatClass || "",
+          lengthIn: line.lengthIn ?? null,
+          widthIn: line.widthIn ?? null,
+          heightIn: line.heightIn ?? null,
+          tripDate: data.tripDate || "",
+          pickupTime: data.pickupTime || "",
+          from: data.from || "",
+          to: data.to || "",
+          notes: data.notes || "",
+        });
+      });
+    }
+  }
+  jobs.sort((a, b) => String(a.tripDate).localeCompare(String(b.tripDate)) || a.awbNumber.localeCompare(b.awbNumber));
+  return { jobs };
+});
+
+exports.acceptOpenAwb = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const { requestId, awbIndex } = request.data || {};
+  if (!requestId || !Number.isInteger(awbIndex)) {
+    throw new HttpsError("invalid-argument", "requestId and awbIndex are required.");
+  }
+  const db = admin.firestore();
+  const profile = await driverProfileOrThrow(db, request.auth.uid);
+  requireOnDuty(profile);
+  const ref = db.collection("tripRequests").doc(requestId);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const taken = applyBoardAccept(
+      snap.data().awbLines || [],
+      awbIndex,
+      request.auth.uid,
+      profile.name || "Driver",
+      Date.now()
+    );
+    if (!taken.ok) {
+      throw new HttpsError(
+        "already-exists",
+        taken.reason === "taken" ? "Another driver already took this AWB." : "That AWB is not on the board."
+      );
+    }
+    tx.update(ref, {
+      awbLines: taken.awbLines,
+      status: taken.status,
+      assignedDriverIds: taken.assignedDriverIds,
+      assignedDriverNames: taken.assignedDriverNames,
+      updatedAt: Date.now(),
+    });
+  });
+  return { success: true };
+});
+
+exports.acceptAssignedAwb = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const { requestId, awbIndex } = request.data || {};
+  if (!requestId || !Number.isInteger(awbIndex)) {
+    throw new HttpsError("invalid-argument", "requestId and awbIndex are required.");
+  }
+  const db = admin.firestore();
+  await driverProfileOrThrow(db, request.auth.uid);
+  const ref = db.collection("tripRequests").doc(requestId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const accepted = applyAcceptAssigned(snap.data().awbLines || [], awbIndex, request.auth.uid, Date.now());
+    if (!accepted.changed) {
+      throw new HttpsError("failed-precondition", "That AWB is not assigned to you waiting for acceptance.");
+    }
+    tx.update(ref, {
+      awbLines: accepted.awbLines,
+      status: accepted.status,
+      assignedDriverIds: accepted.assignedDriverIds,
+      assignedDriverNames: accepted.assignedDriverNames,
+      updatedAt: Date.now(),
+    });
+  });
+  return { success: true };
+});
+
+exports.declineAwbLine = onCall(
+  { secrets: [GMAIL_USER, GMAIL_APP_PASSWORD], invoker: "public" },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+    const { requestId, awbIndex } = request.data || {};
+    if (!requestId || !Number.isInteger(awbIndex)) {
+      throw new HttpsError("invalid-argument", "requestId and awbIndex are required.");
+    }
+    const db = admin.firestore();
+    const profile = await driverProfileOrThrow(db, request.auth.uid);
+    const ref = db.collection("tripRequests").doc(requestId);
+    let declinedAwb = "";
+    let requestData = null;
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+      requestData = snap.data();
+      const declined = applyDecline(requestData.awbLines || [], awbIndex, request.auth.uid);
+      if (!declined.changed) {
+        throw new HttpsError("failed-precondition", "You can only decline an AWB you have not started.");
+      }
+      declinedAwb = declined.awbNumber || "";
+      tx.update(ref, {
+        awbLines: declined.awbLines,
+        status: declined.status,
+        assignedDriverIds: declined.assignedDriverIds,
+        assignedDriverNames: declined.assignedDriverNames,
+        updatedAt: Date.now(),
+      });
+    });
+
+    try {
+      const adminsSnap = await db.collection("users").where("role", "==", "admin").get();
+      const adminEmails = adminsSnap.docs.map((d) => d.data().email).filter(isNotificationEmail);
+      const adminTokens = adminsSnap.docs.map((d) => d.data().pushToken).filter(Boolean);
+      const who = profile.name || "A driver";
+      const body = `${who} declined AWB ${declinedAwb || ""} on ${requestData.from} → ${requestData.to}. It is back on the board.`;
+      if (adminEmails.length > 0) {
+        const transporter = buildTransporter();
+        await transporter.sendMail({
+          from: `"ACK Freight" <${GMAIL_USER.value()}>`,
+          to: adminEmails.join(","),
+          subject: `ACK Freight — Driver declined AWB ${declinedAwb || ""}`,
+          html: `<p>${escapeHtml(body)}</p>`,
+        });
+      }
+      await sendExpoPush(adminTokens, "Driver declined an AWB", body, {
+        type: "awbDeclined",
+        requestId,
+      });
+    } catch (err) {
+      logger.error("Failed to notify admins of decline:", err);
+    }
+    return { success: true };
+  }
+);
+
+exports.markAwbPickedUp = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const { requestId, awbIndexes } = request.data || {};
+  if (!requestId || !Array.isArray(awbIndexes) || awbIndexes.length === 0) {
+    throw new HttpsError("invalid-argument", "requestId and a non-empty awbIndexes array are required.");
+  }
+  const db = admin.firestore();
+  await driverProfileOrThrow(db, request.auth.uid);
+  const ref = db.collection("tripRequests").doc(requestId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const picked = applyPickup(snap.data().awbLines || [], request.auth.uid, new Set(awbIndexes), Date.now());
+    if (!picked.changed) {
+      throw new HttpsError("failed-precondition", "No in-progress AWB lines to mark picked up.");
+    }
+    tx.update(ref, {
+      awbLines: picked.awbLines,
+      status: picked.status,
+      assignedDriverIds: picked.assignedDriverIds,
+      assignedDriverNames: picked.assignedDriverNames,
+      updatedAt: Date.now(),
+    });
+  });
+  return { success: true };
+});
+
 exports.startMyAwbLines = onCall({ invoker: "public" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be signed in.");
@@ -669,7 +960,7 @@ exports.startMyAwbLines = onCall({ invoker: "public" }, async (request) => {
     if (!started.changed) {
       throw new HttpsError(
         "failed-precondition",
-        "No assigned AWB lines to start for this driver."
+        "Accept the AWB before starting. No accepted lines were ready for this driver."
       );
     }
     tx.update(ref, {
@@ -714,7 +1005,7 @@ exports.completeMyAwbLines = onCall({ invoker: "public" }, async (request) => {
     if (!completed.changed) {
       throw new HttpsError(
         "failed-precondition",
-        "No matching in-progress AWB lines to complete for this driver."
+        "No matching picked-up AWB lines to complete for this driver."
       );
     }
     const updates = {
@@ -724,13 +1015,9 @@ exports.completeMyAwbLines = onCall({ invoker: "public" }, async (request) => {
       assignedDriverNames: completed.assignedDriverNames,
       updatedAt: Date.now(),
     };
-    // Only clear this driver's live-tracking pin once none of their lines on
-    // this request are still in progress — they may have other AWBs left to
-    // finish as a separate trip.
-    const stillInProgress = completed.awbLines.some(
-      (l) => l.assignedDriverId === request.auth.uid && l.status === "in_progress"
-    );
-    if (!stillInProgress) {
+    // Keep the pin while any of this driver's lines are still started or
+    // picked up. Other AWBs on the same request may still be on the road.
+    if (!driverStillOnTrip(completed.awbLines, request.auth.uid)) {
       updates[`driverLocations.${request.auth.uid}`] = admin.firestore.FieldValue.delete();
     }
     tx.update(ref, updates);
@@ -792,9 +1079,7 @@ exports.updateMyLiveLocation = onCall({ invoker: "public" }, async (request) => 
     throw new HttpsError("not-found", "Trip request not found.");
   }
   const data = snap.data();
-  const hasActiveLine = (data.awbLines || []).some(
-    (l) => l.assignedDriverId === request.auth.uid && l.status === "in_progress"
-  );
+  const hasActiveLine = driverStillOnTrip(data.awbLines || [], request.auth.uid);
   if (!hasActiveLine) {
     throw new HttpsError(
       "failed-precondition",
@@ -1499,5 +1784,170 @@ exports.deleteUserAccount = onCall({ invoker: "public" }, async (request) => {
   }
   await ref.delete();
 
+  return { success: true };
+});
+
+async function verifyRecaptcha(token, secret) {
+  if (!secret || !token) return false;
+  const body = new URLSearchParams({ secret, response: token });
+  const res = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  const json = await res.json();
+  return json.success === true;
+}
+
+// Public intake for ackfreight.com. Creates a pending lead for dispatch.
+// Does not create a trip request until an admin approves it.
+exports.websiteIntake = onRequest(
+  { secrets: [INTAKE_SHARED_SECRET], invoker: "public", cors: false },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "POST only" });
+      return;
+    }
+    const providedSecret = req.get("x-ack-intake-secret") || (req.body && req.body.secret) || "";
+    const recaptchaSecret = process.env.RECAPTCHA_SECRET || "";
+    const recaptchaPassed = await verifyRecaptcha(req.body && req.body.recaptchaToken, recaptchaSecret);
+    let expectedSecret = "";
+    try {
+      expectedSecret = INTAKE_SHARED_SECRET.value() || "";
+    } catch (err) {
+      expectedSecret = "";
+    }
+    if (
+      !intakeAuthorized({
+        providedSecret,
+        expectedSecret,
+        recaptchaConfigured: !!recaptchaSecret,
+        recaptchaPassed,
+      })
+    ) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const validated = validateIntakePayload(req.body || {});
+    if (!validated.ok) {
+      res.status(400).json({ error: "Missing fields", missing: validated.missing });
+      return;
+    }
+
+    const ipHeader = req.get("x-forwarded-for") || req.ip || "unknown";
+    const ip = String(ipHeader).split(",")[0].trim() || "unknown";
+    const rateId = crypto.createHash("sha256").update(ip).digest("hex");
+    const db = admin.firestore();
+    const rateRef = db.collection("intakeRateLimits").doc(rateId);
+    let allowed = false;
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(rateRef);
+      const decision = rateLimitDecision(snap.exists ? snap.data().timestamps : [], Date.now());
+      allowed = decision.allowed;
+      tx.set(rateRef, { timestamps: decision.timestamps.slice(-MAX_TIMESTAMPS) });
+    });
+    if (!allowed) {
+      res.status(429).json({ error: "Too many requests. Try again later." });
+      return;
+    }
+
+    const leadRef = db.collection("leads").doc();
+    await leadRef.set({
+      ...validated.lead,
+      createdAt: Date.now(),
+    });
+    res.status(201).json({ id: leadRef.id, status: "pending" });
+  }
+);
+
+const MAX_TIMESTAMPS = 20;
+
+exports.approveLead = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const { leadId } = request.data || {};
+  if (!leadId) throw new HttpsError("invalid-argument", "leadId is required.");
+
+  const db = admin.firestore();
+  const leadRef = db.collection("leads").doc(leadId);
+  const leadSnap = await leadRef.get();
+  if (!leadSnap.exists) throw new HttpsError("not-found", "Lead not found.");
+  const lead = leadSnap.data();
+  if (lead.status !== "pending") {
+    throw new HttpsError("failed-precondition", "This lead is no longer pending.");
+  }
+
+  const customers = await db.collection("users").where("email", "==", lead.email).limit(5).get();
+  const customerDoc = customers.docs.find((doc) => doc.data().role === "customer");
+  if (!customerDoc) {
+    throw new HttpsError(
+      "failed-precondition",
+      "No customer account uses this email yet. Create the customer, then approve the lead."
+    );
+  }
+  const customer = customerDoc.data();
+  const now = Date.now();
+  const requestRef = db.collection("tripRequests").doc();
+  await requestRef.set({
+    customerId: customer.uid || customerDoc.id,
+    customerName: customer.name || lead.contactName,
+    customerEmail: customer.email || lead.email,
+    submittedAt: now,
+    tripDate: lead.tripDate || new Date().toLocaleDateString("en-CA", { timeZone: TIME_ZONE }),
+    from: lead.from,
+    pickupTime: lead.pickupTime || "",
+    to: lead.to,
+    personRequesting: lead.contactName,
+    notes: lead.notes || "",
+    awbLines: [
+      {
+        awbNumber: lead.awbNumber || `WEB-${leadId.slice(0, 6)}`,
+        qtyPieces: lead.qtyPieces || 1,
+        type: lead.type || "Loose",
+        kilograms: lead.kilograms || 0,
+        lengthIn: lead.lengthIn ?? null,
+        widthIn: lead.widthIn ?? null,
+        heightIn: lead.heightIn ?? null,
+        hazmat: lead.hazmat === true,
+        unNumber: lead.unNumber || "",
+        hazmatClass: lead.hazmatClass || "",
+        awbFile: null,
+        loaFile: null,
+        doFile: null,
+        assignedDriverId: null,
+        assignedDriverName: null,
+        status: "submitted",
+        priority: "Normal",
+      },
+    ],
+    importFeeFiles: [],
+    assignedDriverIds: [],
+    assignedDriverNames: [],
+    status: "submitted",
+    leadId,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await leadRef.update({
+    status: "approved",
+    tripRequestId: requestRef.id,
+    approvedAt: now,
+  });
+  return { tripRequestId: requestRef.id };
+});
+
+exports.dismissLead = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const { leadId } = request.data || {};
+  if (!leadId) throw new HttpsError("invalid-argument", "leadId is required.");
+  const ref = admin.firestore().collection("leads").doc(leadId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Lead not found.");
+  if (snap.data().status !== "pending") {
+    throw new HttpsError("failed-precondition", "This lead is no longer pending.");
+  }
+  await ref.update({ status: "dismissed", dismissedAt: Date.now() });
   return { success: true };
 });

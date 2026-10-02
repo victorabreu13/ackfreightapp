@@ -15,14 +15,29 @@ function timeAgo(ms: number): string {
 // Shows one map card per driver currently sharing their location on this
 // request — nothing renders at all once a driver's lines are no longer
 // in progress, since the server clears their entry at that point.
+function driverIsActive(status: string) {
+  return status === "in_progress" || status === "picked_up";
+}
+
 export default function LiveTrackingSection({ request }: { request: TripRequest }) {
   const driverLocations = request.driverLocations || {};
-  const driverIds = Object.keys(driverLocations);
+  const activeDrivers = new Map<string, string>();
+  for (const line of request.awbLines) {
+    if (line.assignedDriverId && driverIsActive(line.status)) {
+      activeDrivers.set(line.assignedDriverId, line.assignedDriverName || "Driver");
+    }
+  }
+  const driverIds = [
+    ...new Set([...activeDrivers.keys(), ...Object.keys(driverLocations)]),
+  ];
   if (driverIds.length === 0) return null;
 
   const nameFor = (driverId: string) => {
-    const line = request.awbLines.find((l) => l.assignedDriverId === driverId);
-    return line?.assignedDriverName || "Driver";
+    return (
+      activeDrivers.get(driverId) ||
+      request.awbLines.find((l) => l.assignedDriverId === driverId)?.assignedDriverName ||
+      "Driver"
+    );
   };
 
   return (
@@ -30,6 +45,14 @@ export default function LiveTrackingSection({ request }: { request: TripRequest 
       <Text style={styles.sectionTitle}>Live Tracking</Text>
       {driverIds.map((driverId) => {
         const loc = driverLocations[driverId];
+        if (!loc) {
+          return (
+            <View key={driverId} style={styles.card}>
+              <Text style={styles.driverName}>{nameFor(driverId)}</Text>
+              <Text style={styles.missing}>No GPS from this driver yet.</Text>
+            </View>
+          );
+        }
         const stale = Date.now() - loc.updatedAt > 3 * 60 * 1000;
         return (
           <View key={driverId} style={styles.card}>
@@ -60,4 +83,5 @@ const styles = StyleSheet.create({
   driverName: { fontSize: 14, fontWeight: "700", color: "#111" },
   updated: { fontSize: 12, color: "#15803d" },
   stale: { color: "#b45309" },
+  missing: { fontSize: 13, color: "#b45309", fontWeight: "700", marginTop: 4 },
 });

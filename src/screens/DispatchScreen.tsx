@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import DateField from "../components/DateField";
+import { approveLead, dismissLead, Lead, subscribeToPendingLeads } from "../services/leads";
 import {
   disconnectQuickBooks,
   getQuickBooksConnectUrl,
@@ -59,6 +60,8 @@ export default function DispatchScreen({ navigation }: any) {
   const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
   const [customerFilter, setCustomerFilter] = useState<string | null>(null);
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [leadBusyId, setLeadBusyId] = useState<string | null>(null);
   const [qbStatus, setQbStatus] = useState<{
     connected: boolean;
     companyName?: string | null;
@@ -76,6 +79,38 @@ export default function DispatchScreen({ navigation }: any) {
     );
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    return subscribeToPendingLeads(setLeads, (err) => console.error("leads subscription:", err));
+  }, []);
+
+  const handleApproveLead = async (lead: Lead) => {
+    setLeadBusyId(lead.id);
+    try {
+      await approveLead(lead.id);
+      notify("Lead approved", "A trip request was created for the customer with this email.");
+    } catch (e: any) {
+      notify("Couldn't approve lead", e?.message ?? "Create the customer account first, then approve.");
+    } finally {
+      setLeadBusyId(null);
+    }
+  };
+
+  const handleDismissLead = (lead: Lead) => {
+    confirmAction(
+      { title: "Dismiss this lead?", confirmLabel: "Dismiss", destructive: true },
+      async () => {
+        setLeadBusyId(lead.id);
+        try {
+          await dismissLead(lead.id);
+        } catch (e: any) {
+          notify("Couldn't dismiss lead", e?.message ?? "Try again.");
+        } finally {
+          setLeadBusyId(null);
+        }
+      }
+    );
+  };
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -203,6 +238,29 @@ export default function DispatchScreen({ navigation }: any) {
               <Text style={styles.qbConnectText}>🔗 Connect QuickBooks to send invoices</Text>
             </TouchableOpacity>
           )}
+        </View>
+      )}
+
+      {leads.length > 0 && (
+        <View style={styles.leadsBox}>
+          <Text style={styles.leadsTitle}>Website leads</Text>
+          {leads.map((lead) => (
+            <View key={lead.id} style={styles.leadCard}>
+              <Text style={styles.leadName}>{lead.contactName}</Text>
+              <Text style={styles.leadMeta}>
+                {lead.email} · {lead.from} → {lead.to}
+                {lead.tripDate ? ` · ${lead.tripDate}` : ""}
+              </Text>
+              <View style={styles.leadActions}>
+                <TouchableOpacity onPress={() => handleApproveLead(lead)} disabled={leadBusyId === lead.id}>
+                  <Text style={styles.leadApprove}>Approve</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDismissLead(lead)} disabled={leadBusyId === lead.id}>
+                  <Text style={styles.leadDismiss}>Dismiss</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
         </View>
       )}
 
@@ -393,6 +451,14 @@ const styles = StyleSheet.create({
   newButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   title: { fontSize: 22, fontWeight: "800", color: "#111" },
   subtitle: { fontSize: 13, color: "#666" },
+  leadsBox: { marginHorizontal: 16, marginBottom: 8 },
+  leadsTitle: { fontSize: 14, fontWeight: "800", color: "#111", marginBottom: 6 },
+  leadCard: { backgroundColor: "#fff", borderRadius: 10, padding: 12, marginBottom: 8 },
+  leadName: { fontSize: 15, fontWeight: "800", color: "#111" },
+  leadMeta: { fontSize: 13, color: "#555", marginTop: 2 },
+  leadActions: { flexDirection: "row", gap: 16, marginTop: 8 },
+  leadApprove: { color: "#1d4ed8", fontWeight: "800" },
+  leadDismiss: { color: "#c0392b", fontWeight: "700" },
   qbRow: {
     flexDirection: "row",
     justifyContent: "space-between",

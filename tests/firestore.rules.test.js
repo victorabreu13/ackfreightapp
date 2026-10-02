@@ -348,6 +348,30 @@ describe("firestore rules", () => {
     );
   });
 
+  it("lets a driver set their own on-duty flag and nobody else's", async () => {
+    await seed("users/drv1", {
+      uid: "drv1",
+      email: "driver@example.com",
+      name: "Dee",
+      role: "driver",
+      createdAt: 1,
+    });
+    const driver = asUser("drv1", "driver@example.com");
+    await assertSucceeds(updateDoc(doc(driver, "users/drv1"), { onDuty: true }));
+    await assertFails(updateDoc(doc(driver, "users/drv1"), { onDuty: "yes" }));
+    await assertFails(updateDoc(doc(driver, "users/someone"), { onDuty: true }));
+
+    await seed("users/cust1", {
+      uid: "cust1",
+      email: "cust@example.com",
+      name: "Acme",
+      role: "customer",
+      createdAt: 1,
+    });
+    const customer = asUser("cust1", "cust@example.com");
+    await assertFails(updateDoc(doc(customer, "users/cust1"), { onDuty: true }));
+  });
+
   it("hides trip logs and ULD claims from customers", async () => {
     await seed("trips/trip1", { driverId: "drv1", awbNumber: "111", uldNumbers: ["AKE1"] });
     await seed("tripUldKeys/abc", { tripIds: { trip1: true } });
