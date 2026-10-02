@@ -2,6 +2,7 @@ export type UserRole = "admin" | "driver" | "customer";
 
 export const ULD_TYPES = [
   "Loose",
+  "Skid",
   "PMC",
   "FQA",
   "PAG",
@@ -30,6 +31,7 @@ export interface UserProfile {
   billRate?: number; // dollars per trip, or dollars per kilogram, depending on billType
   quickbooksCustomerId?: string; // set by the server once this customer exists in QuickBooks
   active?: boolean; // undefined/true = active; admin-set false also disables their Auth login
+  onDuty?: boolean; // driver job-board visibility; only true means on duty
 }
 
 export interface ProofFile {
@@ -55,6 +57,8 @@ export interface Trip {
   kilograms: number; // total weight moved on this trip, used for per-kg payroll
   notes: string;
   proofFiles: ProofFile[];
+  signature?: ProofFile | null; // delivery signature, stored beside the proof files
+  signatureStrokes?: number[][][]; // normalized 0–1 strokes so the customer can see it
   paid: boolean; // driver payroll status for this trip, admin-toggled
   invoiced?: boolean; // admin-toggled directly; also true whenever the trip's
   // originating trip request (if any) has been invoiced
@@ -84,6 +88,17 @@ export const TRIP_REQUEST_STATUSES = [
 
 export type TripRequestStatus = (typeof TRIP_REQUEST_STATUSES)[number];
 
+export const AWB_LINE_STATUSES = [
+  "submitted",
+  "assigned",
+  "accepted",
+  "in_progress",
+  "picked_up",
+  "completed",
+] as const;
+
+export type AwbLineStatus = (typeof AWB_LINE_STATUSES)[number];
+
 export interface RequestFile {
   url: string;
   name: string;
@@ -94,14 +109,22 @@ export interface AwbLine {
   qtyPieces: number;
   type: UldType;
   kilograms: number;
+  lengthIn?: number | null;
+  widthIn?: number | null;
+  heightIn?: number | null;
+  hazmat?: boolean;
+  unNumber?: string | null;
+  hazmatClass?: string | null;
   awbFile: RequestFile | null;
   loaFile: RequestFile | null;
   doFile: RequestFile | null; // Delivery Order / Delivery Ticket
   assignedDriverId: string | null;
   assignedDriverName: string | null;
-  status: TripRequestStatus; // this line only ever moves through submitted/assigned/in_progress/completed
+  status: AwbLineStatus;
   tripLogId?: string; // set once this line is completed, links to the driver's Trip Log entry
   startedAt?: number; // stamped when this line flips to in_progress, powers the Drivers Available screen
+  acceptedAt?: number;
+  pickedUpAt?: number;
   priority: AwbPriority;
 }
 
@@ -136,6 +159,11 @@ export interface TripRequest {
   // one driver active on different AWB lines at once. Only ever holds each
   // driver's current position, no history.
   driverLocations?: Record<string, DriverLocation>;
+  // Snapshot of the customer's bill rate at submit. Null amount means no quote.
+  quotedAmount?: number | null;
+  quoteStatus?: "quoted" | "no quote";
+  quoteBasis?: DriverPayType | null;
+  leadId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -154,6 +182,12 @@ export function newAwbLine(): AwbLine {
     awbFile: null,
     loaFile: null,
     doFile: null,
+    lengthIn: null,
+    widthIn: null,
+    heightIn: null,
+    hazmat: false,
+    unNumber: null,
+    hazmatClass: null,
     assignedDriverId: null,
     assignedDriverName: null,
     status: "submitted",
@@ -182,9 +216,13 @@ export function computeTripRequestRollup(awbLines: AwbLine[]): {
   let status: TripRequestStatus = "submitted";
   if (awbLines.length > 0 && awbLines.every((l) => l.status === "completed")) {
     status = "completed";
-  } else if (awbLines.some((l) => l.status === "in_progress" || l.status === "completed")) {
+  } else if (
+    awbLines.some(
+      (l) => l.status === "in_progress" || l.status === "picked_up" || l.status === "completed"
+    )
+  ) {
     status = "in_progress";
-  } else if (awbLines.some((l) => l.status === "assigned")) {
+  } else if (awbLines.some((l) => l.status === "assigned" || l.status === "accepted")) {
     status = "assigned";
   }
 

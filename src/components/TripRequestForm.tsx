@@ -25,6 +25,7 @@ import {
 } from "../types";
 import { notify } from "../utils/alert";
 import { toLocalDateString as formatDate } from "../utils/date";
+import { formatQuote, quoteForRequest } from "../utils/quote";
 
 const PRIORITY_COLORS: Record<AwbPriority, { bg: string; text: string }> = {
   Low: { bg: "#f0f0f0", text: "#666" },
@@ -56,10 +57,20 @@ interface LineState {
   // Carried through untouched on edit so a customer editing AWB details
   // never wipes out Dispatch's existing driver assignment; only settable via
   // the driverAssignment prop (Dispatch's new-request flow).
+  lengthIn: string;
+  widthIn: string;
+  heightIn: string;
+  hazmat: boolean;
+  unNumber: string;
+  hazmatClass: string;
   assignedDriverId: string | null;
   assignedDriverName: string | null;
   status: AwbLine["status"];
   priority: AwbPriority;
+  tripLogId?: string;
+  startedAt?: number;
+  acceptedAt?: number;
+  pickedUpAt?: number;
 }
 
 function lineFromAwbLine(line?: AwbLine): LineState {
@@ -71,11 +82,27 @@ function lineFromAwbLine(line?: AwbLine): LineState {
     awbSlot: line?.awbFile ? { kind: "uploaded", file: line.awbFile } : { kind: "empty" },
     loaSlot: line?.loaFile ? { kind: "uploaded", file: line.loaFile } : { kind: "empty" },
     doSlot: line?.doFile ? { kind: "uploaded", file: line.doFile } : { kind: "empty" },
+    lengthIn: line?.lengthIn != null ? String(line.lengthIn) : "",
+    widthIn: line?.widthIn != null ? String(line.widthIn) : "",
+    heightIn: line?.heightIn != null ? String(line.heightIn) : "",
+    hazmat: line?.hazmat === true,
+    unNumber: line?.unNumber ?? "",
+    hazmatClass: line?.hazmatClass ?? "",
     assignedDriverId: line?.assignedDriverId ?? null,
     assignedDriverName: line?.assignedDriverName ?? null,
     status: line?.status ?? "submitted",
     priority: line?.priority ?? "Normal",
+    tripLogId: line?.tripLogId,
+    startedAt: line?.startedAt,
+    acceptedAt: line?.acceptedAt,
+    pickedUpAt: line?.pickedUpAt,
   };
+}
+
+function parseDim(value: string): number | null {
+  if (!value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export interface TripRequestFormValues {
@@ -109,6 +136,14 @@ interface Props {
   // by Dispatch's new-request flow. Customer flows omit this and their cards
   // render unchanged.
   driverAssignment?: { drivers: UserProfile[] };
+  // Customer's billing rate, used only to preview a quote before submit.
+  // The stored quote is stamped by the server and is not written from here.
+  billing?: { billType?: UserProfile["billType"]; billRate?: number | null } | null;
+  storedQuote?: {
+    quotedAmount?: number | null;
+    quoteStatus?: string | null;
+    quoteBasis?: string | null;
+  } | null;
 }
 
 const MAX_AWB_LINES = 10;
@@ -121,6 +156,8 @@ export default function TripRequestForm({
   onSubmit,
   footer,
   driverAssignment,
+  billing,
+  storedQuote,
 }: Props) {
   const [tripDate, setTripDate] = useState(
     initial ? new Date(`${initial.tripDate}T00:00:00`) : new Date()
@@ -220,11 +257,17 @@ export default function TripRequestForm({
           uploadSlot(l.loaSlot, `loa-${i}`),
           uploadSlot(l.doSlot, `do-${i}`),
         ]);
-        awbLines.push({
+        const line: AwbLine = {
           awbNumber: l.awbNumber.trim(),
           qtyPieces: parseInt(l.qtyPieces, 10) || 0,
           type: l.type,
           kilograms: parseFloat(l.kilograms) || 0,
+          lengthIn: parseDim(l.lengthIn),
+          widthIn: parseDim(l.widthIn),
+          heightIn: parseDim(l.heightIn),
+          hazmat: l.hazmat,
+          unNumber: l.hazmat ? l.unNumber.trim() || null : null,
+          hazmatClass: l.hazmat ? l.hazmatClass.trim() || null : null,
           awbFile,
           loaFile,
           doFile,
@@ -232,7 +275,12 @@ export default function TripRequestForm({
           assignedDriverName: l.assignedDriverName,
           status: l.status,
           priority: l.priority,
-        });
+        };
+        if (l.tripLogId) line.tripLogId = l.tripLogId;
+        if (l.startedAt) line.startedAt = l.startedAt;
+        if (l.acceptedAt) line.acceptedAt = l.acceptedAt;
+        if (l.pickedUpAt) line.pickedUpAt = l.pickedUpAt;
+        awbLines.push(line);
       }
 
       const importFeeFiles: RequestFile[] = [];
@@ -293,6 +341,20 @@ export default function TripRequestForm({
         onChangeText={setNotes}
         multiline
       />
+
+      <Text style={styles.sectionTitle}>Quote</Text>
+      <Text style={styles.quoteText}>
+        {storedQuote?.quoteStatus
+          ? `${formatQuote(storedQuote)}. Changing the weight later does not change this quote.`
+          : billing
+            ? `${formatQuote(
+                quoteForRequest(
+                  billing,
+                  lines.map((line) => ({ kilograms: parseFloat(line.kilograms) || 0 }))
+                )
+              )} — preview from this customer's billing rate. Saved when the request is submitted.`
+            : "No quote until this customer's billing rate is on file."}
+      </Text>
 
       <Text style={styles.sectionTitle}>AWBs ({lines.length}/{MAX_AWB_LINES})</Text>
       {lines.map((line, i) => (
@@ -360,6 +422,72 @@ export default function TripRequestForm({
               />
             </View>
           </View>
+
+          <View style={styles.row}>
+            <View style={styles.third}>
+              <Text style={styles.label}>Length (in)</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                placeholder="L"
+                value={line.lengthIn}
+                onChangeText={(v) => updateLine(i, { lengthIn: v })}
+              />
+            </View>
+            <View style={styles.third}>
+              <Text style={styles.label}>Width (in)</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                placeholder="W"
+                value={line.widthIn}
+                onChangeText={(v) => updateLine(i, { widthIn: v })}
+              />
+            </View>
+            <View style={styles.third}>
+              <Text style={styles.label}>Height (in)</Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="numeric"
+                placeholder="H"
+                value={line.heightIn}
+                onChangeText={(v) => updateLine(i, { heightIn: v })}
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.hazmatRow}
+            onPress={() => updateLine(i, { hazmat: !line.hazmat })}
+          >
+            <View style={[styles.checkbox, line.hazmat && styles.checkboxChecked]}>
+              {line.hazmat && <Text style={styles.checkboxMark}>✓</Text>}
+            </View>
+            <Text style={styles.hazmatLabel}>Hazmat</Text>
+          </TouchableOpacity>
+          {line.hazmat && (
+            <View style={styles.row}>
+              <View style={styles.half}>
+                <Text style={styles.label}>UN number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="UN1203"
+                  value={line.unNumber}
+                  onChangeText={(v) => updateLine(i, { unNumber: v })}
+                  autoCapitalize="characters"
+                />
+              </View>
+              <View style={styles.half}>
+                <Text style={styles.label}>Class</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="3"
+                  value={line.hazmatClass}
+                  onChangeText={(v) => updateLine(i, { hazmatClass: v })}
+                />
+              </View>
+            </View>
+          )}
 
           <FileSlotRow
             label="AWB document"
@@ -534,6 +662,21 @@ const styles = StyleSheet.create({
     marginTop: 26,
     marginBottom: 10,
   },
+  quoteText: { fontSize: 14, color: "#333", marginBottom: 4 },
+  hazmatRow: { flexDirection: "row", alignItems: "center", marginTop: 14 },
+  hazmatLabel: { fontSize: 14, fontWeight: "700", color: "#111" },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: "#ccc",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  checkboxChecked: { backgroundColor: "#1d4ed8", borderColor: "#1d4ed8" },
+  checkboxMark: { color: "#fff", fontSize: 13, fontWeight: "800" },
   row: { flexDirection: "row", gap: 10 },
   half: { flex: 1 },
   third: { flex: 1 },

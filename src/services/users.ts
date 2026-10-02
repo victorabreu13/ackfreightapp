@@ -65,6 +65,11 @@ export function subscribeToActiveDrivers(
   );
 }
 
+export async function setOnDuty(onDuty: boolean): Promise<void> {
+  if (!auth.currentUser) throw new Error("Must be signed in.");
+  await updateDoc(doc(db, "users", auth.currentUser.uid), { onDuty });
+}
+
 export async function setDriverPayRate(
   driverId: string,
   payType: DriverPayType,

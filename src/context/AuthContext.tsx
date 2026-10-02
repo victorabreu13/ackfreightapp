@@ -12,7 +12,7 @@ import {
   signOut as firebaseSignOut,
   User,
 } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase/config";
 import { UserProfile } from "../types";
 
@@ -40,31 +40,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
-      if (firebaseUser) {
-        try {
-          const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-          setProfile(snap.exists() ? (snap.data() as UserProfile) : null);
-          setAuthError(null);
-        } catch (err: any) {
-          console.error("Failed to load user profile:", err);
-          setProfile(null);
-          setAuthError(
-            `Signed in, but couldn't load your account data (${err?.code ?? err?.message ?? "unknown error"}). Please try again or contact support.`
-          );
-          // Sign back out so the app doesn't sit in a half-authenticated
-          // limbo state — the user lands back on the login screen with
-          // the error message visible instead of a silent stuck spinner.
-          await firebaseSignOut(auth);
-        }
-      } else {
+      if (!firebaseUser) {
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = onSnapshot(
+      doc(db, "users", user.uid),
+      (snap) => {
+        setProfile(snap.exists() ? (snap.data() as UserProfile) : null);
+        setAuthError(null);
+        setLoading(false);
+      },
+      async (err) => {
+        console.error("Failed to load user profile:", err);
+        setProfile(null);
+        setAuthError(
+          `Signed in, but couldn't load your account data (${err?.code ?? err?.message ?? "unknown error"}). Please try again or contact support.`
+        );
+        setLoading(false);
+        // Sign back out so the app doesn't sit in a half-authenticated
+        // limbo state — the user lands back on the login screen with
+        // the error message visible instead of a silent stuck spinner.
+        await firebaseSignOut(auth);
+      }
+    );
+    return unsubscribe;
+  }, [user]);
 
   const signIn = async (email: string, password: string) => {
     setAuthError(null);

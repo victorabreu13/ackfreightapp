@@ -188,7 +188,11 @@ export async function assignAwbDriver(
     if (
       previousDriverId &&
       previousDriverId !== driverId &&
-      !awbLines.some((l) => l.assignedDriverId === previousDriverId && l.status === "in_progress")
+      !awbLines.some(
+        (l) =>
+          l.assignedDriverId === previousDriverId &&
+          (l.status === "in_progress" || l.status === "picked_up")
+      )
     ) {
       updates[`driverLocations.${previousDriverId}`] = deleteField();
     }
@@ -301,10 +305,76 @@ export async function updateMyLiveLocation(
   await callWithFreshToken(updateMyLiveLocationFn, { requestId, lat, lng });
 }
 
+export interface OpenJob {
+  requestId: string;
+  awbIndex: number;
+  awbNumber: string;
+  qtyPieces: number;
+  type: string;
+  kilograms: number;
+  priority: string;
+  hazmat: boolean;
+  unNumber: string;
+  hazmatClass: string;
+  lengthIn: number | null;
+  widthIn: number | null;
+  heightIn: number | null;
+  tripDate: string;
+  pickupTime: string;
+  from: string;
+  to: string;
+  notes: string;
+}
+
+const listOpenJobsFn = httpsCallable<undefined, { jobs: OpenJob[] }>(functions, "listOpenJobs");
+
+export async function listOpenJobs(): Promise<OpenJob[]> {
+  const result = await callWithFreshToken(listOpenJobsFn, undefined);
+  return result.jobs;
+}
+
+const acceptOpenAwbFn = httpsCallable<
+  { requestId: string; awbIndex: number },
+  { success: boolean }
+>(functions, "acceptOpenAwb");
+
+export async function acceptOpenAwb(requestId: string, awbIndex: number): Promise<void> {
+  await callWithFreshToken(acceptOpenAwbFn, { requestId, awbIndex });
+}
+
+const acceptAssignedAwbFn = httpsCallable<
+  { requestId: string; awbIndex: number },
+  { success: boolean }
+>(functions, "acceptAssignedAwb");
+
+export async function acceptAssignedAwb(requestId: string, awbIndex: number): Promise<void> {
+  await callWithFreshToken(acceptAssignedAwbFn, { requestId, awbIndex });
+}
+
+const declineAwbLineFn = httpsCallable<
+  { requestId: string; awbIndex: number },
+  { success: boolean }
+>(functions, "declineAwbLine");
+
+export async function declineAwbLine(requestId: string, awbIndex: number): Promise<void> {
+  await callWithFreshToken(declineAwbLineFn, { requestId, awbIndex });
+}
+
+const markAwbPickedUpFn = httpsCallable<
+  { requestId: string; awbIndexes: number[] },
+  { success: boolean }
+>(functions, "markAwbPickedUp");
+
+export async function markAwbPickedUp(requestId: string, awbIndexes: number[]): Promise<void> {
+  await callWithFreshToken(markAwbPickedUpFn, { requestId, awbIndexes });
+}
+
 export interface TripProofGroup {
   tripLogId: string;
   awbNumbers: string[];
   proofFiles: { url: string; name: string; kind: "image" | "document" }[];
+  signature: { url: string; name: string; kind: "image" | "document" } | null;
+  signatureStrokes: number[][][];
 }
 
 const getTripRequestProofsFn = httpsCallable<

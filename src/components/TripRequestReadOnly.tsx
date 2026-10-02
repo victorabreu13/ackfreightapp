@@ -1,15 +1,16 @@
 import React from "react";
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import LiveTrackingSection from "./LiveTrackingSection";
-import { AwbPriority, TripRequest, TripRequestStatus } from "../types";
+import { AwbLineStatus, AwbPriority, TripRequest } from "../types";
+import { formatQuote } from "../utils/quote";
 
-const LINE_STATUS_LABELS: Record<TripRequestStatus, string> = {
-  submitted: "Unassigned",
-  assigned: "Assigned",
-  in_progress: "In Progress",
+const LINE_STATUS_LABELS: Record<AwbLineStatus, string> = {
+  submitted: "On the board",
+  assigned: "Assigned — waiting for the driver",
+  accepted: "Accepted",
+  in_progress: "Started",
+  picked_up: "Picked up",
   completed: "Completed",
-  invoiced: "Invoiced",
-  cancelled: "Cancelled",
 };
 
 const PRIORITY_COLORS: Record<AwbPriority, { bg: string; text: string }> = {
@@ -43,6 +44,12 @@ export default function TripRequestReadOnly({ request }: { request: TripRequest 
           <Text style={styles.sectionValue}>{request.notes}</Text>
         </View>
       )}
+      {request.quoteStatus != null && (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Quote</Text>
+          <Text style={styles.sectionValue}>{formatQuote(request)}</Text>
+        </View>
+      )}
 
       <LiveTrackingSection request={request} />
 
@@ -64,10 +71,21 @@ export default function TripRequestReadOnly({ request }: { request: TripRequest 
             )}
           </View>
           <Text style={styles.awbAssignment}>
-            {line.assignedDriverName ? `Assigned to: ${line.assignedDriverName}` : "Unassigned"}
+            {line.assignedDriverName ? `Driver: ${line.assignedDriverName}` : "Unassigned"}
             {" · "}
             {LINE_STATUS_LABELS[line.status] ?? line.status}
           </Text>
+          {(line.lengthIn || line.widthIn || line.heightIn) && (
+            <Text style={styles.awbAssignment}>
+              {line.lengthIn ?? "–"} × {line.widthIn ?? "–"} × {line.heightIn ?? "–"} in
+            </Text>
+          )}
+          {line.hazmat && (
+            <Text style={styles.hazmat}>
+              HAZMAT{line.unNumber ? ` · UN ${line.unNumber}` : ""}
+              {line.hazmatClass ? ` · class ${line.hazmatClass}` : ""}
+            </Text>
+          )}
           {[
             ["AWB document", line.awbFile],
             ["Letter of Authorization", line.loaFile],
@@ -121,7 +139,8 @@ const styles = StyleSheet.create({
   awbTitle: { fontSize: 14, fontWeight: "700", color: "#111", marginBottom: 2, flex: 1, marginRight: 8 },
   priorityBadge: { borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8 },
   priorityBadgeText: { fontSize: 11, fontWeight: "800" },
-  awbAssignment: { fontSize: 12, color: "#666", marginBottom: 6 },
+  awbAssignment: { fontSize: 12, color: "#666", marginBottom: 2 },
+  hazmat: { fontSize: 12, fontWeight: "800", color: "#c0392b", marginBottom: 6 },
   docRow: {
     flexDirection: "row",
     justifyContent: "space-between",

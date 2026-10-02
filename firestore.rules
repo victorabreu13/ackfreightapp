@@ -35,7 +35,11 @@ service cloud.firestore {
         && request.resource.data.createdAt is number;
       allow update: if isSignedIn() && (
         (request.auth.uid == userId &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pushToken"])) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pushToken", "onDuty"]) &&
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(["onDuty"]) ||
+            (resource.data.role == "driver" && request.resource.data.onDuty is bool)
+          )) ||
         (isAdmin() &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(
             ["payType", "payRate", "billType", "billRate", "name"])));
@@ -67,6 +71,17 @@ service cloud.firestore {
 
     // Normalized AWB+ULD claims for duplicate detection. Server only.
     match /tripUldKeys/{keyId} {
+      allow read, write: if false;
+    }
+
+    // Website leads and the intake rate-limit counters. Dispatch reads leads.
+    // Approve and dismiss go through Cloud Functions.
+    match /leads/{leadId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /intakeRateLimits/{bucketId} {
       allow read, write: if false;
     }
 
@@ -108,7 +123,11 @@ service cloud.firestore {
         && request.resource.data.get('tripLogId', null) == resource.data.get('tripLogId', null)
         && request.resource.data.get('quickbooksInvoiceId', null) == resource.data.get('quickbooksInvoiceId', null)
         && request.resource.data.get('invoicedAt', null) == resource.data.get('invoicedAt', null)
-        && request.resource.data.get('driverLocations', {}) == resource.data.get('driverLocations', {});
+        && request.resource.data.get('driverLocations', {}) == resource.data.get('driverLocations', {})
+        && request.resource.data.get('quotedAmount', null) == resource.data.get('quotedAmount', null)
+        && request.resource.data.get('quoteStatus', null) == resource.data.get('quoteStatus', null)
+        && request.resource.data.get('quoteBasis', null) == resource.data.get('quoteBasis', null)
+        && request.resource.data.get('leadId', null) == resource.data.get('leadId', null);
     }
 
     function isFreshAwbLine(line) {
@@ -116,7 +135,9 @@ service cloud.firestore {
         && line.get('assignedDriverName', null) == null
         && line.get('status', 'submitted') == 'submitted'
         && line.get('tripLogId', null) == null
-        && line.get('startedAt', null) == null;
+        && line.get('startedAt', null) == null
+        && line.get('acceptedAt', null) == null
+        && line.get('pickedUpAt', null) == null;
     }
 
     function awbDispatchEquals(oldLine, newLine) {
@@ -124,7 +145,9 @@ service cloud.firestore {
         && newLine.get('assignedDriverName', null) == oldLine.get('assignedDriverName', null)
         && newLine.get('status', 'submitted') == oldLine.get('status', 'submitted')
         && newLine.get('tripLogId', null) == oldLine.get('tripLogId', null)
-        && newLine.get('startedAt', null) == oldLine.get('startedAt', null);
+        && newLine.get('startedAt', null) == oldLine.get('startedAt', null)
+        && newLine.get('acceptedAt', null) == oldLine.get('acceptedAt', null)
+        && newLine.get('pickedUpAt', null) == oldLine.get('pickedUpAt', null);
     }
 
     function e_0_0(){return resource.data.awbLines.size()>0&&request.resource.data.awbLines.size()>0&&awbDispatchEquals(resource.data.awbLines[0],request.resource.data.awbLines[0]);}
