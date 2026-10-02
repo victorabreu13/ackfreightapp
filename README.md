@@ -20,7 +20,7 @@ Signup cannot grant admin. The first admin is created by signing up as a driver 
 
 ## 1. Install Node.js
 
-This project needs Node.js 20 or newer. Confirm:
+This project needs Node.js 22 or newer. Cloud Functions run on the Node.js 22 runtime. Confirm:
 
 ```bash
 node -v
