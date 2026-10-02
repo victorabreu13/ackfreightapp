@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import DateField from "../components/DateField";
 import { useAuth } from "../context/AuthContext";
-import { checkDuplicateUld, createTrip } from "../services/trips";
+import { checkDuplicateUld, createTrip, duplicateUldMessage } from "../services/trips";
 import { uploadProofFile } from "../services/storage";
 import { ProofFile, ULD_TYPES, UldType } from "../types";
 import { confirmAction, notify } from "../utils/alert";
@@ -175,12 +175,7 @@ export default function NewTripScreen({ navigation }: any) {
       const trimmedUlds = uldNumbers.map((u) => u.trim());
       const dup = await checkDuplicateUld(awbNumber.trim(), trimmedUlds);
       if (dup.duplicate) {
-        notify(
-          "Duplicate ULD #",
-          `ULD #${dup.uldNumber} was already logged under this AWB by ${dup.conflictingDriverName}${
-            dup.conflictingDate ? ` on ${dup.conflictingDate}` : ""
-          }. Double-check the ULD # and AWB before submitting.`
-        );
+        notify("Duplicate ULD #", duplicateUldMessage(dup.uldNumber, "submitting"));
         return;
       }
 

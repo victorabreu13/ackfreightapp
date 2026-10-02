@@ -9,21 +9,30 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Users can read/create their own profile. Only the owner can create it
-    // (at sign-up); nobody can change their own role after that. A user can
-    // update their own push-notification token; an admin can set a driver's
-    // payroll rate (payType/payRate), a customer's billing rate
-    // (billType/billRate), or fix a user's display name — nothing else about
-    // another user's profile is writable from the client (email/password go
-    // through their respective Cloud Functions instead, since those touch
-    // the Auth account too). quickbooksCustomerId is written only by the
-    // sendQuickBooksInvoice Cloud Function (Admin SDK bypasses these rules).
+    // Users can read their own profile. Only the owner can create it, and
+    // only as a driver or customer — admin is granted later by setUserRole
+    // (Admin SDK), never by the client. A user can update their own
+    // push-notification token; an admin can set a driver's payroll rate
+    // (payType/payRate), a customer's billing rate (billType/billRate), or
+    // fix a user's display name. quickbooksCustomerId is written only by
+    // the sendQuickBooksInvoice Cloud Function.
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['uid', 'email', 'name', 'role', 'createdAt'])
+        && request.resource.data.uid == userId
+        && request.resource.data.role in ['driver', 'customer']
+        && request.resource.data.email is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() < 200
+        && request.resource.data.createdAt is number;
       allow update: if isSignedIn() && (
         (request.auth.uid == userId &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(["pushToken"])) ||
@@ -37,6 +46,8 @@ service cloud.firestore {
     // and toggle a trip's payroll-paid or invoiced status. Trips can't
     // otherwise be edited or deleted directly by clients — deletion only
     // happens through the deleteTrip Cloud Function, which audits it.
+    // The new app submits trips through submitTripLog; direct create stays
+    // allowed so already-shipped builds keep working.
     match /trips/{tripId} {
       allow create: if isSignedIn() && request.resource.data.driverId == request.auth.uid;
       allow read: if isSignedIn() &&
@@ -54,6 +65,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Normalized AWB+ULD claims for duplicate detection. Server only.
+    match /tripUldKeys/{keyId} {
+      allow read, write: if false;
+    }
+
     // QuickBooks OAuth tokens — holds a live access/refresh token pair that
     // could act on the whole connected QuickBooks company, so no client
     // (including admins) ever reads or writes it directly. Only the
@@ -64,18 +80,11 @@ service cloud.firestore {
 
     // Customers submit and own their trip requests; admins (Dispatch) can
     // read, create (on a customer's behalf, e.g. a phone-in order) and update
-    // every request. A customer may keep editing their own request —
-    // including cancelling it — right up until a driver actually starts it
-    // (In Progress) or it's Completed, Invoiced or already Cancelled, and
-    // can never touch driver assignment. Each AWB line
-    // now carries its own driver assignment/status, so drivers no longer
-    // write to this collection directly — validating "only my own line in
-    // the array changed" isn't expressible in these rules. Instead the
-    // assigned driver moves their own lines forward (assigned -> in_progress
-    // -> completed) through the startMyAwbLines/completeMyAwbLines Cloud
-    // Functions, which use the Admin SDK and do their own per-line auth
-    // check in code. Drivers keep read access below so they can still see
-    // requests they're assigned to.
+    // every request. A customer may keep editing route, schedule, notes,
+    // cargo fields, and files — including adding or removing AWB lines —
+    // right up until a driver actually starts the request. They cannot change
+    // driver assignment, line status, or other dispatch-owned fields.
+    // Drivers move their own lines forward through Cloud Functions.
     function isOwnTripRequest() {
       return resource.data.customerId == request.auth.uid;
     }
@@ -88,13 +97,234 @@ service cloud.firestore {
       return resource.data.status in ["in_progress", "completed", "invoiced", "cancelled"];
     }
 
-    function customerFieldsUnchanged() {
-      return request.resource.data.assignedDriverIds == resource.data.assignedDriverIds &&
-        request.resource.data.assignedDriverNames == resource.data.assignedDriverNames &&
-        request.resource.data.customerId == resource.data.customerId &&
-        request.resource.data.customerName == resource.data.customerName &&
-        request.resource.data.customerEmail == resource.data.customerEmail &&
-        request.resource.data.submittedAt == resource.data.submittedAt;
+    function customerImmutableOk() {
+      return request.resource.data.assignedDriverIds == resource.data.assignedDriverIds
+        && request.resource.data.assignedDriverNames == resource.data.assignedDriverNames
+        && request.resource.data.customerId == resource.data.customerId
+        && request.resource.data.customerName == resource.data.customerName
+        && request.resource.data.customerEmail == resource.data.customerEmail
+        && request.resource.data.submittedAt == resource.data.submittedAt
+        && request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null)
+        && request.resource.data.get('tripLogId', null) == resource.data.get('tripLogId', null)
+        && request.resource.data.get('quickbooksInvoiceId', null) == resource.data.get('quickbooksInvoiceId', null)
+        && request.resource.data.get('invoicedAt', null) == resource.data.get('invoicedAt', null)
+        && request.resource.data.get('driverLocations', {}) == resource.data.get('driverLocations', {});
+    }
+
+    function isFreshAwbLine(line) {
+      return line.get('assignedDriverId', null) == null
+        && line.get('assignedDriverName', null) == null
+        && line.get('status', 'submitted') == 'submitted'
+        && line.get('tripLogId', null) == null
+        && line.get('startedAt', null) == null;
+    }
+
+    function awbDispatchEquals(oldLine, newLine) {
+      return newLine.get('assignedDriverId', null) == oldLine.get('assignedDriverId', null)
+        && newLine.get('assignedDriverName', null) == oldLine.get('assignedDriverName', null)
+        && newLine.get('status', 'submitted') == oldLine.get('status', 'submitted')
+        && newLine.get('tripLogId', null) == oldLine.get('tripLogId', null)
+        && newLine.get('startedAt', null) == oldLine.get('startedAt', null);
+    }
+
+    function e_0_0(){return resource.data.awbLines.size()>0&&request.resource.data.awbLines.size()>0&&awbDispatchEquals(resource.data.awbLines[0],request.resource.data.awbLines[0]);}
+    function e_0_1(){return resource.data.awbLines.size()>0&&request.resource.data.awbLines.size()>1&&awbDispatchEquals(resource.data.awbLines[0],request.resource.data.awbLines[1]);}
+    function e_0_2(){return resource.data.awbLines.size()>0&&request.resource.data.awbLines.size()>2&&awbDispatchEquals(resource.data.awbLines[0],request.resource.data.awbLines[2]);}
+    function e_0_3(){return resource.data.awbLines.size()>0&&request.resource.data.awbLines.size()>3&&awbDispatchEquals(resource.data.awbLines[0],request.resource.data.awbLines[3]);}
+    function e_0_4(){return resource.data.awbLines.size()>0&&request.resource.data.awbLines.size()>4&&awbDispatchEquals(resource.data.awbLines[0],request.resource.data.awbLines[4]);}
+    function e_0_5(){return resource.data.awbLines.size()>0&&request.resource.data.awbLines.size()>5&&awbDispatchEquals(resource.data.awbLines[0],request.resource.data.awbLines[5]);}
+    function e_0_6(){return resource.data.awbLines.size()>0&&request.resource.data.awbLines.size()>6&&awbDispatchEquals(resource.data.awbLines[0],request.resource.data.awbLines[6]);}
+    function e_0_7(){return resource.data.awbLines.size()>0&&request.resource.data.awbLines.size()>7&&awbDispatchEquals(resource.data.awbLines[0],request.resource.data.awbLines[7]);}
+    function e_0_8(){return resource.data.awbLines.size()>0&&request.resource.data.awbLines.size()>8&&awbDispatchEquals(resource.data.awbLines[0],request.resource.data.awbLines[8]);}
+    function e_0_9(){return resource.data.awbLines.size()>0&&request.resource.data.awbLines.size()>9&&awbDispatchEquals(resource.data.awbLines[0],request.resource.data.awbLines[9]);}
+    function e_1_0(){return resource.data.awbLines.size()>1&&request.resource.data.awbLines.size()>0&&awbDispatchEquals(resource.data.awbLines[1],request.resource.data.awbLines[0]);}
+    function e_1_1(){return resource.data.awbLines.size()>1&&request.resource.data.awbLines.size()>1&&awbDispatchEquals(resource.data.awbLines[1],request.resource.data.awbLines[1]);}
+    function e_1_2(){return resource.data.awbLines.size()>1&&request.resource.data.awbLines.size()>2&&awbDispatchEquals(resource.data.awbLines[1],request.resource.data.awbLines[2]);}
+    function e_1_3(){return resource.data.awbLines.size()>1&&request.resource.data.awbLines.size()>3&&awbDispatchEquals(resource.data.awbLines[1],request.resource.data.awbLines[3]);}
+    function e_1_4(){return resource.data.awbLines.size()>1&&request.resource.data.awbLines.size()>4&&awbDispatchEquals(resource.data.awbLines[1],request.resource.data.awbLines[4]);}
+    function e_1_5(){return resource.data.awbLines.size()>1&&request.resource.data.awbLines.size()>5&&awbDispatchEquals(resource.data.awbLines[1],request.resource.data.awbLines[5]);}
+    function e_1_6(){return resource.data.awbLines.size()>1&&request.resource.data.awbLines.size()>6&&awbDispatchEquals(resource.data.awbLines[1],request.resource.data.awbLines[6]);}
+    function e_1_7(){return resource.data.awbLines.size()>1&&request.resource.data.awbLines.size()>7&&awbDispatchEquals(resource.data.awbLines[1],request.resource.data.awbLines[7]);}
+    function e_1_8(){return resource.data.awbLines.size()>1&&request.resource.data.awbLines.size()>8&&awbDispatchEquals(resource.data.awbLines[1],request.resource.data.awbLines[8]);}
+    function e_1_9(){return resource.data.awbLines.size()>1&&request.resource.data.awbLines.size()>9&&awbDispatchEquals(resource.data.awbLines[1],request.resource.data.awbLines[9]);}
+    function e_2_0(){return resource.data.awbLines.size()>2&&request.resource.data.awbLines.size()>0&&awbDispatchEquals(resource.data.awbLines[2],request.resource.data.awbLines[0]);}
+    function e_2_1(){return resource.data.awbLines.size()>2&&request.resource.data.awbLines.size()>1&&awbDispatchEquals(resource.data.awbLines[2],request.resource.data.awbLines[1]);}
+    function e_2_2(){return resource.data.awbLines.size()>2&&request.resource.data.awbLines.size()>2&&awbDispatchEquals(resource.data.awbLines[2],request.resource.data.awbLines[2]);}
+    function e_2_3(){return resource.data.awbLines.size()>2&&request.resource.data.awbLines.size()>3&&awbDispatchEquals(resource.data.awbLines[2],request.resource.data.awbLines[3]);}
+    function e_2_4(){return resource.data.awbLines.size()>2&&request.resource.data.awbLines.size()>4&&awbDispatchEquals(resource.data.awbLines[2],request.resource.data.awbLines[4]);}
+    function e_2_5(){return resource.data.awbLines.size()>2&&request.resource.data.awbLines.size()>5&&awbDispatchEquals(resource.data.awbLines[2],request.resource.data.awbLines[5]);}
+    function e_2_6(){return resource.data.awbLines.size()>2&&request.resource.data.awbLines.size()>6&&awbDispatchEquals(resource.data.awbLines[2],request.resource.data.awbLines[6]);}
+    function e_2_7(){return resource.data.awbLines.size()>2&&request.resource.data.awbLines.size()>7&&awbDispatchEquals(resource.data.awbLines[2],request.resource.data.awbLines[7]);}
+    function e_2_8(){return resource.data.awbLines.size()>2&&request.resource.data.awbLines.size()>8&&awbDispatchEquals(resource.data.awbLines[2],request.resource.data.awbLines[8]);}
+    function e_2_9(){return resource.data.awbLines.size()>2&&request.resource.data.awbLines.size()>9&&awbDispatchEquals(resource.data.awbLines[2],request.resource.data.awbLines[9]);}
+    function e_3_0(){return resource.data.awbLines.size()>3&&request.resource.data.awbLines.size()>0&&awbDispatchEquals(resource.data.awbLines[3],request.resource.data.awbLines[0]);}
+    function e_3_1(){return resource.data.awbLines.size()>3&&request.resource.data.awbLines.size()>1&&awbDispatchEquals(resource.data.awbLines[3],request.resource.data.awbLines[1]);}
+    function e_3_2(){return resource.data.awbLines.size()>3&&request.resource.data.awbLines.size()>2&&awbDispatchEquals(resource.data.awbLines[3],request.resource.data.awbLines[2]);}
+    function e_3_3(){return resource.data.awbLines.size()>3&&request.resource.data.awbLines.size()>3&&awbDispatchEquals(resource.data.awbLines[3],request.resource.data.awbLines[3]);}
+    function e_3_4(){return resource.data.awbLines.size()>3&&request.resource.data.awbLines.size()>4&&awbDispatchEquals(resource.data.awbLines[3],request.resource.data.awbLines[4]);}
+    function e_3_5(){return resource.data.awbLines.size()>3&&request.resource.data.awbLines.size()>5&&awbDispatchEquals(resource.data.awbLines[3],request.resource.data.awbLines[5]);}
+    function e_3_6(){return resource.data.awbLines.size()>3&&request.resource.data.awbLines.size()>6&&awbDispatchEquals(resource.data.awbLines[3],request.resource.data.awbLines[6]);}
+    function e_3_7(){return resource.data.awbLines.size()>3&&request.resource.data.awbLines.size()>7&&awbDispatchEquals(resource.data.awbLines[3],request.resource.data.awbLines[7]);}
+    function e_3_8(){return resource.data.awbLines.size()>3&&request.resource.data.awbLines.size()>8&&awbDispatchEquals(resource.data.awbLines[3],request.resource.data.awbLines[8]);}
+    function e_3_9(){return resource.data.awbLines.size()>3&&request.resource.data.awbLines.size()>9&&awbDispatchEquals(resource.data.awbLines[3],request.resource.data.awbLines[9]);}
+    function e_4_0(){return resource.data.awbLines.size()>4&&request.resource.data.awbLines.size()>0&&awbDispatchEquals(resource.data.awbLines[4],request.resource.data.awbLines[0]);}
+    function e_4_1(){return resource.data.awbLines.size()>4&&request.resource.data.awbLines.size()>1&&awbDispatchEquals(resource.data.awbLines[4],request.resource.data.awbLines[1]);}
+    function e_4_2(){return resource.data.awbLines.size()>4&&request.resource.data.awbLines.size()>2&&awbDispatchEquals(resource.data.awbLines[4],request.resource.data.awbLines[2]);}
+    function e_4_3(){return resource.data.awbLines.size()>4&&request.resource.data.awbLines.size()>3&&awbDispatchEquals(resource.data.awbLines[4],request.resource.data.awbLines[3]);}
+    function e_4_4(){return resource.data.awbLines.size()>4&&request.resource.data.awbLines.size()>4&&awbDispatchEquals(resource.data.awbLines[4],request.resource.data.awbLines[4]);}
+    function e_4_5(){return resource.data.awbLines.size()>4&&request.resource.data.awbLines.size()>5&&awbDispatchEquals(resource.data.awbLines[4],request.resource.data.awbLines[5]);}
+    function e_4_6(){return resource.data.awbLines.size()>4&&request.resource.data.awbLines.size()>6&&awbDispatchEquals(resource.data.awbLines[4],request.resource.data.awbLines[6]);}
+    function e_4_7(){return resource.data.awbLines.size()>4&&request.resource.data.awbLines.size()>7&&awbDispatchEquals(resource.data.awbLines[4],request.resource.data.awbLines[7]);}
+    function e_4_8(){return resource.data.awbLines.size()>4&&request.resource.data.awbLines.size()>8&&awbDispatchEquals(resource.data.awbLines[4],request.resource.data.awbLines[8]);}
+    function e_4_9(){return resource.data.awbLines.size()>4&&request.resource.data.awbLines.size()>9&&awbDispatchEquals(resource.data.awbLines[4],request.resource.data.awbLines[9]);}
+    function e_5_0(){return resource.data.awbLines.size()>5&&request.resource.data.awbLines.size()>0&&awbDispatchEquals(resource.data.awbLines[5],request.resource.data.awbLines[0]);}
+    function e_5_1(){return resource.data.awbLines.size()>5&&request.resource.data.awbLines.size()>1&&awbDispatchEquals(resource.data.awbLines[5],request.resource.data.awbLines[1]);}
+    function e_5_2(){return resource.data.awbLines.size()>5&&request.resource.data.awbLines.size()>2&&awbDispatchEquals(resource.data.awbLines[5],request.resource.data.awbLines[2]);}
+    function e_5_3(){return resource.data.awbLines.size()>5&&request.resource.data.awbLines.size()>3&&awbDispatchEquals(resource.data.awbLines[5],request.resource.data.awbLines[3]);}
+    function e_5_4(){return resource.data.awbLines.size()>5&&request.resource.data.awbLines.size()>4&&awbDispatchEquals(resource.data.awbLines[5],request.resource.data.awbLines[4]);}
+    function e_5_5(){return resource.data.awbLines.size()>5&&request.resource.data.awbLines.size()>5&&awbDispatchEquals(resource.data.awbLines[5],request.resource.data.awbLines[5]);}
+    function e_5_6(){return resource.data.awbLines.size()>5&&request.resource.data.awbLines.size()>6&&awbDispatchEquals(resource.data.awbLines[5],request.resource.data.awbLines[6]);}
+    function e_5_7(){return resource.data.awbLines.size()>5&&request.resource.data.awbLines.size()>7&&awbDispatchEquals(resource.data.awbLines[5],request.resource.data.awbLines[7]);}
+    function e_5_8(){return resource.data.awbLines.size()>5&&request.resource.data.awbLines.size()>8&&awbDispatchEquals(resource.data.awbLines[5],request.resource.data.awbLines[8]);}
+    function e_5_9(){return resource.data.awbLines.size()>5&&request.resource.data.awbLines.size()>9&&awbDispatchEquals(resource.data.awbLines[5],request.resource.data.awbLines[9]);}
+    function e_6_0(){return resource.data.awbLines.size()>6&&request.resource.data.awbLines.size()>0&&awbDispatchEquals(resource.data.awbLines[6],request.resource.data.awbLines[0]);}
+    function e_6_1(){return resource.data.awbLines.size()>6&&request.resource.data.awbLines.size()>1&&awbDispatchEquals(resource.data.awbLines[6],request.resource.data.awbLines[1]);}
+    function e_6_2(){return resource.data.awbLines.size()>6&&request.resource.data.awbLines.size()>2&&awbDispatchEquals(resource.data.awbLines[6],request.resource.data.awbLines[2]);}
+    function e_6_3(){return resource.data.awbLines.size()>6&&request.resource.data.awbLines.size()>3&&awbDispatchEquals(resource.data.awbLines[6],request.resource.data.awbLines[3]);}
+    function e_6_4(){return resource.data.awbLines.size()>6&&request.resource.data.awbLines.size()>4&&awbDispatchEquals(resource.data.awbLines[6],request.resource.data.awbLines[4]);}
+    function e_6_5(){return resource.data.awbLines.size()>6&&request.resource.data.awbLines.size()>5&&awbDispatchEquals(resource.data.awbLines[6],request.resource.data.awbLines[5]);}
+    function e_6_6(){return resource.data.awbLines.size()>6&&request.resource.data.awbLines.size()>6&&awbDispatchEquals(resource.data.awbLines[6],request.resource.data.awbLines[6]);}
+    function e_6_7(){return resource.data.awbLines.size()>6&&request.resource.data.awbLines.size()>7&&awbDispatchEquals(resource.data.awbLines[6],request.resource.data.awbLines[7]);}
+    function e_6_8(){return resource.data.awbLines.size()>6&&request.resource.data.awbLines.size()>8&&awbDispatchEquals(resource.data.awbLines[6],request.resource.data.awbLines[8]);}
+    function e_6_9(){return resource.data.awbLines.size()>6&&request.resource.data.awbLines.size()>9&&awbDispatchEquals(resource.data.awbLines[6],request.resource.data.awbLines[9]);}
+    function e_7_0(){return resource.data.awbLines.size()>7&&request.resource.data.awbLines.size()>0&&awbDispatchEquals(resource.data.awbLines[7],request.resource.data.awbLines[0]);}
+    function e_7_1(){return resource.data.awbLines.size()>7&&request.resource.data.awbLines.size()>1&&awbDispatchEquals(resource.data.awbLines[7],request.resource.data.awbLines[1]);}
+    function e_7_2(){return resource.data.awbLines.size()>7&&request.resource.data.awbLines.size()>2&&awbDispatchEquals(resource.data.awbLines[7],request.resource.data.awbLines[2]);}
+    function e_7_3(){return resource.data.awbLines.size()>7&&request.resource.data.awbLines.size()>3&&awbDispatchEquals(resource.data.awbLines[7],request.resource.data.awbLines[3]);}
+    function e_7_4(){return resource.data.awbLines.size()>7&&request.resource.data.awbLines.size()>4&&awbDispatchEquals(resource.data.awbLines[7],request.resource.data.awbLines[4]);}
+    function e_7_5(){return resource.data.awbLines.size()>7&&request.resource.data.awbLines.size()>5&&awbDispatchEquals(resource.data.awbLines[7],request.resource.data.awbLines[5]);}
+    function e_7_6(){return resource.data.awbLines.size()>7&&request.resource.data.awbLines.size()>6&&awbDispatchEquals(resource.data.awbLines[7],request.resource.data.awbLines[6]);}
+    function e_7_7(){return resource.data.awbLines.size()>7&&request.resource.data.awbLines.size()>7&&awbDispatchEquals(resource.data.awbLines[7],request.resource.data.awbLines[7]);}
+    function e_7_8(){return resource.data.awbLines.size()>7&&request.resource.data.awbLines.size()>8&&awbDispatchEquals(resource.data.awbLines[7],request.resource.data.awbLines[8]);}
+    function e_7_9(){return resource.data.awbLines.size()>7&&request.resource.data.awbLines.size()>9&&awbDispatchEquals(resource.data.awbLines[7],request.resource.data.awbLines[9]);}
+    function e_8_0(){return resource.data.awbLines.size()>8&&request.resource.data.awbLines.size()>0&&awbDispatchEquals(resource.data.awbLines[8],request.resource.data.awbLines[0]);}
+    function e_8_1(){return resource.data.awbLines.size()>8&&request.resource.data.awbLines.size()>1&&awbDispatchEquals(resource.data.awbLines[8],request.resource.data.awbLines[1]);}
+    function e_8_2(){return resource.data.awbLines.size()>8&&request.resource.data.awbLines.size()>2&&awbDispatchEquals(resource.data.awbLines[8],request.resource.data.awbLines[2]);}
+    function e_8_3(){return resource.data.awbLines.size()>8&&request.resource.data.awbLines.size()>3&&awbDispatchEquals(resource.data.awbLines[8],request.resource.data.awbLines[3]);}
+    function e_8_4(){return resource.data.awbLines.size()>8&&request.resource.data.awbLines.size()>4&&awbDispatchEquals(resource.data.awbLines[8],request.resource.data.awbLines[4]);}
+    function e_8_5(){return resource.data.awbLines.size()>8&&request.resource.data.awbLines.size()>5&&awbDispatchEquals(resource.data.awbLines[8],request.resource.data.awbLines[5]);}
+    function e_8_6(){return resource.data.awbLines.size()>8&&request.resource.data.awbLines.size()>6&&awbDispatchEquals(resource.data.awbLines[8],request.resource.data.awbLines[6]);}
+    function e_8_7(){return resource.data.awbLines.size()>8&&request.resource.data.awbLines.size()>7&&awbDispatchEquals(resource.data.awbLines[8],request.resource.data.awbLines[7]);}
+    function e_8_8(){return resource.data.awbLines.size()>8&&request.resource.data.awbLines.size()>8&&awbDispatchEquals(resource.data.awbLines[8],request.resource.data.awbLines[8]);}
+    function e_8_9(){return resource.data.awbLines.size()>8&&request.resource.data.awbLines.size()>9&&awbDispatchEquals(resource.data.awbLines[8],request.resource.data.awbLines[9]);}
+    function e_9_0(){return resource.data.awbLines.size()>9&&request.resource.data.awbLines.size()>0&&awbDispatchEquals(resource.data.awbLines[9],request.resource.data.awbLines[0]);}
+    function e_9_1(){return resource.data.awbLines.size()>9&&request.resource.data.awbLines.size()>1&&awbDispatchEquals(resource.data.awbLines[9],request.resource.data.awbLines[1]);}
+    function e_9_2(){return resource.data.awbLines.size()>9&&request.resource.data.awbLines.size()>2&&awbDispatchEquals(resource.data.awbLines[9],request.resource.data.awbLines[2]);}
+    function e_9_3(){return resource.data.awbLines.size()>9&&request.resource.data.awbLines.size()>3&&awbDispatchEquals(resource.data.awbLines[9],request.resource.data.awbLines[3]);}
+    function e_9_4(){return resource.data.awbLines.size()>9&&request.resource.data.awbLines.size()>4&&awbDispatchEquals(resource.data.awbLines[9],request.resource.data.awbLines[4]);}
+    function e_9_5(){return resource.data.awbLines.size()>9&&request.resource.data.awbLines.size()>5&&awbDispatchEquals(resource.data.awbLines[9],request.resource.data.awbLines[5]);}
+    function e_9_6(){return resource.data.awbLines.size()>9&&request.resource.data.awbLines.size()>6&&awbDispatchEquals(resource.data.awbLines[9],request.resource.data.awbLines[6]);}
+    function e_9_7(){return resource.data.awbLines.size()>9&&request.resource.data.awbLines.size()>7&&awbDispatchEquals(resource.data.awbLines[9],request.resource.data.awbLines[7]);}
+    function e_9_8(){return resource.data.awbLines.size()>9&&request.resource.data.awbLines.size()>8&&awbDispatchEquals(resource.data.awbLines[9],request.resource.data.awbLines[8]);}
+    function e_9_9(){return resource.data.awbLines.size()>9&&request.resource.data.awbLines.size()>9&&awbDispatchEquals(resource.data.awbLines[9],request.resource.data.awbLines[9]);}
+    // Greedy left-to-right match. The cursor is the next old index to
+    // consider, -1 once a fresh suffix has started, or 100 if the edit
+    // rewrites dispatch-owned fields or reorders them. Each step calls the
+    // previous step once so evaluation stays within Firestore's budget.
+    function cursor0(){
+      return request.resource.data.awbLines.size()<1?100:((0<=0&&e_0_0())?1:((0<=1&&e_1_0())?2:((0<=2&&e_2_0())?3:((0<=3&&e_3_0())?4:((0<=4&&e_4_0())?5:((0<=5&&e_5_0())?6:((0<=6&&e_6_0())?7:((0<=7&&e_7_0())?8:((0<=8&&e_8_0())?9:((0<=9&&e_9_0())?10:(isFreshAwbLine(request.resource.data.awbLines[0])?-1:100)))))))))));
+    }
+    function step1(c){
+      return c==100?100
+        : request.resource.data.awbLines.size()<=1?c
+        : c==-1?(isFreshAwbLine(request.resource.data.awbLines[1])?-1:100)
+        : ((c<=0&&e_0_1())?1:((c<=1&&e_1_1())?2:((c<=2&&e_2_1())?3:((c<=3&&e_3_1())?4:((c<=4&&e_4_1())?5:((c<=5&&e_5_1())?6:((c<=6&&e_6_1())?7:((c<=7&&e_7_1())?8:((c<=8&&e_8_1())?9:((c<=9&&e_9_1())?10:(isFreshAwbLine(request.resource.data.awbLines[1])?-1:100)))))))))));
+    }
+    function step2(c){
+      return c==100?100
+        : request.resource.data.awbLines.size()<=2?c
+        : c==-1?(isFreshAwbLine(request.resource.data.awbLines[2])?-1:100)
+        : ((c<=0&&e_0_2())?1:((c<=1&&e_1_2())?2:((c<=2&&e_2_2())?3:((c<=3&&e_3_2())?4:((c<=4&&e_4_2())?5:((c<=5&&e_5_2())?6:((c<=6&&e_6_2())?7:((c<=7&&e_7_2())?8:((c<=8&&e_8_2())?9:((c<=9&&e_9_2())?10:(isFreshAwbLine(request.resource.data.awbLines[2])?-1:100)))))))))));
+    }
+    function step3(c){
+      return c==100?100
+        : request.resource.data.awbLines.size()<=3?c
+        : c==-1?(isFreshAwbLine(request.resource.data.awbLines[3])?-1:100)
+        : ((c<=0&&e_0_3())?1:((c<=1&&e_1_3())?2:((c<=2&&e_2_3())?3:((c<=3&&e_3_3())?4:((c<=4&&e_4_3())?5:((c<=5&&e_5_3())?6:((c<=6&&e_6_3())?7:((c<=7&&e_7_3())?8:((c<=8&&e_8_3())?9:((c<=9&&e_9_3())?10:(isFreshAwbLine(request.resource.data.awbLines[3])?-1:100)))))))))));
+    }
+    function step4(c){
+      return c==100?100
+        : request.resource.data.awbLines.size()<=4?c
+        : c==-1?(isFreshAwbLine(request.resource.data.awbLines[4])?-1:100)
+        : ((c<=0&&e_0_4())?1:((c<=1&&e_1_4())?2:((c<=2&&e_2_4())?3:((c<=3&&e_3_4())?4:((c<=4&&e_4_4())?5:((c<=5&&e_5_4())?6:((c<=6&&e_6_4())?7:((c<=7&&e_7_4())?8:((c<=8&&e_8_4())?9:((c<=9&&e_9_4())?10:(isFreshAwbLine(request.resource.data.awbLines[4])?-1:100)))))))))));
+    }
+    function step5(c){
+      return c==100?100
+        : request.resource.data.awbLines.size()<=5?c
+        : c==-1?(isFreshAwbLine(request.resource.data.awbLines[5])?-1:100)
+        : ((c<=0&&e_0_5())?1:((c<=1&&e_1_5())?2:((c<=2&&e_2_5())?3:((c<=3&&e_3_5())?4:((c<=4&&e_4_5())?5:((c<=5&&e_5_5())?6:((c<=6&&e_6_5())?7:((c<=7&&e_7_5())?8:((c<=8&&e_8_5())?9:((c<=9&&e_9_5())?10:(isFreshAwbLine(request.resource.data.awbLines[5])?-1:100)))))))))));
+    }
+    function step6(c){
+      return c==100?100
+        : request.resource.data.awbLines.size()<=6?c
+        : c==-1?(isFreshAwbLine(request.resource.data.awbLines[6])?-1:100)
+        : ((c<=0&&e_0_6())?1:((c<=1&&e_1_6())?2:((c<=2&&e_2_6())?3:((c<=3&&e_3_6())?4:((c<=4&&e_4_6())?5:((c<=5&&e_5_6())?6:((c<=6&&e_6_6())?7:((c<=7&&e_7_6())?8:((c<=8&&e_8_6())?9:((c<=9&&e_9_6())?10:(isFreshAwbLine(request.resource.data.awbLines[6])?-1:100)))))))))));
+    }
+    function step7(c){
+      return c==100?100
+        : request.resource.data.awbLines.size()<=7?c
+        : c==-1?(isFreshAwbLine(request.resource.data.awbLines[7])?-1:100)
+        : ((c<=0&&e_0_7())?1:((c<=1&&e_1_7())?2:((c<=2&&e_2_7())?3:((c<=3&&e_3_7())?4:((c<=4&&e_4_7())?5:((c<=5&&e_5_7())?6:((c<=6&&e_6_7())?7:((c<=7&&e_7_7())?8:((c<=8&&e_8_7())?9:((c<=9&&e_9_7())?10:(isFreshAwbLine(request.resource.data.awbLines[7])?-1:100)))))))))));
+    }
+    function step8(c){
+      return c==100?100
+        : request.resource.data.awbLines.size()<=8?c
+        : c==-1?(isFreshAwbLine(request.resource.data.awbLines[8])?-1:100)
+        : ((c<=0&&e_0_8())?1:((c<=1&&e_1_8())?2:((c<=2&&e_2_8())?3:((c<=3&&e_3_8())?4:((c<=4&&e_4_8())?5:((c<=5&&e_5_8())?6:((c<=6&&e_6_8())?7:((c<=7&&e_7_8())?8:((c<=8&&e_8_8())?9:((c<=9&&e_9_8())?10:(isFreshAwbLine(request.resource.data.awbLines[8])?-1:100)))))))))));
+    }
+    function step9(c){
+      return c==100?100
+        : request.resource.data.awbLines.size()<=9?c
+        : c==-1?(isFreshAwbLine(request.resource.data.awbLines[9])?-1:100)
+        : ((c<=0&&e_0_9())?1:((c<=1&&e_1_9())?2:((c<=2&&e_2_9())?3:((c<=3&&e_3_9())?4:((c<=4&&e_4_9())?5:((c<=5&&e_5_9())?6:((c<=6&&e_6_9())?7:((c<=7&&e_7_9())?8:((c<=8&&e_8_9())?9:((c<=9&&e_9_9())?10:(isFreshAwbLine(request.resource.data.awbLines[9])?-1:100)))))))))));
+    }
+
+    // Preserved lines keep their driver, status, tripLogId, and startedAt,
+    // in order. Fresh unassigned lines may only be appended. Cargo fields
+    // and files are not compared. Several lines may be removed in one save.
+    function customerAwbLinesOk() {
+      return request.resource.data.awbLines.size() >= 1
+        && request.resource.data.awbLines.size() <= 10
+        && resource.data.awbLines.size() <= 10
+        && step9(step8(step7(step6(step5(step4(step3(step2(step1(cursor0()))))))))) != 100;
+    }
+
+    function customerCreateLinesOk() {
+      return request.resource.data.awbLines.size() >= 1
+        && request.resource.data.awbLines.size() <= 10
+        && (request.resource.data.awbLines.size() < 1 || isFreshAwbLine(request.resource.data.awbLines[0]))
+        && (request.resource.data.awbLines.size() < 2 || isFreshAwbLine(request.resource.data.awbLines[1]))
+        && (request.resource.data.awbLines.size() < 3 || isFreshAwbLine(request.resource.data.awbLines[2]))
+        && (request.resource.data.awbLines.size() < 4 || isFreshAwbLine(request.resource.data.awbLines[3]))
+        && (request.resource.data.awbLines.size() < 5 || isFreshAwbLine(request.resource.data.awbLines[4]))
+        && (request.resource.data.awbLines.size() < 6 || isFreshAwbLine(request.resource.data.awbLines[5]))
+        && (request.resource.data.awbLines.size() < 7 || isFreshAwbLine(request.resource.data.awbLines[6]))
+        && (request.resource.data.awbLines.size() < 8 || isFreshAwbLine(request.resource.data.awbLines[7]))
+        && (request.resource.data.awbLines.size() < 9 || isFreshAwbLine(request.resource.data.awbLines[8]))
+        && (request.resource.data.awbLines.size() < 10 || isFreshAwbLine(request.resource.data.awbLines[9]));
+    }
+
+    function customerTripUpdateOk() {
+      return isOwnTripRequest()
+        && !tripRequestLocked()
+        && customerImmutableOk()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "tripDate", "from", "pickupTime", "to", "personRequesting", "notes",
+          "awbLines", "importFeeFiles", "updatedAt", "status"
+        ])
+        && (request.resource.data.status == resource.data.status
+          || request.resource.data.status == "cancelled")
+        && customerAwbLinesOk();
     }
 
     match /tripRequests/{requestId} {
@@ -102,14 +332,17 @@ service cloud.firestore {
         isAdmin() ||
         (request.resource.data.customerId == request.auth.uid &&
           request.resource.data.status == "submitted" &&
-          request.resource.data.assignedDriverIds.size() == 0));
+          request.resource.data.assignedDriverIds.size() == 0 &&
+          request.resource.data.assignedDriverNames.size() == 0 &&
+          request.resource.data.keys().hasOnly([
+            "customerId", "customerName", "customerEmail", "submittedAt",
+            "tripDate", "from", "pickupTime", "to", "personRequesting", "notes",
+            "awbLines", "importFeeFiles", "assignedDriverIds", "assignedDriverNames",
+            "status", "createdAt", "updatedAt"
+          ]) &&
+          customerCreateLinesOk()));
       allow read: if isSignedIn() && (isOwnTripRequest() || isAdmin() || isAssignedDriver());
-      allow update: if isSignedIn() && (
-        isAdmin() ||
-        (isOwnTripRequest() && !tripRequestLocked() &&
-          customerFieldsUnchanged() &&
-          (request.resource.data.status == resource.data.status ||
-            request.resource.data.status == "cancelled")));
+      allow update: if isSignedIn() && (isAdmin() || customerTripUpdateOk());
       allow delete: if false;
     }
   }

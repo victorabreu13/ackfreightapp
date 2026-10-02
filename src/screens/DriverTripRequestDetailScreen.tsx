@@ -18,7 +18,7 @@ import TripRequestReadOnly from "../components/TripRequestReadOnly";
 import { useAuth } from "../context/AuthContext";
 import { syncBadgeCount } from "../services/notifications";
 import { uploadProofFile } from "../services/storage";
-import { checkDuplicateUld, createTrip } from "../services/trips";
+import { checkDuplicateUld, createTrip, duplicateUldMessage } from "../services/trips";
 import {
   completeMyAwbLines,
   startMyAwbLines,
@@ -285,12 +285,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
       const joinedAwb = selectedEntries.map(({ line }) => line.awbNumber).join(",");
       const dup = await checkDuplicateUld(joinedAwb, trimmedUlds);
       if (dup.duplicate) {
-        notify(
-          "Duplicate ULD #",
-          `ULD #${dup.uldNumber} was already logged under this AWB by ${dup.conflictingDriverName}${
-            dup.conflictingDate ? ` on ${dup.conflictingDate}` : ""
-          }. Double-check before completing.`
-        );
+        notify("Duplicate ULD #", duplicateUldMessage(dup.uldNumber, "completing"));
         return;
       }
 

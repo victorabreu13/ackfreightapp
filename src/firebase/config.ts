@@ -33,9 +33,4 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
 
-export const ADMIN_EMAILS = (process.env.EXPO_PUBLIC_ADMIN_EMAILS ?? "")
-  .split(",")
-  .map((e: string) => e.trim().toLowerCase())
-  .filter(Boolean);
-
 export default app;
