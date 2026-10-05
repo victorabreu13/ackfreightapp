@@ -36,6 +36,8 @@ const linking = {
       JobBoard: "job-board",
       DriverTripRequestDetail: "my-trip-request",
       TripHistory: "trip-history",
+      DriverEarnings: "earnings",
+      PayAgreement: "pay-agreement",
     },
   },
 };

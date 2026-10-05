@@ -1,3 +1,4 @@
+import * as Location from "expo-location";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -12,6 +13,7 @@ import { useAuth } from "../context/AuthContext";
 import { acceptOpenAwb, listOpenJobs, OpenJob } from "../services/tripRequests";
 import { setOnDuty } from "../services/users";
 import { notify } from "../utils/alert";
+import { payHeadline, routeSummary } from "../utils/driverPayDisplay";
 
 function cargoLine(job: OpenJob): string {
   const dims =
@@ -40,7 +42,23 @@ export default function JobBoardScreen({ navigation }: any) {
     setLoading(true);
     setError(null);
     try {
-      setJobs(await listOpenJobs());
+      let origin: { lat: number; lng: number } | undefined;
+      try {
+        const current = await Location.getForegroundPermissionsAsync();
+        const status =
+          current.status === "granted"
+            ? "granted"
+            : current.status === "undetermined"
+              ? (await Location.requestForegroundPermissionsAsync()).status
+              : current.status;
+        if (status === "granted") {
+          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          origin = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        }
+      } catch {
+        origin = undefined;
+      }
+      setJobs(await listOpenJobs(origin));
     } catch (err: any) {
       setJobs([]);
       setError(err?.message ?? "Couldn't load the job board.");
@@ -121,11 +139,15 @@ export default function JobBoardScreen({ navigation }: any) {
           onRefresh={load}
           renderItem={({ item }) => {
             const key = `${item.requestId}-${item.awbIndex}`;
+            const pay = payHeadline(item.pay);
+            const drive = routeSummary(item.miles, item.driveMinutes, item.milesApproximate);
             return (
               <View style={styles.card}>
+                <Text style={[styles.pay, !pay.quoted && styles.payUnset]}>{pay.text}</Text>
                 <Text style={styles.route}>
                   {item.from} → {item.to}
                 </Text>
+                {!!drive && <Text style={styles.meta}>{drive}</Text>}
                 <Text style={styles.meta}>
                   {item.tripDate}
                   {item.pickupTime ? ` · pickup ${item.pickupTime}` : ""}
@@ -133,16 +155,22 @@ export default function JobBoardScreen({ navigation }: any) {
                 </Text>
                 <Text style={styles.awb}>{item.awbNumber || "AWB"}</Text>
                 <Text style={styles.meta}>{cargoLine(item)}</Text>
+                {pay.quoted &&
+                  item.pay.breakdown.map((part) => (
+                    <Text key={part.label} style={styles.meta}>
+                      {part.label} · ${part.amount.toFixed(2)}
+                    </Text>
+                  ))}
                 {!!item.notes && <Text style={styles.notes}>{item.notes}</Text>}
                 <TouchableOpacity
-                  style={styles.accept}
+                  style={[styles.accept, !pay.quoted && styles.acceptDisabled]}
                   onPress={() => accept(item)}
-                  disabled={acceptingKey === key}
+                  disabled={acceptingKey === key || !pay.quoted}
                 >
                   {acceptingKey === key ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={styles.acceptText}>Accept</Text>
+                    <Text style={styles.acceptText}>{pay.quoted ? "Accept" : "Waiting on dispatch"}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -171,7 +199,9 @@ const styles = StyleSheet.create({
   dutyLabel: { fontSize: 12, fontWeight: "700", color: "#333", marginBottom: 4 },
   empty: { textAlign: "center", color: "#666", marginTop: 40, paddingHorizontal: 32 },
   card: { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginBottom: 12 },
-  route: { fontSize: 16, fontWeight: "800", color: "#111" },
+  pay: { fontSize: 32, fontWeight: "800", color: "#111" },
+  payUnset: { fontSize: 18, color: "#92400e" },
+  route: { fontSize: 16, fontWeight: "800", color: "#111", marginTop: 6 },
   awb: { fontSize: 15, fontWeight: "700", color: "#1d4ed8", marginTop: 8 },
   meta: { fontSize: 13, color: "#555", marginTop: 4 },
   notes: { fontSize: 13, color: "#666", marginTop: 6 },
@@ -182,5 +212,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 12,
   },
+  acceptDisabled: { backgroundColor: "#94a3b8" },
   acceptText: { color: "#fff", fontWeight: "700" },
 });

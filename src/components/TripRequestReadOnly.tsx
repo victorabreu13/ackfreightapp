@@ -19,7 +19,13 @@ const PRIORITY_COLORS: Record<AwbPriority, { bg: string; text: string }> = {
   High: { bg: "#fdecea", text: "#c0392b" },
 };
 
-export default function TripRequestReadOnly({ request }: { request: TripRequest }) {
+export default function TripRequestReadOnly({
+  request,
+  showQuote = true,
+}: {
+  request: TripRequest;
+  showQuote?: boolean;
+}) {
   return (
     <View style={{ marginTop: 10 }}>
       <View style={styles.section}>
@@ -44,7 +50,7 @@ export default function TripRequestReadOnly({ request }: { request: TripRequest 
           <Text style={styles.sectionValue}>{request.notes}</Text>
         </View>
       )}
-      {request.quoteStatus != null && (
+      {showQuote && request.quoteStatus != null && (
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Quote</Text>
           <Text style={styles.sectionValue}>{formatQuote(request)}</Text>

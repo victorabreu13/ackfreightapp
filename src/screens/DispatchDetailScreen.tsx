@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import AwbDriverPicker from "../components/AwbDriverPicker";
+import DispatchAwbPay from "../components/DispatchAwbPay";
 import TripRequestReadOnly from "../components/TripRequestReadOnly";
 import { sendQuickBooksInvoice } from "../services/quickbooks";
 import { getUserProfile, setCustomerBillRate, subscribeToActiveDrivers } from "../services/users";
@@ -317,6 +318,8 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
           );
         })
       )}
+
+      <DispatchAwbPay requestId={request.id} lines={request.awbLines} />
 
       <Text style={styles.sectionTitle}>AWB Weights</Text>
       <Text style={styles.sectionHint}>

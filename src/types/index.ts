@@ -134,6 +134,101 @@ export interface DriverLocation {
   updatedAt: number;
 }
 
+export interface LatLng {
+  lat: number;
+  lng: number;
+}
+
+export interface RouteEstimate {
+  miles: number | null;
+  driveMinutes: number | null;
+  approximate?: boolean;
+  origin?: LatLng | null;
+  destination?: LatLng | null;
+}
+
+export interface PayBreakdownLine {
+  label: string;
+  amount: number;
+}
+
+export interface PublicPayOffer {
+  amount: number | null;
+  currency: string;
+  status: "quoted" | "unset";
+  source: "rule" | "override" | "unset";
+  breakdown: PayBreakdownLine[];
+  tripType: "airport" | "skid" | "uld" | null;
+}
+
+export interface PayAgreement {
+  percentOfQuote: number | null;
+  flatByType: { uld: number | null; skid: number | null; airport: number | null };
+  base: number | null;
+  perMile: number | null;
+  perUld: number | null;
+  perSkid: number | null;
+  extras: {
+    waitFreeMinutes: number | null;
+    waitPer15Min: number | null;
+    hazmat: number | null;
+    afterHours: number | null;
+    afterHoursStart: string;
+    afterHoursEnd: string;
+  };
+}
+
+export interface PayAgreementLog {
+  id: string;
+  driverId: string;
+  at: number;
+  adminUid: string;
+  adminName: string;
+}
+
+export interface PayAdjustment {
+  amount: number;
+  reason: string;
+  at: number;
+  byUid: string;
+  byName: string;
+}
+
+export interface AwbPay extends PublicPayOffer {
+  requestId: string;
+  awbIndex: number;
+  driverId: string;
+  awbNumber: string;
+  from: string;
+  to: string;
+  tripDate: string;
+  pickupTime: string;
+  qtyPieces: number;
+  type: string;
+  kilograms: number;
+  hazmat: boolean;
+  miles: number | null;
+  driveMinutes: number | null;
+  milesApproximate: boolean;
+  origin?: LatLng | null;
+  destination?: LatLng | null;
+  waitAmount: number;
+  locked: boolean;
+  lockedAt?: number;
+  adjustment: PayAdjustment | null;
+  computedAt: number;
+}
+
+export interface AwbPayOverride {
+  requestId: string;
+  awbIndex: number;
+  amount: number;
+  reason: string;
+  byUid?: string;
+  byName?: string;
+  at: number;
+}
+
 export interface TripRequest {
   id: string;
   customerId: string;
@@ -164,6 +259,7 @@ export interface TripRequest {
   quoteStatus?: "quoted" | "no quote";
   quoteBasis?: DriverPayType | null;
   leadId?: string;
+  routeEstimate?: RouteEstimate | null;
   createdAt: number;
   updatedAt: number;
 }

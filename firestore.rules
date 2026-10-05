@@ -85,6 +85,42 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Driver pay agreements and the company default. Admins read them.
+    // Clients never write them — Manage Users saves through Cloud Functions,
+    // which also logs the change. Drivers cannot read another driver's
+    // agreement, or their own (the offer they see is only the dollar amount).
+    match /driverPayAgreements/{driverId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /driverPayAgreementLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /config/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Snapshotted pay for one AWB. The assigned driver can read their own
+    // document. Customers cannot. Nobody writes it from the client.
+    match /awbPay/{payId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.driverId == request.auth.uid);
+      allow write: if false;
+    }
+
+    match /awbPayOverrides/{payId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /driverPayAudit/{auditId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // QuickBooks OAuth tokens — holds a live access/refresh token pair that
     // could act on the whole connected QuickBooks company, so no client
     // (including admins) ever reads or writes it directly. Only the
@@ -127,7 +163,8 @@ service cloud.firestore {
         && request.resource.data.get('quotedAmount', null) == resource.data.get('quotedAmount', null)
         && request.resource.data.get('quoteStatus', null) == resource.data.get('quoteStatus', null)
         && request.resource.data.get('quoteBasis', null) == resource.data.get('quoteBasis', null)
-        && request.resource.data.get('leadId', null) == resource.data.get('leadId', null);
+        && request.resource.data.get('leadId', null) == resource.data.get('leadId', null)
+        && request.resource.data.get('routeEstimate', null) == resource.data.get('routeEstimate', null);
     }
 
     function isFreshAwbLine(line) {
