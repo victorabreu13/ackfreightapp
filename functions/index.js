@@ -1124,7 +1124,7 @@ exports.startMyAwbLines = onCall({ invoker: "public" }, async (request) => {
     if (!started.changed) {
       throw new HttpsError(
         "failed-precondition",
-        "Accept the AWB before starting. No accepted lines were ready for this driver."
+        "No assigned AWB lines were ready for this driver to start."
       );
     }
     tx.update(ref, {
