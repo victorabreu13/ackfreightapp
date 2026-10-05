@@ -46,6 +46,12 @@ const WEB_TILES = [
     label: "Manage Users",
     description: "Fix a wrong role from signup, or change one as needed",
   },
+  {
+    key: "PayAgreement",
+    icon: "🤝",
+    label: "Driver pay",
+    description: "Company default for drivers with no agreement",
+  },
 ] as const;
 
 // The native app keeps a lighter menu for now — Drivers Record, Driver

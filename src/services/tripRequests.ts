@@ -16,6 +16,7 @@ import {
   AwbLine,
   AwbPriority,
   NewTripRequestInput,
+  PublicPayOffer,
   TripRequest,
 } from "../types";
 import { applyAwbAssignment } from "../utils/awbMutations";
@@ -324,12 +325,20 @@ export interface OpenJob {
   from: string;
   to: string;
   notes: string;
+  miles: number | null;
+  driveMinutes: number | null;
+  milesApproximate: boolean;
+  destination: { lat: number; lng: number } | null;
+  pay: PublicPayOffer;
 }
 
-const listOpenJobsFn = httpsCallable<undefined, { jobs: OpenJob[] }>(functions, "listOpenJobs");
+const listOpenJobsFn = httpsCallable<
+  { lat?: number; lng?: number } | undefined,
+  { jobs: OpenJob[] }
+>(functions, "listOpenJobs");
 
-export async function listOpenJobs(): Promise<OpenJob[]> {
-  const result = await callWithFreshToken(listOpenJobsFn, undefined);
+export async function listOpenJobs(origin?: { lat: number; lng: number }): Promise<OpenJob[]> {
+  const result = await callWithFreshToken(listOpenJobsFn, origin);
   return result.jobs;
 }
 

@@ -14,9 +14,11 @@ import {
   View,
 } from "react-native";
 import DateField from "../components/DateField";
+import LiveMap from "../components/LiveMap";
 import SignaturePad, { strokesToSvg, SignatureStrokes } from "../components/SignaturePad";
 import TripRequestReadOnly from "../components/TripRequestReadOnly";
 import { useAuth } from "../context/AuthContext";
+import { subscribeToDriverAwbPay } from "../services/driverPay";
 import { syncBadgeCount } from "../services/notifications";
 import { uploadProofFile, uploadProofSvg } from "../services/storage";
 import { checkDuplicateUld, createTrip, duplicateUldMessage } from "../services/trips";
@@ -28,8 +30,9 @@ import {
   startMyAwbLines,
   subscribeToTripRequest,
 } from "../services/tripRequests";
-import { computeTripRequestRollup, ProofFile, TripRequest, TripRequestStatus } from "../types";
+import { AwbPay, computeTripRequestRollup, LatLng, ProofFile, TripRequest, TripRequestStatus } from "../types";
 import { confirmAction, notify } from "../utils/alert";
+import { money, navigationUrls, payHeadline, routeSummary } from "../utils/driverPayDisplay";
 
 type PendingFile = { uri: string; name: string; kind: ProofFile["kind"] };
 
@@ -46,6 +49,76 @@ function formatTime(d: Date) {
   return d.toTimeString().slice(0, 5);
 }
 
+function pinOf(point?: LatLng | null): LatLng | null {
+  if (!point || typeof point.lat !== "number" || typeof point.lng !== "number") return null;
+  return point;
+}
+
+function TripOffer({
+  request,
+  pays,
+  driverId,
+}: {
+  request: TripRequest;
+  pays: AwbPay[];
+  driverId?: string;
+}) {
+  const mine = request.awbLines.filter((line) => line.assignedDriverId === driverId);
+  const beforePickup =
+    mine.length === 0 ||
+    mine.some((line) => line.status === "assigned" || line.status === "accepted" || line.status === "in_progress");
+  const address = beforePickup ? request.from : request.to;
+  const urls = address ? navigationUrls(address) : null;
+  const route = request.routeEstimate;
+  const sample = pays[0];
+  const drive = routeSummary(
+    route?.miles ?? sample?.miles,
+    route?.driveMinutes ?? sample?.driveMinutes,
+    route?.approximate ?? sample?.milesApproximate
+  );
+  const pin = pinOf(route?.destination) || pinOf(route?.origin) || pinOf(sample?.destination) || pinOf(sample?.origin);
+  const quoted = pays.filter((pay) => pay.status === "quoted" && typeof pay.amount === "number");
+
+  return (
+    <View style={styles.offerCard}>
+      {quoted.length === 0 ? (
+        <Text style={styles.offerUnset}>Pay set by dispatch</Text>
+      ) : (
+        quoted.map((pay) => (
+          <View key={pay.awbIndex} style={{ marginBottom: 8 }}>
+            <Text style={styles.offerAmount}>{money(pay.amount as number)}</Text>
+            <Text style={styles.meta}>{pay.awbNumber || "AWB"}</Text>
+            {pay.breakdown.map((part) => (
+              <Text key={part.label} style={styles.meta}>
+                {part.label} · {money(part.amount)}
+              </Text>
+            ))}
+            {pay.locked && pay.waitAmount > 0 && <Text style={styles.meta}>Wait · {money(pay.waitAmount)}</Text>}
+            {pay.adjustment && (
+              <Text style={styles.meta}>
+                Adjustment · {money(pay.adjustment.amount)} ({pay.adjustment.reason})
+              </Text>
+            )}
+          </View>
+        ))
+      )}
+      {!!drive && <Text style={styles.meta}>{drive}</Text>}
+      {!!request.pickupTime && <Text style={styles.meta}>Pickup window {request.pickupTime}</Text>}
+      {pin && <View style={{ marginTop: 10 }}><LiveMap lat={pin.lat} lng={pin.lng} label={address} /></View>}
+      {urls && (
+        <View style={styles.row}>
+          <TouchableOpacity style={styles.attachButton} onPress={() => Linking.openURL(urls.google)}>
+            <Text style={styles.attachButtonText}>Google Maps</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.attachButton} onPress={() => Linking.openURL(urls.waze)}>
+            <Text style={styles.attachButtonText}>Waze</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function DriverTripRequestDetailScreen({ route, navigation }: any) {
   const { user, profile } = useAuth();
   const initialRequest: TripRequest = route.params.request;
@@ -54,6 +127,20 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
   const [actingIndex, setActingIndex] = useState<number | null>(null);
   const [pickingUp, setPickingUp] = useState(false);
   const [signature, setSignature] = useState<SignatureStrokes>([]);
+  const [payByIndex, setPayByIndex] = useState<Record<number, AwbPay>>({});
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeToDriverAwbPay(user.uid, (rows) => {
+      const next: Record<number, AwbPay> = {};
+      rows
+        .filter((row) => row.requestId === initialRequest.id)
+        .forEach((row) => {
+          next[row.awbIndex] = row;
+        });
+      setPayByIndex(next);
+    });
+  }, [user, initialRequest.id]);
 
   useEffect(() => {
     return subscribeToTripRequest(
@@ -441,21 +528,27 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
         </View>
       </View>
       <Text style={styles.meta}>Customer: {request.customerName}</Text>
+      <Text style={styles.steps}>Accept → Start → Picked up → Delivered</Text>
 
-      <TripRequestReadOnly request={request} />
+      <TripOffer request={request} pays={Object.values(payByIndex)} driverId={user?.uid} />
 
-      {myPendingEntries.map(({ line, index }) => (
+      <TripRequestReadOnly request={request} showQuote={false} />
+
+      {myPendingEntries.map(({ line, index }) => {
+        const offer = payHeadline(payByIndex[index]);
+        return (
         <View key={`pending-${index}`} style={styles.awbCheckCard}>
+          <Text style={[styles.offerAmount, !offer.quoted && styles.offerUnset]}>{offer.text}</Text>
           <Text style={styles.checkboxLabel}>
             {line.awbNumber} is assigned to you
           </Text>
           <View style={styles.row}>
             <TouchableOpacity
-              style={[styles.attachButton, { marginTop: 12 }]}
+              style={[styles.attachButton, { marginTop: 12 }, !offer.quoted && styles.primaryButtonDisabled]}
               onPress={() => handleAccept(index)}
-              disabled={actingIndex === index}
+              disabled={actingIndex === index || !offer.quoted}
             >
-              <Text style={styles.attachButtonText}>Accept</Text>
+              <Text style={styles.attachButtonText}>{offer.quoted ? "Accept" : "Waiting on dispatch"}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.attachButton, { marginTop: 12 }]}
@@ -466,7 +559,8 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
             </TouchableOpacity>
           </View>
         </View>
-      ))}
+        );
+      })}
 
       {request.awbLines.map((line, index) =>
         line.assignedDriverId === user?.uid && line.status === "accepted" ? (
@@ -718,6 +812,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   primaryButtonDisabled: { backgroundColor: "#94a3b8" },
+  steps: { fontSize: 13, color: "#666", marginTop: 6 },
+  offerCard: { backgroundColor: "#fff", borderRadius: 12, padding: 14, marginTop: 14 },
+  offerAmount: { fontSize: 32, fontWeight: "800", color: "#111" },
+  offerUnset: { fontSize: 18, fontWeight: "800", color: "#92400e" },
   declineText: { color: "#c0392b", fontWeight: "700", fontSize: 13, marginTop: 8 },
   primaryButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 });

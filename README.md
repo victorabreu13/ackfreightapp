@@ -8,6 +8,10 @@ An **admin** (dispatch) can assign a driver to each AWB line. Unassigned lines a
 
 Submitting a request stores a **quote** from that customer's existing billing rate (`billType` / `billRate`): the trip rate once, or the kilogram rate times total weight. If there is no usable rate, the request is stored as **no quote**. The app does not invent lane prices, and editing the weight later does not change the stored quote.
 
+Each driver has a **pay agreement** on their profile (Manage Users → Pay agreement). It can combine a percent of the quote, a flat amount by trip type (ULD/BUP, skid/loose, airport transfer), base plus per mile plus per ULD or skid, and extras for wait time, hazmat, and after hours. Rates start empty. An optional company default (Admin → Driver pay) applies only when that driver's agreement has no rates. With neither, the job says **Pay set by dispatch** and the driver cannot accept until dispatch types an amount on that request. Open-board pay is calculated for the driver who is looking, then saved when they accept. A direct assignment saves that driver's amount when dispatch assigns them. Completed trips lock the offer. An admin adjustment (with a reason) does not change the locked amount. Drivers see the dollar offer only. They cannot open an agreement, another driver's pay, or the customer's price.
+
+Miles and drive time are stored on the request when it is created or the addresses change. That uses the Distance Matrix and Geocoding APIs when the `GOOGLE_MAPS_ROUTES_API_KEY` secret is set. If the key is missing or the call fails, the app uses a straight-line estimate and labels it approximate. The key stays on the server.
+
 Admins also invoice a completed request through QuickBooks Online, review every driver's log, and track driver payroll (per trip or per kilogram). Payroll marks trips paid inside the app. It does not send money.
 
 ## Roles
@@ -15,8 +19,8 @@ Admins also invoice a completed request through QuickBooks Online, review every 
 | Role | How they get in | What they do |
 | --- | --- | --- |
 | Customer | Sign up in the app, or an admin creates the account and emails a password reset | File and track trip requests |
-| Driver | Sign up in the app | Go on duty to accept open AWBs, accept or decline a direct assignment, start, mark picked up, and complete, or log a trip by hand |
-| Admin | An existing admin promotes them in **Manage Users** | Dispatch, logs, payroll, users, QuickBooks |
+| Driver | Sign up in the app | Go on duty to accept open AWBs, accept or decline a direct assignment, start, mark picked up, and complete, or log a trip by hand. Earnings lists completed trips. |
+| Admin | An existing admin promotes them in **Manage Users** | Dispatch, logs, payroll, users, each driver's pay agreement, QuickBooks |
 
 Signup cannot grant admin. The first admin is created by signing up as a driver or customer and then setting `role` to `admin` on that `users/{uid}` document in the Firebase console (console writes bypass the security rules). After that, use Manage Users.
 
@@ -81,6 +85,7 @@ npx expo start
 - **Trip logs.** `trips`. Proof files live in Storage at `proofs/{driverId}/...`. Customers see those files only through the `getTripRequestProofs` Cloud Function, and only for logs linked from their own request.
 - **Duplicate ULD numbers.** `checkDuplicateUld` and `submitTripLog` look up `tripUldKeys` (server-only). They do not scan every trip and they do not return the other driver's name. After deploying functions, run `backfillTripUldKeys` once so trips logged before the index existed are included. See the pull request notes if you are upgrading.
 - **Live location.** While a driver has a started or picked-up line, the app writes a single current point to `tripRequests.driverLocations.{driverId}`. On a phone it keeps updating in the background (that needs a new store build, not an OTA update). On the web it updates while the app is open. It is not a route. Dispatch sees a warning when that point is missing or more than three minutes old.
+- **Driver pay.** `driverPayAgreements/{driverId}` and `config/driverPayDefault` are admin-only, and only Cloud Functions write them. Each change is appended to `driverPayAgreementLogs` with the date and the admin. `awbPay/{requestId}_{awbIndex}` is the snapshotted offer. A driver can read only the rows where `driverId` is their own uid. Customers cannot read pay. `awbPayOverrides` and `driverPayAudit` are admin-only.
 
 ## 6. Cloud Functions
 

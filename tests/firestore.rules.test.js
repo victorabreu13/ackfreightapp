@@ -379,4 +379,66 @@ describe("firestore rules", () => {
     await assertFails(getDoc(doc(customer, "trips/trip1")));
     await assertFails(getDoc(doc(customer, "tripUldKeys/abc")));
   });
+
+  it("keeps driver pay and agreements admin-only, and a driver sees only their own pay", async () => {
+    await seed("users/admin1", {
+      uid: "admin1",
+      email: "admin@example.com",
+      name: "Ada",
+      role: "admin",
+      createdAt: 1,
+    });
+    await seed("users/drv1", {
+      uid: "drv1",
+      email: "driver@example.com",
+      name: "Dee",
+      role: "driver",
+      createdAt: 1,
+    });
+    await seed("users/drv2", {
+      uid: "drv2",
+      email: "sam@example.com",
+      name: "Sam",
+      role: "driver",
+      createdAt: 1,
+    });
+    await seed("users/cust1", {
+      uid: "cust1",
+      email: "cust@example.com",
+      name: "Acme",
+      role: "customer",
+      createdAt: 1,
+    });
+    await seed("driverPayAgreements/drv1", { driverId: "drv1", percentOfQuote: 40 });
+    await seed("driverPayAgreements/drv2", { driverId: "drv2", base: 30 });
+    await seed("config/driverPayDefault", { base: 10 });
+    await seed("awbPay/req1_0", { requestId: "req1", awbIndex: 0, driverId: "drv1", amount: 40, status: "quoted" });
+    await seed("awbPay/req1_1", { requestId: "req1", awbIndex: 1, driverId: "drv2", amount: 55, status: "quoted" });
+    await seed("awbPayOverrides/req1_0", { amount: 40, reason: "manual" });
+    await seed("driverPayAudit/a1", { kind: "override", amount: 40 });
+
+    const dee = asUser("drv1", "driver@example.com");
+    const sam = asUser("drv2", "sam@example.com");
+    const customer = asUser("cust1", "cust@example.com");
+    const admin = asUser("admin1", "admin@example.com");
+
+    await assertSucceeds(getDoc(doc(dee, "awbPay/req1_0")));
+    await assertFails(getDoc(doc(dee, "awbPay/req1_1")));
+    await assertFails(getDoc(doc(dee, "driverPayAgreements/drv2")));
+    await assertFails(getDoc(doc(dee, "driverPayAgreements/drv1")));
+    await assertFails(getDoc(doc(dee, "config/driverPayDefault")));
+    await assertFails(getDoc(doc(sam, "awbPay/req1_0")));
+    await assertFails(getDoc(doc(customer, "awbPay/req1_0")));
+    await assertFails(getDoc(doc(customer, "driverPayAgreements/drv1")));
+    await assertFails(getDoc(doc(customer, "config/driverPayDefault")));
+    await assertFails(getDoc(doc(customer, "awbPayOverrides/req1_0")));
+
+    await assertSucceeds(getDoc(doc(admin, "driverPayAgreements/drv1")));
+    await assertSucceeds(getDoc(doc(admin, "config/driverPayDefault")));
+    await assertSucceeds(getDoc(doc(admin, "awbPay/req1_1")));
+    await assertFails(setDoc(doc(admin, "awbPay/req1_0"), { driverId: "drv1", amount: 1 }));
+    await assertFails(setDoc(doc(dee, "awbPay/req1_0"), { driverId: "drv1", amount: 999 }));
+    await assertFails(setDoc(doc(admin, "config/driverPayDefault"), { base: 99 }));
+    await assertFails(setDoc(doc(admin, "driverPayAgreements/drv1"), { percentOfQuote: 99 }));
+  });
 });

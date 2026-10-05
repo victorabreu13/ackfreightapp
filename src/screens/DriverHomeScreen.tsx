@@ -30,6 +30,12 @@ const TILES = [
     label: "Trip History",
     description: "Every trip you've completed and logged",
   },
+  {
+    key: "DriverEarnings",
+    icon: "💵",
+    label: "Earnings",
+    description: "Today, this week, and past weeks",
+  },
 ] as const;
 
 export default function DriverHomeScreen({ navigation }: any) {

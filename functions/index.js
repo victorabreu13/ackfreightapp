@@ -24,6 +24,16 @@ const {
 const { intakeAuthorized, rateLimitDecision, validateIntakePayload } = require("./intake");
 const { proofsForRequest } = require("./proofs");
 const { quoteForRequest } = require("./quote");
+const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
+const { estimateRoute, haversineMiles } = require("./routeEstimate");
+const {
+  lockCompletedPay,
+  offerForLine,
+  openLineIndexes,
+  payDocId,
+  syncAssignedSnapshots,
+  writeSnapshot,
+} = require("./payStore");
 const {
   addTripUldKeys,
   commitTripIfUnique,
@@ -46,6 +56,7 @@ const GMAIL_APP_PASSWORD = defineSecret("GMAIL_APP_PASSWORD");
 // value; it is not a client key. reCAPTCHA is optional via RECAPTCHA_SECRET
 // on the function's environment (see README).
 const INTAKE_SHARED_SECRET = defineSecret("INTAKE_SHARED_SECRET");
+const GOOGLE_MAPS_ROUTES_API_KEY = defineSecret("GOOGLE_MAPS_ROUTES_API_KEY");
 
 // Switch back to "sandbox" any time to test again — the sandbox secrets
 // (QB_CLIENT_ID/QB_CLIENT_SECRET) are untouched and still live in Secret
@@ -464,7 +475,10 @@ exports.deleteTrip = onCall(
 // request. Immediate, unlike sendDailyTripSummary which only covers trips
 // already logged by end of day.
 exports.onTripRequestCreated = onDocumentCreated(
-  { document: "tripRequests/{requestId}", secrets: [GMAIL_USER, GMAIL_APP_PASSWORD] },
+  {
+    document: "tripRequests/{requestId}",
+    secrets: [GMAIL_USER, GMAIL_APP_PASSWORD, GOOGLE_MAPS_ROUTES_API_KEY],
+  },
   async (event) => {
     const req = event.data?.data();
     if (!req) return;
@@ -499,23 +513,49 @@ exports.onTripRequestCreated = onDocumentCreated(
       { type: "tripRequestCreated", requestId: event.params.requestId }
     );
 
-    // Phone-in orders can be assigned at create time. That is not an update,
-    // so onTripRequestAssigned never sees it.
-    await notifyDriversOfNewAwbs(db, [], req, event.params.requestId);
-    await stampQuote(db, event.params.requestId, req);
+    // Phone-in orders can be assigned at create time. Price the request
+    // first so the driver push can include their pay.
+    const priced = await prepareRequestPricing(db, event.params.requestId, req);
+    await syncAssignedSnapshots(db, event.params.requestId, [], priced);
+    await notifyDriversOfNewAwbs(db, [], priced, event.params.requestId);
+    await notifyOnDutyOfOpenJobs(db, priced, event.params.requestId, openLineIndexes(priced.awbLines));
   }
 );
 
-async function stampQuote(db, requestId, req) {
-  if (!req || !req.customerId) return;
-  const userSnap = await db.collection("users").doc(req.customerId).get();
-  const profile = userSnap.exists ? userSnap.data() : null;
+function mapsKey() {
+  try {
+    const value = GOOGLE_MAPS_ROUTES_API_KEY.value();
+    return value && String(value).trim() ? String(value).trim() : "";
+  } catch (err) {
+    return "";
+  }
+}
+
+async function prepareRequestPricing(db, requestId, req) {
+  const userSnap = req && req.customerId ? await db.collection("users").doc(req.customerId).get() : null;
+  const profile = userSnap && userSnap.exists ? userSnap.data() : null;
   const quote = quoteForRequest(profile, req.awbLines);
-  await db.collection("tripRequests").doc(requestId).update({
+  let routeEstimate = null;
+  try {
+    routeEstimate = await estimateRoute(req.from, req.to, mapsKey());
+  } catch (err) {
+    logger.error("Route estimate failed:", err);
+  }
+  const patch = {
     quotedAmount: quote.quotedAmount,
     quoteStatus: quote.quoteStatus,
     quoteBasis: quote.quoteBasis,
-  });
+    routeEstimate: routeEstimate || null,
+  };
+  await db.collection("tripRequests").doc(requestId).update(patch);
+  return { ...req, ...patch };
+}
+
+function paySentence(pay) {
+  if (pay && pay.status === "quoted" && typeof pay.amount === "number") {
+    return `$${pay.amount.toFixed(2)}`;
+  }
+  return "Pay set by dispatch";
 }
 
 // Emails and pushes each driver who gained an AWB on this request. Scoped to
@@ -533,6 +573,24 @@ async function notifyDriversOfNewAwbs(db, beforeLines, after, requestId) {
     const driver = driverDoc.data();
     if (!driver) continue;
 
+    const gained = (after.awbLines || [])
+      .map((line, index) => ({ line, index }))
+      .filter(({ line, index }) => {
+        if (line.assignedDriverId !== driverDoc.id) return false;
+        const prev = (beforeLines || [])[index];
+        return !prev || prev.assignedDriverId !== driverDoc.id;
+      });
+    const offers = [];
+    for (const { line, index } of gained) {
+      const { offer } = await offerForLine(db, driverDoc.id, after, line, requestId, index);
+      offers.push(publicOffer(offer));
+    }
+    const quoted = offers.filter((offer) => offer.status === "quoted" && typeof offer.amount === "number");
+    const payText =
+      offers.length > 0 && quoted.length === offers.length
+        ? `$${quoted.reduce((sum, offer) => sum + offer.amount, 0).toFixed(2)}`
+        : "Pay set by dispatch";
+
     if (driver.email) {
       try {
         const transporter = buildTransporter();
@@ -542,7 +600,7 @@ async function notifyDriversOfNewAwbs(db, beforeLines, after, requestId) {
           subject: `ACK Freight — Trip Assigned to You (${after.tripDate})`,
           html: buildTripRequestEmailHtml(
             "Trip Assigned to You",
-            "You've been assigned a new trip. Details below.",
+            `You've been assigned a new trip. You'll make ${payText}.`,
             after,
             driverDoc.id
           ),
@@ -570,11 +628,40 @@ async function notifyDriversOfNewAwbs(db, beforeLines, after, requestId) {
     ).length;
     await sendExpoPush(
       [pushToken],
-      "New Trip Assigned",
-      `${after.from} → ${after.to} on ${after.tripDate}`,
+      "New trip assigned",
+      `${payText} · ${after.from} → ${after.to} on ${after.tripDate}`,
       { type: "tripRequestAssigned", requestId },
       badge
     );
+  }
+}
+
+async function notifyOnDutyOfOpenJobs(db, req, requestId, indexes) {
+  if (!indexes || indexes.length === 0) return;
+  const driversSnap = await db.collection("users").where("role", "==", "driver").get();
+  const drivers = driversSnap.docs.filter((doc) => {
+    const data = doc.data();
+    return data.onDuty === true && data.active !== false && data.pushToken;
+  });
+  const lines = indexes
+    .map((index) => ({ index, line: (req.awbLines || [])[index] }))
+    .filter((entry) => entry.line && !entry.line.assignedDriverId);
+  if (lines.length === 0) return;
+
+  for (const driverDoc of drivers) {
+    const offers = [];
+    for (const { line, index } of lines) {
+      const { offer } = await offerForLine(db, driverDoc.id, req, line, requestId, index);
+      offers.push(publicOffer(offer));
+    }
+    const first = offers[0];
+    const payText = paySentence(first);
+    const when = req.pickupTime ? ` · pickup ${req.pickupTime}` : "";
+    const body =
+      lines.length === 1
+        ? `${payText} · ${req.from} → ${req.to}${when}`
+        : `${lines.length} open jobs. Next: ${payText} · ${req.from} → ${req.to}${when}`;
+    await sendExpoPush([driverDoc.data().pushToken], "New job", body, { type: "openJob", requestId });
   }
 }
 
@@ -593,6 +680,42 @@ exports.onTripRequestAssigned = onDocumentUpdated(
       after,
       event.params.requestId
     );
+  }
+);
+
+// Snapshots driver pay when dispatch assigns a line, and tells on-duty
+// drivers when a line lands on the board. Route miles are cached on the
+// request. Pay documents are separate so customers never see them.
+exports.onTripRequestDriverPay = onDocumentUpdated(
+  {
+    document: "tripRequests/{requestId}",
+    secrets: [GMAIL_USER, GMAIL_APP_PASSWORD, GOOGLE_MAPS_ROUTES_API_KEY],
+  },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+    const db = admin.firestore();
+    const requestId = event.params.requestId;
+    let current = after;
+
+    if (before.from !== after.from || before.to !== after.to) {
+      try {
+        const routeEstimate = await estimateRoute(after.from, after.to, mapsKey());
+        await db.collection("tripRequests").doc(requestId).update({ routeEstimate: routeEstimate || null });
+        current = { ...after, routeEstimate: routeEstimate || null };
+      } catch (err) {
+        logger.error("Route estimate failed:", err);
+      }
+    }
+
+    await syncAssignedSnapshots(db, requestId, before.awbLines || [], current);
+
+    const beforeOpen = new Set(openLineIndexes(before.awbLines));
+    const newlyOpen = openLineIndexes(current.awbLines).filter((index) => !beforeOpen.has(index));
+    if (newlyOpen.length > 0) {
+      await notifyOnDutyOfOpenJobs(db, current, requestId, newlyOpen);
+    }
   }
 );
 
@@ -760,8 +883,12 @@ exports.listOpenJobs = onCall({ invoker: "public" }, async (request) => {
   for (const snap of snaps) {
     for (const doc of snap.docs) {
       const data = doc.data();
-      (data.awbLines || []).forEach((line, index) => {
-        if (line.assignedDriverId || line.status !== "submitted") return;
+      const route = data.routeEstimate || {};
+      for (let index = 0; index < (data.awbLines || []).length; index += 1) {
+        const line = data.awbLines[index];
+        if (line.assignedDriverId || line.status !== "submitted") continue;
+        const { offer } = await offerForLine(db, request.auth.uid, data, line, doc.id, index);
+        const pay = publicOffer(offer);
         jobs.push({
           requestId: doc.id,
           awbIndex: index,
@@ -781,11 +908,26 @@ exports.listOpenJobs = onCall({ invoker: "public" }, async (request) => {
           from: data.from || "",
           to: data.to || "",
           notes: data.notes || "",
+          miles: typeof route.miles === "number" ? route.miles : null,
+          driveMinutes: typeof route.driveMinutes === "number" ? route.driveMinutes : null,
+          milesApproximate: route.approximate === true,
+          destination: route.destination || null,
+          pay,
         });
-      });
+      }
     }
   }
-  jobs.sort((a, b) => String(a.tripDate).localeCompare(String(b.tripDate)) || a.awbNumber.localeCompare(b.awbNumber));
+  const here = request.data || {};
+  const origin =
+    typeof here.lat === "number" && typeof here.lng === "number" ? { lat: here.lat, lng: here.lng } : null;
+  jobs.sort((a, b) => {
+    const time = `${a.tripDate} ${a.pickupTime}`.localeCompare(`${b.tripDate} ${b.pickupTime}`);
+    if (time !== 0) return time;
+    if (!origin) return a.awbNumber.localeCompare(b.awbNumber);
+    const da = a.destination ? haversineMiles(origin, a.destination) : Number.MAX_SAFE_INTEGER;
+    const db = b.destination ? haversineMiles(origin, b.destination) : Number.MAX_SAFE_INTEGER;
+    return da - db;
+  });
   return { jobs };
 });
 
@@ -799,6 +941,17 @@ exports.acceptOpenAwb = onCall({ invoker: "public" }, async (request) => {
   const profile = await driverProfileOrThrow(db, request.auth.uid);
   requireOnDuty(profile);
   const ref = db.collection("tripRequests").doc(requestId);
+  const preview = await ref.get();
+  if (!preview.exists) throw new HttpsError("not-found", "Trip request not found.");
+  const previewLine = (preview.data().awbLines || [])[awbIndex];
+  const { offer } = await offerForLine(db, request.auth.uid, preview.data(), previewLine, requestId, awbIndex);
+  const priced = publicOffer(offer);
+  if (priced.status !== "quoted") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Pay set by dispatch. You can't accept this job until dispatch sets the pay."
+    );
+  }
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -824,6 +977,9 @@ exports.acceptOpenAwb = onCall({ invoker: "public" }, async (request) => {
       updatedAt: Date.now(),
     });
   });
+  const accepted = await ref.get();
+  const acceptedLine = (accepted.data().awbLines || [])[awbIndex];
+  await writeSnapshot(db, requestId, awbIndex, request.auth.uid, accepted.data(), acceptedLine);
   return { success: true };
 });
 
@@ -835,6 +991,14 @@ exports.acceptAssignedAwb = onCall({ invoker: "public" }, async (request) => {
   }
   const db = admin.firestore();
   await driverProfileOrThrow(db, request.auth.uid);
+  const paySnap = await db.collection("awbPay").doc(payDocId(requestId, awbIndex)).get();
+  const pay = paySnap.exists ? paySnap.data() : null;
+  if (!pay || pay.driverId !== request.auth.uid || pay.status !== "quoted" || typeof pay.amount !== "number") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Pay set by dispatch. You can't accept this trip until dispatch sets the pay."
+    );
+  }
   const ref = db.collection("tripRequests").doc(requestId);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -1022,6 +1186,9 @@ exports.completeMyAwbLines = onCall({ invoker: "public" }, async (request) => {
     }
     tx.update(ref, updates);
   });
+
+  const finished = await ref.get();
+  await lockCompletedPay(db, requestId, [...indexSet], finished.data());
 
   return { success: true };
 });
@@ -1950,4 +2117,175 @@ exports.dismissLead = onCall({ invoker: "public" }, async (request) => {
   }
   await ref.update({ status: "dismissed", dismissedAt: Date.now() });
   return { success: true };
+});
+
+async function adminActor(uid) {
+  const snap = await admin.firestore().collection("users").doc(uid).get();
+  const data = snap.exists ? snap.data() : {};
+  return { uid, name: data.name || "Admin" };
+}
+
+async function writeAgreementLog(db, driverId, before, after, actor) {
+  await db.collection("driverPayAgreementLogs").add({
+    driverId,
+    before: before || null,
+    after,
+    at: Date.now(),
+    adminUid: actor.uid,
+    adminName: actor.name,
+  });
+}
+
+exports.getDriverPayAgreement = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const { driverId } = request.data || {};
+  if (!driverId) throw new HttpsError("invalid-argument", "driverId is required.");
+  const db = admin.firestore();
+  const snap = await db.collection("driverPayAgreements").doc(driverId).get();
+  const logsSnap = await db.collection("driverPayAgreementLogs").where("driverId", "==", driverId).limit(20).get();
+  const logs = logsSnap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .sort((a, b) => (b.at || 0) - (a.at || 0));
+  return { agreement: snap.exists ? cleanAgreement(snap.data()) : cleanAgreement({}), logs };
+});
+
+exports.setDriverPayAgreement = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const { driverId, agreement } = request.data || {};
+  if (!driverId) throw new HttpsError("invalid-argument", "driverId is required.");
+  const db = admin.firestore();
+  const driverSnap = await db.collection("users").doc(driverId).get();
+  if (!driverSnap.exists || driverSnap.data().role !== "driver") {
+    throw new HttpsError("failed-precondition", "That user is not a driver.");
+  }
+  const cleaned = cleanAgreement(agreement);
+  const ref = db.collection("driverPayAgreements").doc(driverId);
+  const prev = await ref.get();
+  const actor = await adminActor(request.auth.uid);
+  await ref.set({ ...cleaned, driverId, updatedAt: Date.now(), updatedByUid: actor.uid, updatedByName: actor.name });
+  await writeAgreementLog(db, driverId, prev.exists ? cleanAgreement(prev.data()) : null, cleaned, actor);
+  return { agreement: cleaned };
+});
+
+exports.getCompanyPayDefault = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const db = admin.firestore();
+  const snap = await db.collection("config").doc("driverPayDefault").get();
+  const logsSnap = await db.collection("driverPayAgreementLogs").where("driverId", "==", "default").limit(20).get();
+  const logs = logsSnap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .sort((a, b) => (b.at || 0) - (a.at || 0));
+  return { agreement: snap.exists ? cleanAgreement(snap.data()) : cleanAgreement({}), logs };
+});
+
+exports.setCompanyPayDefault = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const cleaned = cleanAgreement((request.data || {}).agreement);
+  const db = admin.firestore();
+  const ref = db.collection("config").doc("driverPayDefault");
+  const prev = await ref.get();
+  const actor = await adminActor(request.auth.uid);
+  await ref.set({ ...cleaned, updatedAt: Date.now(), updatedByUid: actor.uid, updatedByName: actor.name });
+  await writeAgreementLog(db, "default", prev.exists ? cleanAgreement(prev.data()) : null, cleaned, actor);
+  return { agreement: cleaned };
+});
+
+exports.setAwbPayOverride = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const { requestId, awbIndex, amount, reason } = request.data || {};
+  if (!requestId || !Number.isInteger(awbIndex)) {
+    throw new HttpsError("invalid-argument", "requestId and awbIndex are required.");
+  }
+  const payAmount = Number(amount);
+  if (!Number.isFinite(payAmount) || payAmount < 0) {
+    throw new HttpsError("invalid-argument", "Enter a pay amount of zero or more.");
+  }
+  if (!String(reason || "").trim()) {
+    throw new HttpsError("invalid-argument", "A reason is required.");
+  }
+  const db = admin.firestore();
+  const reqSnap = await db.collection("tripRequests").doc(requestId).get();
+  if (!reqSnap.exists) throw new HttpsError("not-found", "Trip request not found.");
+  const req = reqSnap.data();
+  const line = (req.awbLines || [])[awbIndex];
+  if (!line) throw new HttpsError("not-found", "AWB line not found.");
+  const payRef = db.collection("awbPay").doc(payDocId(requestId, awbIndex));
+  const existing = await payRef.get();
+  if (existing.exists && existing.data().locked === true) {
+    throw new HttpsError("failed-precondition", "This trip's pay is locked. Add an adjustment instead.");
+  }
+  const actor = await adminActor(request.auth.uid);
+  const override = {
+    requestId,
+    awbIndex,
+    amount: Math.round(payAmount * 100) / 100,
+    reason: String(reason).trim().slice(0, 500),
+    byUid: actor.uid,
+    byName: actor.name,
+    at: Date.now(),
+  };
+  await db.collection("awbPayOverrides").doc(payDocId(requestId, awbIndex)).set(override);
+  await db.collection("driverPayAudit").add({
+    kind: "override",
+    requestId,
+    awbIndex,
+    amount: override.amount,
+    previousAmount: existing.exists ? existing.data().amount : null,
+    reason: override.reason,
+    adminUid: actor.uid,
+    adminName: actor.name,
+    at: override.at,
+  });
+  if (line.assignedDriverId) {
+    await writeSnapshot(db, requestId, awbIndex, line.assignedDriverId, req, line);
+  }
+  return { amount: override.amount };
+});
+
+exports.adjustAwbPay = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const { requestId, awbIndex, amount, reason } = request.data || {};
+  if (!requestId || !Number.isInteger(awbIndex)) {
+    throw new HttpsError("invalid-argument", "requestId and awbIndex are required.");
+  }
+  const delta = Number(amount);
+  if (!Number.isFinite(delta) || delta === 0) {
+    throw new HttpsError("invalid-argument", "Enter a non-zero adjustment.");
+  }
+  if (!String(reason || "").trim()) {
+    throw new HttpsError("invalid-argument", "A reason is required.");
+  }
+  const db = admin.firestore();
+  const ref = db.collection("awbPay").doc(payDocId(requestId, awbIndex));
+  const snap = await ref.get();
+  if (!snap.exists || snap.data().locked !== true) {
+    throw new HttpsError("failed-precondition", "Adjustments are only for completed trips.");
+  }
+  const actor = await adminActor(request.auth.uid);
+  const adjustment = {
+    amount: Math.round(delta * 100) / 100,
+    reason: String(reason).trim().slice(0, 500),
+    at: Date.now(),
+    byUid: actor.uid,
+    byName: actor.name,
+  };
+  await ref.update({ adjustment });
+  await db.collection("driverPayAudit").add({
+    kind: "adjustment",
+    requestId,
+    awbIndex,
+    amount: adjustment.amount,
+    previousAmount: snap.data().amount,
+    reason: adjustment.reason,
+    adminUid: actor.uid,
+    adminName: actor.name,
+    at: adjustment.at,
+  });
+  return { adjustment };
 });
