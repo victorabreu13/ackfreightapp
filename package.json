@@ -9,7 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "deploy:web": "node scripts/deploy-web.js",
-    "test": "npm test --prefix functions && tsx --test src/utils/awbMutations.test.ts src/utils/quote.test.ts",
+    "test": "npm test --prefix functions && tsx --test src/utils/awbMutations.test.ts src/utils/quote.test.ts src/utils/navigation.test.ts",
     "test:rules": "firebase emulators:exec --only firestore --project demo-ack-freight \"node --test tests/firestore.rules.test.js\""
   },
   "dependencies": {

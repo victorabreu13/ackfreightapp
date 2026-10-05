@@ -14,11 +14,12 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ackfreight.driverlog",
       "infoPlist": {
-        "NSCameraUsageInfo": "ACK Freight needs camera access so drivers can photograph proof of delivery documents.",
-        "NSPhotoLibraryUsageInfo": "ACK Freight needs photo library access so drivers can attach proof of delivery photos.",
+        "NSCameraUsageDescription": "ACK Freight needs camera access so drivers can photograph proof of delivery documents.",
+        "NSPhotoLibraryUsageDescription": "ACK Freight needs photo library access so drivers can attach proof of delivery photos.",
         "NSLocationWhenInUseUsageDescription": "ACK Freight shares your location with dispatch and the customer while you have a trip in progress, so they can track it live.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "ACK Freight keeps sharing your location with dispatch and the customer while a trip is in progress, including when the app is in the background.",
-        "UIBackgroundModes": ["location"],
+        "UIBackgroundModes": ["location", "remote-notification"],
+        "LSApplicationQueriesSchemes": ["comgooglemaps", "waze"],
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -32,7 +33,6 @@
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_BACKGROUND_LOCATION",
@@ -54,14 +54,17 @@
         "expo-image-picker",
         {
           "photosPermission": "ACK Freight needs photo library access so drivers can attach proof of delivery photos.",
-          "cameraPermission": "ACK Freight needs camera access so drivers can photograph proof of delivery documents."
+          "cameraPermission": "ACK Freight needs camera access so drivers can photograph proof of delivery documents.",
+          "microphonePermission": false
         }
       ],
       [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#1d4ed8"
+          "color": "#1d4ed8",
+          "mode": "production",
+          "enableBackgroundRemoteNotifications": true
         }
       ],
       [

@@ -32,7 +32,7 @@ import {
 } from "../services/tripRequests";
 import { AwbPay, computeTripRequestRollup, LatLng, ProofFile, TripRequest, TripRequestStatus } from "../types";
 import { confirmAction, notify } from "../utils/alert";
-import { money, navigationUrls, payHeadline, routeSummary } from "../utils/driverPayDisplay";
+import { money, NavigationApp, navigationTargets, payHeadline, routeSummary } from "../utils/driverPayDisplay";
 
 type PendingFile = { uri: string; name: string; kind: ProofFile["kind"] };
 
@@ -47,6 +47,16 @@ const STATUS_LABELS: Record<TripRequestStatus, string> = {
 
 function formatTime(d: Date) {
   return d.toTimeString().slice(0, 5);
+}
+
+async function openDirections(app: NavigationApp, address: string) {
+  const target = navigationTargets(address)[app];
+  try {
+    const canOpen = await Linking.canOpenURL(target.appUrl);
+    await Linking.openURL(canOpen ? target.appUrl : target.webUrl);
+  } catch {
+    await Linking.openURL(target.webUrl);
+  }
 }
 
 function pinOf(point?: LatLng | null): LatLng | null {
@@ -68,7 +78,6 @@ function TripOffer({
     mine.length === 0 ||
     mine.some((line) => line.status === "assigned" || line.status === "accepted" || line.status === "in_progress");
   const address = beforePickup ? request.from : request.to;
-  const urls = address ? navigationUrls(address) : null;
   const route = request.routeEstimate;
   const sample = pays[0];
   const drive = routeSummary(
@@ -105,12 +114,15 @@ function TripOffer({
       {!!drive && <Text style={styles.meta}>{drive}</Text>}
       {!!request.pickupTime && <Text style={styles.meta}>Pickup window {request.pickupTime}</Text>}
       {pin && <View style={{ marginTop: 10 }}><LiveMap lat={pin.lat} lng={pin.lng} label={address} /></View>}
-      {urls && (
+      {!!address && (
         <View style={styles.row}>
-          <TouchableOpacity style={styles.attachButton} onPress={() => Linking.openURL(urls.google)}>
+          <TouchableOpacity style={styles.attachButton} onPress={() => openDirections("apple", address)}>
+            <Text style={styles.attachButtonText}>Apple Maps</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.attachButton} onPress={() => openDirections("google", address)}>
             <Text style={styles.attachButtonText}>Google Maps</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.attachButton} onPress={() => Linking.openURL(urls.waze)}>
+          <TouchableOpacity style={styles.attachButton} onPress={() => openDirections("waze", address)}>
             <Text style={styles.attachButtonText}>Waze</Text>
           </TouchableOpacity>
         </View>
@@ -127,6 +139,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
   const [actingIndex, setActingIndex] = useState<number | null>(null);
   const [pickingUp, setPickingUp] = useState(false);
   const [signature, setSignature] = useState<SignatureStrokes>([]);
+  const [signing, setSigning] = useState(false);
   const [payByIndex, setPayByIndex] = useState<Record<number, AwbPay>>({});
 
   useEffect(() => {
@@ -516,7 +529,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }} scrollEnabled={!signing}>
       <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
         <Text style={styles.backButtonText}>‹ Back</Text>
       </TouchableOpacity>
@@ -665,7 +678,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
           })}
 
           <Text style={styles.label}>Receiver signature</Text>
-          <SignaturePad strokes={signature} onChange={setSignature} />
+          <SignaturePad strokes={signature} onChange={setSignature} onDrawingChange={setSigning} />
 
           <Text style={styles.label}>Proof of freight</Text>
           <View style={styles.row}>

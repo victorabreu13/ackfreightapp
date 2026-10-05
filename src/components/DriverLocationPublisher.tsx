@@ -68,28 +68,41 @@ export default function DriverLocationPublisher() {
 
     (async () => {
       await setLiveLocationRequestIds(requestIds);
+      // iOS requires When In Use before Always. While Using still shares a
+      // point on the timer below; only Always starts the background task.
       const foreground = await Location.requestForegroundPermissionsAsync();
       if (cancelled || foreground.status !== "granted") return;
-      const background = await Location.requestBackgroundPermissionsAsync();
-      let backgroundRunning = false;
-      if (!cancelled && background.status === "granted") {
-        const started = await Location.hasStartedLocationUpdatesAsync(LIVE_LOCATION_TASK);
-        if (!started) {
-          await Location.startLocationUpdatesAsync(LIVE_LOCATION_TASK, {
-            accuracy: Location.Accuracy.Balanced,
-            timeInterval: PING_MS,
-            distanceInterval: 25,
-            showsBackgroundLocationIndicator: true,
-            foregroundService: {
-              notificationTitle: "ACK Freight",
-              notificationBody: "Sharing your location while a trip is in progress.",
-            },
-          });
-        }
-        backgroundRunning = true;
+      let backgroundGranted = false;
+      try {
+        const background = await Location.requestBackgroundPermissionsAsync();
+        backgroundGranted = background.status === "granted";
+      } catch (err) {
+        console.error("Background location permission failed:", err);
       }
-      // If background updates are not allowed, keep the previous behavior:
-      // a point every 25s while the app is open.
+      let backgroundRunning = false;
+      if (!cancelled && backgroundGranted) {
+        try {
+          const started = await Location.hasStartedLocationUpdatesAsync(LIVE_LOCATION_TASK);
+          if (!started) {
+            await Location.startLocationUpdatesAsync(LIVE_LOCATION_TASK, {
+              accuracy: Location.Accuracy.Balanced,
+              activityType: Location.ActivityType.AutomotiveNavigation,
+              timeInterval: PING_MS,
+              distanceInterval: 25,
+              pausesUpdatesAutomatically: false,
+              showsBackgroundLocationIndicator: true,
+              foregroundService: {
+                notificationTitle: "ACK Freight",
+                notificationBody: "Sharing your location while a trip is in progress.",
+              },
+            });
+          }
+          backgroundRunning = true;
+        } catch (err) {
+          console.error("Couldn't start background location:", err);
+        }
+      }
+      // While Using, or a failed background start: a point every 25s while the app is open.
       if (!cancelled && !backgroundRunning) {
         await shareInForeground();
         timer = setInterval(shareInForeground, PING_MS);
