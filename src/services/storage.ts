@@ -14,6 +14,19 @@ export async function uploadFileToPath(
   return { url };
 }
 
+export async function uploadProofSvg(
+  svg: string,
+  driverId: string,
+  fileName: string
+): Promise<ProofFile> {
+  const blob = new Blob([svg], { type: "image/svg+xml" });
+  const path = `proofs/${driverId}/${Date.now()}-${fileName}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, blob, { contentType: "image/svg+xml" });
+  const url = await getDownloadURL(storageRef);
+  return { url, name: fileName, kind: "document" };
+}
+
 export async function uploadProofFile(
   localUri: string,
   driverId: string,

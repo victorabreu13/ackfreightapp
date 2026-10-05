@@ -11,6 +11,7 @@ import TripRequestForm, {
   TripRequestFormValues,
 } from "../components/TripRequestForm";
 import TripRequestReadOnly from "../components/TripRequestReadOnly";
+import { useAuth } from "../context/AuthContext";
 import {
   cancelTripRequest,
   subscribeToTripRequest,
@@ -39,6 +40,7 @@ const LOCKED_STATUSES: TripRequest["status"][] = [
 ];
 
 export default function TripRequestDetailScreen({ route, navigation }: any) {
+  const { profile } = useAuth();
   const initialRequest: TripRequest = route.params.request;
   const [request, setRequest] = useState(initialRequest);
   const locked = LOCKED_STATUSES.includes(request.status);
@@ -130,6 +132,8 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
             }}
             submitLabel="Save Changes"
             onSubmit={handleSubmit}
+            billing={request.quoteStatus ? null : profile}
+            storedQuote={request.quoteStatus ? request : null}
             footer={
               <TouchableOpacity style={styles.cancelButton} onPress={confirmCancel}>
                 <Text style={styles.cancelButtonText}>Cancel Request</Text>

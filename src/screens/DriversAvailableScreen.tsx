@@ -71,7 +71,9 @@ export default function DriversAvailableScreen({ navigation }: any) {
         }
       }
 
-      const inProgress = entries.filter((e) => e.line.status === "in_progress");
+      const inProgress = entries.filter(
+        (e) => e.line.status === "in_progress" || e.line.status === "picked_up"
+      );
       inProgress.sort((a, b) => (a.line.startedAt ?? 0) - (b.line.startedAt ?? 0));
       const currentEntry = inProgress[0] ?? null;
 
@@ -135,9 +137,10 @@ export default function DriversAvailableScreen({ navigation }: any) {
                 <Text style={styles.cardMeta}>
                   Current trip: {item.currentEntry.request.from} → {item.currentEntry.request.to}
                   {" · "}
+                  {item.currentEntry.line.status === "picked_up" ? "picked up" : "in progress"}
                   {item.currentEntry.line.startedAt
-                    ? `${formatElapsed(item.currentEntry.line.startedAt, nowMs)} in progress`
-                    : "in progress"}
+                    ? ` · ${formatElapsed(item.currentEntry.line.startedAt, nowMs)}`
+                    : ""}
                 </Text>
               )}
             </View>

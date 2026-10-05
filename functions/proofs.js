@@ -22,10 +22,13 @@ function proofsForRequest(tripRequest, tripById) {
   for (const [tripLogId, awbNumbers] of grouped) {
     const trip = tripById[tripLogId];
     if (!trip) continue;
+    const signature = publicProofFile(trip.signature);
     proofs.push({
       tripLogId,
       awbNumbers,
       proofFiles: (trip.proofFiles || []).map(publicProofFile).filter(Boolean),
+      signature,
+      signatureStrokes: Array.isArray(trip.signatureStrokes) ? trip.signatureStrokes : [],
     });
   }
   return proofs;

@@ -44,6 +44,8 @@ describe("proofsForRequest", () => {
             { url: "https://files.example/a.jpg", name: "a.jpg", kind: "image" },
             { url: "https://files.example/b.pdf", name: "b.pdf", kind: "document" },
           ],
+          signature: { url: "https://files.example/sign.svg", name: "signature.svg", kind: "document" },
+          signatureStrokes: [[[0.1, 0.2], [0.4, 0.6]]],
         },
       }
     );
@@ -51,6 +53,8 @@ describe("proofsForRequest", () => {
     assert.equal(proofs.length, 1);
     assert.deepEqual(proofs[0].awbNumbers, ["111", "222"]);
     assert.equal(proofs[0].proofFiles.length, 2);
+    assert.equal(proofs[0].signature.url, "https://files.example/sign.svg");
+    assert.equal(proofs[0].signatureStrokes.length, 1);
     assert.equal(JSON.stringify(proofs).includes("dee@example.com"), false);
     assert.equal(JSON.stringify(proofs).includes("secret note"), false);
     assert.equal(JSON.stringify(proofs).includes("Dee"), false);

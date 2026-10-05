@@ -14,20 +14,22 @@ import {
   View,
 } from "react-native";
 import DateField from "../components/DateField";
+import SignaturePad, { strokesToSvg, SignatureStrokes } from "../components/SignaturePad";
 import TripRequestReadOnly from "../components/TripRequestReadOnly";
 import { useAuth } from "../context/AuthContext";
 import { syncBadgeCount } from "../services/notifications";
-import { uploadProofFile } from "../services/storage";
+import { uploadProofFile, uploadProofSvg } from "../services/storage";
 import { checkDuplicateUld, createTrip, duplicateUldMessage } from "../services/trips";
 import {
+  acceptAssignedAwb,
   completeMyAwbLines,
+  declineAwbLine,
+  markAwbPickedUp,
   startMyAwbLines,
-  updateMyLiveLocation,
+  subscribeToTripRequest,
 } from "../services/tripRequests";
 import { computeTripRequestRollup, ProofFile, TripRequest, TripRequestStatus } from "../types";
 import { confirmAction, notify } from "../utils/alert";
-
-const LOCATION_PING_INTERVAL_MS = 25000;
 
 type PendingFile = { uri: string; name: string; kind: ProofFile["kind"] };
 
@@ -49,21 +51,36 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
   const initialRequest: TripRequest = route.params.request;
   const [request, setRequest] = useState(initialRequest);
   const [starting, setStarting] = useState(false);
+  const [actingIndex, setActingIndex] = useState<number | null>(null);
+  const [pickingUp, setPickingUp] = useState(false);
+  const [signature, setSignature] = useState<SignatureStrokes>([]);
+
+  useEffect(() => {
+    return subscribeToTripRequest(
+      initialRequest.id,
+      setRequest,
+      (err) => console.error("subscribeToTripRequest error:", err)
+    );
+  }, [initialRequest.id]);
 
   // Only this driver's own AWB lines are relevant here — a trip request can
   // have other lines assigned to other drivers, at a completely different
   // stage, which this screen never shows or acts on.
   const myLines = request.awbLines.filter((l) => l.assignedDriverId === user?.uid);
-  const myAssignedLines = myLines.filter((l) => l.status === "assigned");
-  // Keep the original awbLines index alongside each line — a driver can run
-  // several in-progress AWBs as separate physical trips, so completion needs
-  // to target specific lines rather than always all of them, and the index
-  // is what identifies a line to completeMyAwbLines.
-  const myInProgressEntries = request.awbLines
+  const myPendingEntries = request.awbLines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => line.assignedDriverId === user?.uid && line.status === "assigned");
+  const myAcceptedLines = myLines.filter((l) => l.status === "accepted");
+  // Completion targets picked-up lines. Start is only available after accept.
+  const myStartedEntries = request.awbLines
     .map((line, index) => ({ line, index }))
     .filter(({ line }) => line.assignedDriverId === user?.uid && line.status === "in_progress");
+  const myPickedUpEntries = request.awbLines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => line.assignedDriverId === user?.uid && line.status === "picked_up");
   const myStatus = computeTripRequestRollup(myLines).status;
-  const isSharingLocation = Platform.OS !== "web" && myInProgressEntries.length > 0;
+  const isSharingLocation =
+    Platform.OS !== "web" && (myStartedEntries.length > 0 || myPickedUpEntries.length > 0);
   const [locationDenied, setLocationDenied] = useState(false);
 
   const promptToEnableLocation = () => {
@@ -79,45 +96,31 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
     );
   };
 
-  // Pings this driver's current location every ~25s for as long as they
-  // have an in-progress line on this request — the server clears it the
-  // moment they complete, so nothing to stop explicitly on that side.
+  // Location pings are owned by DriverLocationPublisher so they continue
+  // after this screen closes. This only surfaces a denied-permission banner.
   useEffect(() => {
-    if (!isSharingLocation || !user) return;
-
+    if (!isSharingLocation) return;
     let cancelled = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const shareLocation = async () => {
-      try {
-        const pos = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        if (cancelled) return;
-        await updateMyLiveLocation(request.id, pos.coords.latitude, pos.coords.longitude);
-      } catch (err) {
-        console.error("Failed to share location:", err);
-      }
-    };
-
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const current = await Location.getForegroundPermissionsAsync();
       if (cancelled) return;
-      if (status !== "granted") {
-        setLocationDenied(true);
-        promptToEnableLocation();
+      if (current.status === "granted") {
+        setLocationDenied(false);
         return;
       }
-      setLocationDenied(false);
-      shareLocation();
-      intervalId = setInterval(shareLocation, LOCATION_PING_INTERVAL_MS);
+      const asked = await Location.requestForegroundPermissionsAsync();
+      if (cancelled) return;
+      if (asked.status !== "granted") {
+        setLocationDenied(true);
+        promptToEnableLocation();
+      } else {
+        setLocationDenied(false);
+      }
     })();
-
     return () => {
       cancelled = true;
-      if (intervalId) clearInterval(intervalId);
     };
-  }, [isSharingLocation, request.id, user]);
+  }, [isSharingLocation]);
 
   const [timeStart, setTimeStart] = useState(new Date());
   const [timeFinish, setTimeFinish] = useState(new Date());
@@ -135,9 +138,9 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
   // unchecked even if this effect re-runs for an unrelated reason, since it
   // only fires when the actual set of in-progress indexes changes.
   const seenIndexesRef = useRef<Set<number>>(new Set());
-  const inProgressIndexKey = myInProgressEntries.map((e) => e.index).join(",");
+  const inProgressIndexKey = myPickedUpEntries.map((e) => e.index).join(",");
   useEffect(() => {
-    const currentIdx = myInProgressEntries.map((e) => e.index);
+    const currentIdx = myPickedUpEntries.map((e) => e.index);
     setSelectedIndexes((prev) => {
       const next = new Set<number>();
       currentIdx.forEach((i) => {
@@ -165,7 +168,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
     });
   };
 
-  const selectedEntries = myInProgressEntries.filter((e) => selectedIndexes.has(e.index));
+  const selectedEntries = myPickedUpEntries.filter((e) => selectedIndexes.has(e.index));
 
   const addPhoto = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -226,7 +229,63 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
     setFiles((f) => f.filter((_, i) => i !== index));
   };
 
+  const handleAccept = async (index: number) => {
+    if (!user) return;
+    setActingIndex(index);
+    try {
+      await acceptAssignedAwb(request.id, index);
+      setRequest((prev) => ({
+        ...prev,
+        awbLines: prev.awbLines.map((line, i) =>
+          i === index ? { ...line, status: "accepted" as const, acceptedAt: Date.now() } : line
+        ),
+      }));
+    } catch (e: any) {
+      notify("Couldn't accept", e?.message ?? "Try again.");
+    } finally {
+      setActingIndex(null);
+    }
+  };
+
+  const handleDecline = (index: number, awbNumber: string) => {
+    confirmAction(
+      {
+        title: "Decline this AWB?",
+        message: `${awbNumber} goes back to the board and dispatch is notified.`,
+        confirmLabel: "Decline",
+        destructive: true,
+      },
+      async () => {
+        if (!user) return;
+        setActingIndex(index);
+        try {
+          await declineAwbLine(request.id, index);
+          setRequest((prev) => ({
+            ...prev,
+            awbLines: prev.awbLines.map((line, i) =>
+              i === index
+                ? {
+                    ...line,
+                    status: "submitted" as const,
+                    assignedDriverId: null,
+                    assignedDriverName: null,
+                    acceptedAt: undefined,
+                  }
+                : line
+            ),
+          }));
+          syncBadgeCount(user.uid);
+        } catch (e: any) {
+          notify("Couldn't decline", e?.message ?? "Try again.");
+        } finally {
+          setActingIndex(null);
+        }
+      }
+    );
+  };
+
   const handleStart = () => {
+    if (myAcceptedLines.length === 0) return;
     confirmAction(
       { title: "Start this trip?", confirmLabel: "Start Trip" },
       async () => {
@@ -237,16 +296,40 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
           setRequest((prev) => ({
             ...prev,
             awbLines: prev.awbLines.map((l) =>
-              l.assignedDriverId === user.uid && l.status === "assigned"
-                ? { ...l, status: "in_progress" as const }
+              l.assignedDriverId === user.uid && l.status === "accepted"
+                ? { ...l, status: "in_progress" as const, startedAt: Date.now() }
                 : l
             ),
           }));
           syncBadgeCount(user.uid);
         } catch (e: any) {
-          notify("Couldn't start trip", e?.message ?? "Something went wrong. Please try again.");
+          notify("Couldn't start trip", e?.message ?? "Accept the AWB before starting.");
         } finally {
           setStarting(false);
+        }
+      }
+    );
+  };
+
+  const handlePickup = () => {
+    const indexes = myStartedEntries.map((entry) => entry.index);
+    if (indexes.length === 0) return;
+    confirmAction(
+      { title: "Mark freight picked up?", confirmLabel: "Picked up" },
+      async () => {
+        setPickingUp(true);
+        try {
+          await markAwbPickedUp(request.id, indexes);
+          setRequest((prev) => ({
+            ...prev,
+            awbLines: prev.awbLines.map((line, i) =>
+              indexes.includes(i) ? { ...line, status: "picked_up" as const, pickedUpAt: Date.now() } : line
+            ),
+          }));
+        } catch (e: any) {
+          notify("Couldn't mark picked up", e?.message ?? "Try again.");
+        } finally {
+          setPickingUp(false);
         }
       }
     );
@@ -260,6 +343,10 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
     }
     if (selectedEntries.some(({ index }) => !uldByIndex[index]?.trim())) {
       notify("Missing info", "Enter the ULD # for each checked AWB.");
+      return;
+    }
+    if (signature.length === 0 || signature.every((stroke) => stroke.length === 0)) {
+      notify("Signature required", "Have the receiver sign before completing this delivery.");
       return;
     }
     if (files.length === 0) {
@@ -293,6 +380,11 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
       for (const file of files) {
         uploaded.push(await uploadProofFile(file.uri, user.uid, file.name, file.kind));
       }
+      const signatureFile = await uploadProofSvg(
+        strokesToSvg(signature),
+        user.uid,
+        "signature.svg"
+      );
 
       const tripId = await createTrip({
         driverId: user.uid,
@@ -312,6 +404,8 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
           ? `From dispatch request for ${request.customerName}. Driver note: ${driverNote.trim()}`
           : `From dispatch request for ${request.customerName}.`,
         proofFiles: uploaded,
+        signature: signatureFile,
+        signatureStrokes: signature,
       });
 
       const completedIndexes = selectedEntries.map(({ index }) => index);
@@ -350,30 +444,78 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
 
       <TripRequestReadOnly request={request} />
 
-      {myAssignedLines.length > 0 && (
+      {myPendingEntries.map(({ line, index }) => (
+        <View key={`pending-${index}`} style={styles.awbCheckCard}>
+          <Text style={styles.checkboxLabel}>
+            {line.awbNumber} is assigned to you
+          </Text>
+          <View style={styles.row}>
+            <TouchableOpacity
+              style={[styles.attachButton, { marginTop: 12 }]}
+              onPress={() => handleAccept(index)}
+              disabled={actingIndex === index}
+            >
+              <Text style={styles.attachButtonText}>Accept</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.attachButton, { marginTop: 12 }]}
+              onPress={() => handleDecline(index, line.awbNumber)}
+              disabled={actingIndex === index}
+            >
+              <Text style={styles.declineText}>Decline</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ))}
+
+      {request.awbLines.map((line, index) =>
+        line.assignedDriverId === user?.uid && line.status === "accepted" ? (
+          <View key={`accepted-${index}`} style={styles.awbCheckCard}>
+            <Text style={styles.checkboxLabel}>{line.awbNumber} accepted</Text>
+            <TouchableOpacity onPress={() => handleDecline(index, line.awbNumber)}>
+              <Text style={styles.declineText}>Decline</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null
+      )}
+
+      {(myPendingEntries.length > 0 || myAcceptedLines.length > 0) && (
         <TouchableOpacity
-          style={styles.primaryButton}
+          style={[styles.primaryButton, myAcceptedLines.length === 0 && styles.primaryButtonDisabled]}
           onPress={handleStart}
-          disabled={starting}
+          disabled={starting || myAcceptedLines.length === 0}
         >
           {starting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.primaryButtonText}>Start Trip</Text>
+            <Text style={styles.primaryButtonText}>
+              {myAcceptedLines.length === 0 ? "Accept the AWB before starting" : "Start Trip"}
+            </Text>
           )}
         </TouchableOpacity>
       )}
 
-      {myInProgressEntries.length > 0 && (
-        <View style={{ marginTop: 10 }}>
-          {isSharingLocation && locationDenied && (
-            <TouchableOpacity style={styles.locationDeniedBanner} onPress={promptToEnableLocation}>
-              <Text style={styles.locationDeniedText}>
-                📍 Location sharing is off — tap to turn it on so dispatch and the customer can track this trip
-              </Text>
-            </TouchableOpacity>
+      {myStartedEntries.length > 0 && (
+        <TouchableOpacity style={styles.primaryButton} onPress={handlePickup} disabled={pickingUp}>
+          {pickingUp ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.primaryButtonText}>Picked up</Text>
           )}
-          <Text style={styles.sectionTitle}>Complete Trip</Text>
+        </TouchableOpacity>
+      )}
+
+      {isSharingLocation && locationDenied && (
+        <TouchableOpacity style={styles.locationDeniedBanner} onPress={promptToEnableLocation}>
+          <Text style={styles.locationDeniedText}>
+            📍 Location sharing is off — tap to turn it on so dispatch and the customer can track this trip
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {myPickedUpEntries.length > 0 && (
+        <View style={{ marginTop: 10 }}>
+          <Text style={styles.sectionTitle}>Deliver</Text>
 
           <View style={styles.row}>
             <View style={styles.half}>
@@ -387,18 +529,18 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
           </View>
 
           <Text style={styles.label}>
-            {myInProgressEntries.length > 1
-              ? "Which AWBs did you complete on this trip?"
-              : "AWB for this trip"}
+            {myPickedUpEntries.length > 1
+              ? "Which AWBs did you deliver on this trip?"
+              : "AWB for this delivery"}
           </Text>
-          {myInProgressEntries.map(({ line, index }) => {
+          {myPickedUpEntries.map(({ line, index }) => {
             const checked = selectedIndexes.has(index);
             return (
               <View key={index} style={styles.awbCheckCard}>
                 <TouchableOpacity
                   style={styles.checkboxRow}
                   onPress={() => toggleSelected(index)}
-                  disabled={myInProgressEntries.length === 1}
+                  disabled={myPickedUpEntries.length === 1}
                 >
                   <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
                     {checked && <Text style={styles.checkboxMark}>✓</Text>}
@@ -427,6 +569,9 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
               </View>
             );
           })}
+
+          <Text style={styles.label}>Receiver signature</Text>
+          <SignaturePad strokes={signature} onChange={setSignature} />
 
           <Text style={styles.label}>Proof of freight</Text>
           <View style={styles.row}>
@@ -570,7 +715,9 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     alignItems: "center",
     marginTop: 24,
-    marginBottom: 40,
+    marginBottom: 12,
   },
+  primaryButtonDisabled: { backgroundColor: "#94a3b8" },
+  declineText: { color: "#c0392b", fontWeight: "700", fontSize: 13, marginTop: 8 },
   primaryButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
 });

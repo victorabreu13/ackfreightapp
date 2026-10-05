@@ -1,4 +1,5 @@
 import { NavigationContainer } from "@react-navigation/native";
+import "./src/services/liveLocationTask";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { Platform, View } from "react-native";
@@ -32,6 +33,7 @@ const linking = {
       DispatchDetail: "dispatch-request",
       DispatchNewRequest: "dispatch-new-request",
       MyTripRequests: "my-trip-requests",
+      JobBoard: "job-board",
       DriverTripRequestDetail: "my-trip-request",
       TripHistory: "trip-history",
     },

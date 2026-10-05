@@ -14,7 +14,9 @@ import DriverPayrollScreen from "../screens/DriverPayrollScreen";
 import ManageUsersScreen from "../screens/ManageUsersScreen";
 import DriversLogScreen from "../screens/DriversLogScreen";
 import DriversRecordScreen from "../screens/DriversRecordScreen";
+import DriverLocationPublisher from "../components/DriverLocationPublisher";
 import DriverHomeScreen from "../screens/DriverHomeScreen";
+import JobBoardScreen from "../screens/JobBoardScreen";
 import DriverTripRequestDetailScreen from "../screens/DriverTripRequestDetailScreen";
 import LoginScreen from "../screens/LoginScreen";
 import MyTripRequestsScreen from "../screens/MyTripRequestsScreen";
@@ -137,10 +139,17 @@ export default function RootNavigator() {
   }
 
   return (
+    <>
+    <DriverLocationPublisher />
     <Stack.Navigator>
       <Stack.Screen
         name="DriverHome"
         component={DriverHomeScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="JobBoard"
+        component={JobBoardScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
@@ -169,5 +178,6 @@ export default function RootNavigator() {
         options={{ headerShown: false }}
       />
     </Stack.Navigator>
+    </>
   );
 }
