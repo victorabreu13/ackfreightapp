@@ -59,9 +59,9 @@ cp .env.example .env
 
 Fill in the `EXPO_PUBLIC_FIREBASE_*` values from the Firebase web app config.
 
-`GOOGLE_MAPS_ANDROID_API_KEY` is optional for local web and iOS simulator work. Android builds need it so `react-native-maps` can load tiles. `app.config.js` reads it at build time and does not commit a key. For EAS Build, set the same name as an [EAS secret](https://docs.expo.dev/build-reference/variables/). Restrict the key in Google Cloud to package `com.ackfreight.driverlog`.
+The trip map uses Apple Maps on iPhone and does not need a Google key. Android builds need `GOOGLE_MAPS_ANDROID_API_KEY` so `react-native-maps` can load tiles. `app.config.js` reads it at build time and does not commit a key. For EAS Build, set the same name as an [EAS secret](https://docs.expo.dev/build-reference/variables/). Restrict the key in Google Cloud to package `com.ackfreight.driverlog`.
 
-Web live tracking uses a keyless Google Maps embed and does not need this variable.
+Web live tracking uses a keyless Google Maps embed and does not need this variable. Navigate offers Apple Maps, Google Maps, and Waze, and opens the website when that app is not installed.
 
 ## 4. Install dependencies and run
 
@@ -170,8 +170,43 @@ To test the nightly summary without waiting, open Cloud Scheduler, find `sendDai
 
 `npm run deploy:web` exports the Expo web bundle and deploys Firebase Hosting for project `ack-freight`. Do that only when you mean to publish. The legal pages in `legal/` are copied into the hosting output.
 
-## 8. Store builds
+## 8. Store builds and TestFlight
 
-Store binaries are built with [EAS Build](https://docs.expo.dev/build/introduction/) (`npx eas-cli build`). `eas.json` has a preview profile (internal Android APK) and a production profile. That step needs an Apple Developer account and a Google Play Console account. Set `GOOGLE_MAPS_ANDROID_API_KEY` in the build environment before building Android. Background location (the job-board release) is a native permission change, so it needs a new store build. An OTA update cannot add it.
+Store binaries are built with [EAS Build](https://docs.expo.dev/build/introduction/) (`npx eas-cli build`). `eas.json` has a preview profile and a production profile. Set `GOOGLE_MAPS_ANDROID_API_KEY` in the build environment before building Android. Camera, photo library, and background location are native permission changes, so they need a new iOS build. An OTA update cannot add them.
+
+The driver app is meant to run on iPhone. Camera and photo-library prompts use `NSCameraUsageDescription` and `NSPhotoLibraryUsageDescription`. The app does not record audio, so it does not ask for the microphone. While a trip is started or picked up, the app asks for location While Using first, then Always. Always keeps sharing in the background and shows the blue location indicator. If the driver stays on While Using, sharing continues only while the app is open.
+
+Push uses an Expo push token. Expo delivers that token to Apple through the APNs key stored in EAS. The new-job notification includes that driver's pay. A simulator cannot receive it. The iPhone build has to be installed from TestFlight or an internal install.
+
+### TestFlight (production)
+
+This needs an Apple Developer account that can manage bundle id `com.ackfreight.driverlog` and App Store Connect app `6809931321`, plus EAS access for owner `victor.abreu13`.
+
+1. `npx eas-cli login`
+2. Upload the APNs key once, if it is not already on this project: `npx eas-cli credentials -p ios`. Choose the production profile, then Push Notifications, and upload the Apple `.p8` key (Key ID and Team ID). Without that key, iPhones do not get new-job pushes.
+3. Build the store binary:
+
+```bash
+npx eas-cli build --platform ios --profile production
+```
+
+4. When the build finishes, send it to App Store Connect (the production submit profile already has `ascAppId` `6809931321`):
+
+```bash
+npx eas-cli submit --platform ios --profile production
+```
+
+5. In App Store Connect → the app → TestFlight, wait until the build finishes processing. Internal testers (people on the App Store Connect team) can install it immediately. An external group needs a short Beta App Review the first time.
+
+### Internal install (registered devices)
+
+The preview profile is an ad hoc iOS build, not TestFlight. Each iPhone has to be registered first:
+
+```bash
+npx eas-cli device:create
+npx eas-cli build --platform ios --profile preview
+```
+
+Open the install link from the EAS build page on that iPhone. Android preview is still an APK (`eas.json` `android.buildType`).
 
 OTA updates (`eas update`) ship JavaScript changes to installs that already include `expo-updates`. Do not publish an update until the matching Cloud Functions and security rules are deployed.

@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 
 interface Props {
   lat: number;
@@ -11,9 +11,11 @@ interface Props {
 // Native implementation — react-native-maps has no web build at all, so
 // this file is kept out of the web bundle entirely via the .web.tsx
 // sibling, which Metro picks instead when bundling for web.
+// PROVIDER_DEFAULT is Apple Maps on iOS (no Google key) and Google Maps on Android.
 export default function LiveMap({ lat, lng, label }: Props) {
   return (
     <MapView
+      provider={PROVIDER_DEFAULT}
       style={styles.map}
       region={{
         latitude: lat,

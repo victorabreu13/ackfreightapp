@@ -6,6 +6,7 @@ export type SignatureStrokes = number[][][];
 interface Props {
   strokes: SignatureStrokes;
   onChange: (strokes: SignatureStrokes) => void;
+  onDrawingChange?: (drawing: boolean) => void;
   height?: number;
 }
 
@@ -85,16 +86,23 @@ function StrokeLayer({ strokes }: { strokes: SignatureStrokes }) {
   );
 }
 
-export default function SignaturePad({ strokes, onChange, height = 140 }: Props) {
+export default function SignaturePad({ strokes, onChange, onDrawingChange, height = 140 }: Props) {
   const strokesRef = useRef(strokes);
   strokesRef.current = strokes;
+  const drawingRef = useRef(onDrawingChange);
+  drawingRef.current = onDrawingChange;
   const sizeRef = useRef({ width: 1, height: 1 });
 
   const responder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onShouldBlockNativeResponder: () => true,
       onPanResponderGrant: (event) => {
+        drawingRef.current?.(true);
         const { locationX, locationY } = event.nativeEvent;
         const { width, height: h } = sizeRef.current;
         const point: number[] = [
@@ -103,6 +111,8 @@ export default function SignaturePad({ strokes, onChange, height = 140 }: Props)
         ];
         onChange([...strokesRef.current, [point]]);
       },
+      onPanResponderRelease: () => drawingRef.current?.(false),
+      onPanResponderTerminate: () => drawingRef.current?.(false),
       onPanResponderMove: (event) => {
         const { locationX, locationY } = event.nativeEvent;
         const { width, height: h } = sizeRef.current;

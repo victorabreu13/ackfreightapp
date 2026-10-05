@@ -48,10 +48,22 @@ export function addDays(ymd: string, days: number): string {
   return toLocalDateString(date);
 }
 
-export function navigationUrls(address: string): { google: string; waze: string } {
+export type NavigationApp = "apple" | "google" | "waze";
+
+export function navigationTargets(address: string): Record<NavigationApp, { appUrl: string; webUrl: string }> {
   const destination = encodeURIComponent(address);
   return {
-    google: `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`,
-    waze: `https://waze.com/ul?q=${destination}&navigate=yes`,
+    apple: {
+      appUrl: `maps://?daddr=${destination}&dirflg=d`,
+      webUrl: `http://maps.apple.com/?daddr=${destination}&dirflg=d`,
+    },
+    google: {
+      appUrl: `comgooglemaps://?daddr=${destination}&directionsmode=driving`,
+      webUrl: `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`,
+    },
+    waze: {
+      appUrl: `waze://?q=${destination}&navigate=yes`,
+      webUrl: `https://waze.com/ul?q=${destination}&navigate=yes`,
+    },
   };
 }
