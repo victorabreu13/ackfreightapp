@@ -26,8 +26,11 @@ import {
 } from "../services/tripRequests";
 import { computeTripRequestRollup, ProofFile, TripRequest, TripRequestStatus } from "../types";
 import { confirmAction, notify } from "../utils/alert";
-
-const LOCATION_PING_INTERVAL_MS = 25000;
+import {
+  ensureAlwaysLocationPermission,
+  promptToAllowAlwaysLocation,
+  startBackgroundLocationSharing,
+} from "../services/backgroundLocation";
 
 type PendingFile = { uri: string; name: string; kind: ProofFile["kind"] };
 
@@ -66,56 +69,35 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
   const isSharingLocation = Platform.OS !== "web" && myInProgressEntries.length > 0;
   const [locationDenied, setLocationDenied] = useState(false);
 
-  const promptToEnableLocation = () => {
-    confirmAction(
-      {
-        title: "Location sharing is off",
-        message:
-          "Dispatch and the customer can't see this trip on the map without it. Turn it on in Settings.",
-        confirmLabel: "Open Settings",
-        cancelLabel: "Not now",
-      },
-      () => Linking.openSettings()
-    );
-  };
+  const promptToEnableLocation = promptToAllowAlwaysLocation;
 
-  // Pings this driver's current location every ~25s for as long as they
-  // have an in-progress line on this request — the server clears it the
-  // moment they complete, so nothing to stop explicitly on that side.
+  // Hands this request to the background location task, which keeps pinging
+  // the driver's position every ~25s even with the phone locked. The task
+  // stops itself once the server says no line is in progress anymore.
   useEffect(() => {
     if (!isSharingLocation || !user) return;
-
     let cancelled = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const shareLocation = async () => {
-      try {
-        const pos = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        if (cancelled) return;
-        await updateMyLiveLocation(request.id, pos.coords.latitude, pos.coords.longitude);
-      } catch (err) {
-        console.error("Failed to share location:", err);
-      }
-    };
-
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const result = await ensureAlwaysLocationPermission();
       if (cancelled) return;
-      if (status !== "granted") {
+      if (result !== "granted") {
         setLocationDenied(true);
         promptToEnableLocation();
         return;
       }
       setLocationDenied(false);
-      shareLocation();
-      intervalId = setInterval(shareLocation, LOCATION_PING_INTERVAL_MS);
+      try {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (!cancelled) {
+          await updateMyLiveLocation(request.id, pos.coords.latitude, pos.coords.longitude);
+        }
+      } catch (err) {
+        console.error("Failed to share location:", err);
+      }
+      await startBackgroundLocationSharing(request.id);
     })();
-
     return () => {
       cancelled = true;
-      if (intervalId) clearInterval(intervalId);
     };
   }, [isSharingLocation, request.id, user]);
 
@@ -231,6 +213,14 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
       { title: "Start this trip?", confirmLabel: "Start Trip" },
       async () => {
         if (!user) return;
+        // Drivers must share location "Always" before they can start a trip.
+        if (Platform.OS !== "web") {
+          const loc = await ensureAlwaysLocationPermission();
+          if (loc !== "granted") {
+            promptToAllowAlwaysLocation();
+            return;
+          }
+        }
         setStarting(true);
         try {
           await startMyAwbLines(request.id);
@@ -374,7 +364,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
           {isSharingLocation && locationDenied && (
             <TouchableOpacity style={styles.locationDeniedBanner} onPress={promptToEnableLocation}>
               <Text style={styles.locationDeniedText}>
-                📍 Location sharing is off — tap to turn it on so dispatch and the customer can track this trip
+                📍 Location must be set to “Always” — tap to open Settings so dispatch and the customer can track this trip
               </Text>
             </TouchableOpacity>
           )}
