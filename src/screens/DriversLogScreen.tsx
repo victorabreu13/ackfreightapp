@@ -20,7 +20,8 @@ import { toLocalDateString as formatDate } from "../utils/date";
 export default function DriversLogScreen({ navigation }: any) {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterDate, setFilterDate] = useState<Date | null>(new Date());
+  const [filterStartDate, setFilterStartDate] = useState<Date | null>(new Date());
+  const [filterEndDate, setFilterEndDate] = useState<Date | null>(new Date());
   const [searchQuery, setSearchQuery] = useState("");
   const [invoicedTripLogIds, setInvoicedTripLogIds] = useState<Set<string>>(new Set());
 
@@ -62,10 +63,17 @@ export default function DriversLogScreen({ navigation }: any) {
     if (q) {
       return trips.filter((t) => t.awbNumber.toLowerCase().includes(q));
     }
-    if (!filterDate) return trips;
-    const target = formatDate(filterDate);
-    return trips.filter((t) => t.date === target);
-  }, [trips, filterDate, searchQuery]);
+    let result = trips;
+    if (filterStartDate) {
+      const start = formatDate(filterStartDate);
+      result = result.filter((t) => t.date >= start);
+    }
+    if (filterEndDate) {
+      const end = formatDate(filterEndDate);
+      result = result.filter((t) => t.date <= end);
+    }
+    return result;
+  }, [trips, filterStartDate, filterEndDate, searchQuery]);
 
   const driverCount = useMemo(
     () => new Set(filteredTrips.map((t) => t.driverId)).size,
@@ -106,23 +114,40 @@ export default function DriversLogScreen({ navigation }: any) {
 
       {!searchQuery.trim() && (
         <View style={styles.filterRow}>
-          <View style={styles.filterDateField}>
+          <View>
+            <Text style={styles.miniLabel}>From</Text>
             <DateField
-              value={filterDate ?? new Date()}
+              value={filterStartDate ?? new Date()}
               mode="date"
-              onChange={setFilterDate}
-              label={filterDate ? undefined : "All dates"}
+              onChange={setFilterStartDate}
+              label={filterStartDate ? undefined : "Any"}
+            />
+          </View>
+          <View>
+            <Text style={styles.miniLabel}>To</Text>
+            <DateField
+              value={filterEndDate ?? new Date()}
+              mode="date"
+              onChange={setFilterEndDate}
+              label={filterEndDate ? undefined : "Any"}
             />
           </View>
           <TouchableOpacity
             style={styles.filterButtonSecondary}
-            onPress={() => setFilterDate(new Date())}
+            onPress={() => {
+              const today = new Date();
+              setFilterStartDate(today);
+              setFilterEndDate(today);
+            }}
           >
             <Text style={styles.filterButtonSecondaryText}>Today</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.filterButtonSecondary}
-            onPress={() => setFilterDate(null)}
+            onPress={() => {
+              setFilterStartDate(null);
+              setFilterEndDate(null);
+            }}
           >
             <Text style={styles.filterButtonSecondaryText}>All</Text>
           </TouchableOpacity>
@@ -183,13 +208,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   searchInputWeb: { width: "25%" as any, minWidth: 160, marginHorizontal: 16 },
+  miniLabel: { fontSize: 11, fontWeight: "700", color: "#888", marginBottom: 4 },
   filterRow: {
     flexDirection: "row",
+    alignItems: "flex-end",
     gap: 8,
     paddingHorizontal: 16,
     marginBottom: 4,
   },
-  filterDateField: { flex: 1 },
   filterButtonSecondary: {
     backgroundColor: "#e8edff",
     borderRadius: 8,
