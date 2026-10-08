@@ -15,11 +15,11 @@ import { auth, db, functions } from "../firebase/config";
 import {
   AwbLine,
   AwbPriority,
-  computeTripRequestRollup,
   NewTripRequestInput,
+  PublicPayOffer,
   TripRequest,
-  TripRequestStatus,
 } from "../types";
+import { applyAwbAssignment } from "../utils/awbMutations";
 
 // Force a fresh ID token before calling, and retry once on "unauthenticated":
 // on native the cached token can lag behind sign-in state, which makes a
@@ -172,21 +172,13 @@ export async function assignAwbDriver(
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("Trip request not found.");
     const data = snap.data() as TripRequest;
-    const previousDriverId = data.awbLines[awbIndex]?.assignedDriverId ?? null;
-    const awbLines: AwbLine[] = data.awbLines.map((line, i) =>
-      i === awbIndex
-        ? {
-            ...line,
-            assignedDriverId: driverId,
-            assignedDriverName: driverName,
-            status: (driverId ? "assigned" : "submitted") as TripRequestStatus,
-          }
-        : line
-    );
-    const rollup = computeTripRequestRollup(awbLines);
+    const assigned = applyAwbAssignment(data.awbLines, awbIndex, driverId, driverName);
+    const { previousDriverId, awbLines } = assigned;
     const updates: Record<string, unknown> = {
       awbLines,
-      ...rollup,
+      status: assigned.status,
+      assignedDriverIds: assigned.assignedDriverIds,
+      assignedDriverNames: assigned.assignedDriverNames,
       updatedAt: Date.now(),
     };
     // Reassigning a line away from a driver who was mid-trip on it (this is
@@ -197,7 +189,11 @@ export async function assignAwbDriver(
     if (
       previousDriverId &&
       previousDriverId !== driverId &&
-      !awbLines.some((l) => l.assignedDriverId === previousDriverId && l.status === "in_progress")
+      !awbLines.some(
+        (l) =>
+          l.assignedDriverId === previousDriverId &&
+          (l.status === "in_progress" || l.status === "picked_up")
+      )
     ) {
       updates[`driverLocations.${previousDriverId}`] = deleteField();
     }
@@ -308,4 +304,94 @@ export async function updateMyLiveLocation(
   lng: number
 ): Promise<void> {
   await callWithFreshToken(updateMyLiveLocationFn, { requestId, lat, lng });
+}
+
+export interface OpenJob {
+  requestId: string;
+  awbIndex: number;
+  awbNumber: string;
+  qtyPieces: number;
+  type: string;
+  kilograms: number;
+  priority: string;
+  hazmat: boolean;
+  unNumber: string;
+  hazmatClass: string;
+  lengthIn: number | null;
+  widthIn: number | null;
+  heightIn: number | null;
+  tripDate: string;
+  pickupTime: string;
+  from: string;
+  to: string;
+  notes: string;
+  miles: number | null;
+  driveMinutes: number | null;
+  milesApproximate: boolean;
+  destination: { lat: number; lng: number } | null;
+  pay: PublicPayOffer;
+}
+
+const listOpenJobsFn = httpsCallable<
+  { lat?: number; lng?: number } | undefined,
+  { jobs: OpenJob[] }
+>(functions, "listOpenJobs");
+
+export async function listOpenJobs(origin?: { lat: number; lng: number }): Promise<OpenJob[]> {
+  const result = await callWithFreshToken(listOpenJobsFn, origin);
+  return result.jobs;
+}
+
+const acceptOpenAwbFn = httpsCallable<
+  { requestId: string; awbIndex: number },
+  { success: boolean }
+>(functions, "acceptOpenAwb");
+
+export async function acceptOpenAwb(requestId: string, awbIndex: number): Promise<void> {
+  await callWithFreshToken(acceptOpenAwbFn, { requestId, awbIndex });
+}
+
+const acceptAssignedAwbFn = httpsCallable<
+  { requestId: string; awbIndex: number },
+  { success: boolean }
+>(functions, "acceptAssignedAwb");
+
+export async function acceptAssignedAwb(requestId: string, awbIndex: number): Promise<void> {
+  await callWithFreshToken(acceptAssignedAwbFn, { requestId, awbIndex });
+}
+
+const declineAwbLineFn = httpsCallable<
+  { requestId: string; awbIndex: number },
+  { success: boolean }
+>(functions, "declineAwbLine");
+
+export async function declineAwbLine(requestId: string, awbIndex: number): Promise<void> {
+  await callWithFreshToken(declineAwbLineFn, { requestId, awbIndex });
+}
+
+const markAwbPickedUpFn = httpsCallable<
+  { requestId: string; awbIndexes: number[] },
+  { success: boolean }
+>(functions, "markAwbPickedUp");
+
+export async function markAwbPickedUp(requestId: string, awbIndexes: number[]): Promise<void> {
+  await callWithFreshToken(markAwbPickedUpFn, { requestId, awbIndexes });
+}
+
+export interface TripProofGroup {
+  tripLogId: string;
+  awbNumbers: string[];
+  proofFiles: { url: string; name: string; kind: "image" | "document" }[];
+  signature: { url: string; name: string; kind: "image" | "document" } | null;
+  signatureStrokes: number[][][];
+}
+
+const getTripRequestProofsFn = httpsCallable<
+  { requestId: string },
+  { proofs: TripProofGroup[] }
+>(functions, "getTripRequestProofs");
+
+export async function getTripRequestProofs(requestId: string): Promise<TripProofGroup[]> {
+  const result = await callWithFreshToken(getTripRequestProofsFn, { requestId });
+  return result.proofs;
 }

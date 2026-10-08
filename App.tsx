@@ -1,4 +1,5 @@
 import { NavigationContainer } from "@react-navigation/native";
+import "./src/services/liveLocationTask";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { Platform, View } from "react-native";
@@ -8,9 +9,6 @@ import NativeAutoUpdate from "./src/components/NativeAutoUpdate";
 import { AuthProvider } from "./src/context/AuthContext";
 import { navigationRef } from "./src/navigation/navigationRef";
 import RootNavigator from "./src/navigation/RootNavigator";
-// Registers the background location task at launch so the OS can run it
-// even when no screen is mounted.
-import "./src/services/backgroundLocation";
 
 // Gives the web build real URL/history integration so the browser's own
 // back/forward buttons work, instead of only the on-screen back buttons.
@@ -35,8 +33,11 @@ const linking = {
       DispatchDetail: "dispatch-request",
       DispatchNewRequest: "dispatch-new-request",
       MyTripRequests: "my-trip-requests",
+      JobBoard: "job-board",
       DriverTripRequestDetail: "my-trip-request",
       TripHistory: "trip-history",
+      DriverEarnings: "earnings",
+      PayAgreement: "pay-agreement",
     },
   },
 };

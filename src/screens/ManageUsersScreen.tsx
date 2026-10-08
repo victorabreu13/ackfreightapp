@@ -328,6 +328,16 @@ export default function ManageUsersScreen({ navigation }: any) {
                 </TouchableOpacity>
               )}
 
+              {item.role === "driver" && (
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate("PayAgreement", { driverId: item.uid, driverName: item.name })
+                  }
+                >
+                  <Text style={styles.passwordText}>Pay agreement</Text>
+                </TouchableOpacity>
+              )}
+
               <View style={styles.bottomActionsRow}>
                 <TouchableOpacity onPress={() => toggleActive(item)}>
                   <Text style={styles.deactivateText}>

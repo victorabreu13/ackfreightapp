@@ -11,12 +11,16 @@
         "buildType": "apk"
       },
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "distribution": "internal"
       }
     },
     "production": {
       "autoIncrement": true,
-      "channel": "production"
+      "channel": "production",
+      "ios": {
+        "distribution": "store"
+      }
     }
   },
   "submit": {

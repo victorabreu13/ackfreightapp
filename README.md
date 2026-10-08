@@ -1,60 +1,67 @@
-# ACK Freight Driver Log
+# ACK Freight
 
-A mobile app (iPhone + Android, built with Expo/React Native) for truck drivers to log every
-ride they make, and for you (the admin) to see everyone's logs in one place.
+Dispatch and driver-log app for ACK Freight (iOS, Android, and web). Built with Expo / React Native and Firebase.
 
-**Driver side:** log in, tap "Log New Trip", fill in date, start time, finish time, and the
-AWB / document number, attach photo(s) or a document as proof of the freight, and submit.
+Customers (freight forwarders and shippers) file a **trip request**: date, pickup time, from/to, and up to 10 air-waybill lines. Each line has a piece count, unit type (ULD or loose), weight, priority, and optional documents (AWB, letter of authorization, delivery order). Import-fee files can be attached once for the whole request. Those files are stored in Firebase Storage at `tripRequestDocs/{customerId}/{requestId}/...` and the request itself is a Firestore `tripRequests` document.
 
-**Admin side:** log in with an admin account and see every driver's trips in one dashboard,
-filterable by date, with the proof files attached to each trip.
+An **admin** (dispatch) can assign a driver to each AWB line. Unassigned lines also sit on an **open job board**. An on-duty driver can accept one; the first accept wins. A driver who was assigned directly can accept or decline. Declining puts the line back on the board and emails dispatch. Start stays disabled until the driver accepts. After start, the driver marks the freight **picked up**, then completes it with a ULD number, proof photos, and the receiver's signature. Completing writes a separate **trip log** (`trips`) and links it from the AWB line. The customer can open that proof, including the signature, from the request once a line is completed; they do not get direct access to the `trips` collection.
+
+Submitting a request stores a **quote** from that customer's existing billing rate (`billType` / `billRate`): the trip rate once, or the kilogram rate times total weight. If there is no usable rate, the request is stored as **no quote**. The app does not invent lane prices, and editing the weight later does not change the stored quote.
+
+Each driver has a **pay agreement** on their profile (Manage Users → Pay agreement). It can combine a percent of the quote, a flat amount by trip type (ULD/BUP, skid/loose, airport transfer), base plus per mile plus per ULD or skid, and extras for wait time, hazmat, and after hours. Rates start empty. An optional company default (Admin → Driver pay) applies only when that driver's agreement has no rates. With neither, the job says **Pay set by dispatch** and the driver cannot accept until dispatch types an amount on that request. Open-board pay is calculated for the driver who is looking, then saved when they accept. A direct assignment saves that driver's amount when dispatch assigns them. Completed trips lock the offer. An admin adjustment (with a reason) does not change the locked amount. Drivers see the dollar offer only. They cannot open an agreement, another driver's pay, or the customer's price.
+
+Miles and drive time are stored on the request when it is created or the addresses change. That uses the Distance Matrix and Geocoding APIs when the `GOOGLE_MAPS_ROUTES_API_KEY` secret is set. If the key is missing or the call fails, the app uses a straight-line estimate and labels it approximate. The key stays on the server.
+
+Admins also invoice a completed request through QuickBooks Online, review every driver's log, and track driver payroll (per trip or per kilogram). Payroll marks trips paid inside the app. It does not send money.
+
+## Roles
+
+| Role | How they get in | What they do |
+| --- | --- | --- |
+| Customer | Sign up in the app, or an admin creates the account and emails a password reset | File and track trip requests |
+| Driver | Sign up in the app | Go on duty to accept open AWBs, accept or decline a direct assignment, start, mark picked up, and complete, or log a trip by hand. Earnings lists completed trips. |
+| Admin | An existing admin promotes them in **Manage Users** | Dispatch, logs, payroll, users, each driver's pay agreement, QuickBooks |
+
+Signup cannot grant admin. The first admin is created by signing up as a driver or customer and then setting `role` to `admin` on that `users/{uid}` document in the Firebase console (console writes bypass the security rules). After that, use Manage Users.
 
 ## 1. Install Node.js
 
-This project needs Node.js (which is not currently installed on this machine). Install the
-LTS version from [nodejs.org](https://nodejs.org), or via winget:
-
-```bash
-winget install OpenJS.NodeJS.LTS
-```
-
-Restart your terminal afterwards, then confirm it worked:
+This project needs Node.js 22 or newer. Cloud Functions run on the Node.js 22 runtime. Confirm:
 
 ```bash
 node -v
 npm -v
 ```
 
-## 2. Create a Firebase project (free tier is enough)
+## 2. Create a Firebase project
 
-1. Go to the [Firebase console](https://console.firebase.google.com) and create a new project.
+The repo is wired to the Firebase project `ack-freight` (`.firebaserc`).
+
+1. [Firebase console](https://console.firebase.google.com) → use that project (or point `.firebaserc` at another one).
 2. **Authentication** → Sign-in method → enable **Email/Password**.
-3. **Firestore Database** → Create database → start in production mode (the rules in
-   `firestore.rules` in this repo lock it down correctly).
-4. **Storage** → Get started (this is where proof-of-delivery photos/documents are stored).
-5. In **Project settings → General → Your apps**, click the Web icon (`</>`) to register a web
-   app (Expo apps use the Firebase Web SDK even on mobile). Copy the config values shown.
-6. Deploy the security rules (`firestore.rules` and `storage.rules`) via the Firebase console's
-   Rules tab for each product (copy-paste the file contents), or with the Firebase CLI:
-   ```bash
-   npm install -g firebase-tools
-   firebase login
-   firebase init firestore storage   # point it at this folder, use the existing rules files
-   firebase deploy --only firestore:rules,storage:rules
-   ```
+3. **Firestore Database** → create the database. Deploy `firestore.rules` (do not leave the database in test mode).
+4. **Storage** → get started, then deploy `storage.rules`.
+5. In **Project settings → General → Your apps**, register a Web app. Expo uses the Firebase Web SDK on every platform. Copy the config into `.env` (see below).
+6. Deploy rules and indexes:
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase use ack-freight
+firebase deploy --only firestore,storage
+```
 
 ## 3. Configure the app
-
-Copy `.env.example` to `.env` and paste in the config values from step 2.5:
 
 ```bash
 cp .env.example .env
 ```
 
-`EXPO_PUBLIC_ADMIN_EMAILS` is pre-filled with your email (victor.abreu13@gmail.com) — anyone
-who signs up in the app with an email in that comma-separated list automatically becomes an
-admin and sees the Team Log dashboard instead of the driver screen. Add more admin emails there
-if needed. Everyone else who signs up becomes a driver by default.
+Fill in the `EXPO_PUBLIC_FIREBASE_*` values from the Firebase web app config.
+
+The trip map uses Apple Maps on iPhone and does not need a Google key. Android builds need `GOOGLE_MAPS_ANDROID_API_KEY` so `react-native-maps` can load tiles. `app.config.js` reads it at build time and does not commit a key. For EAS Build, set the same name as an [EAS secret](https://docs.expo.dev/build-reference/variables/). Restrict the key in Google Cloud to package `com.ackfreight.driverlog`.
+
+Web live tracking uses a keyless Google Maps embed and does not need this variable. Navigate offers Apple Maps, Google Maps, and Waze, and opens the website when that app is not installed.
 
 ## 4. Install dependencies and run
 
@@ -64,77 +71,142 @@ npx expo install --fix
 npx expo start
 ```
 
-`expo install --fix` aligns every native package (camera, date picker, etc.) to the exact
-versions your installed Expo SDK expects — always run it once after `npm install`.
+`expo install --fix` aligns native packages to the Expo SDK. To try it on a phone without a store build, use the Expo Go app and the QR code from `npx expo start`.
 
-This opens the Expo developer tools. To test on your phone with no app-store submission needed:
+- `npm run web` starts the web app. Admins use the web app for payroll, driver records, deleted trips, Drivers Available, and the QuickBooks connection.
+- `npm test` runs the Cloud Function unit tests and the assignment helper tests.
+- `npm run test:rules` runs the Firestore rules against the emulator (Java 21 required).
 
-1. Install the **Expo Go** app from the App Store (iPhone) or Play Store (Android).
-2. Scan the QR code shown in the terminal/browser with your phone (iPhone: use the Camera app;
-   Android: use the Expo Go app's scanner).
-3. The app opens live on your phone. Sign up as a driver on one phone/account, and sign up with
-   your admin email on another to see the Team Log view.
+## 5. How the data is stored
 
-## 5. How it works
+- **Auth.** Firebase Authentication, email and password. Each person has a `users/{uid}` document with `role` of `admin`, `driver`, or `customer`.
+- **Trip requests.** `tripRequests`. The request status moves `submitted` → `assigned` → `in_progress` → `completed` → `invoiced`, or `cancelled`. Each AWB line has its own status: `submitted` (on the board), `assigned` (waiting for the driver), `accepted`, `in_progress` (started), `picked_up`, `completed`. Customers can edit route, schedule, notes, cargo (including dimensions, hazmat, and the Skid type), and files until a driver starts the request. They cannot change who is assigned or a line's status. `users.onDuty` is the driver's job-board switch.
+- **Website leads.** `leads`. The public `websiteIntake` function creates a pending lead. Dispatch approves it into a trip request only when a customer account already uses that email.
+- **Trip logs.** `trips`. Proof files live in Storage at `proofs/{driverId}/...`. Customers see those files only through the `getTripRequestProofs` Cloud Function, and only for logs linked from their own request.
+- **Duplicate ULD numbers.** `checkDuplicateUld` and `submitTripLog` look up `tripUldKeys` (server-only). They do not scan every trip and they do not return the other driver's name. After deploying functions, run `backfillTripUldKeys` once so trips logged before the index existed are included. See the pull request notes if you are upgrading.
+- **Live location.** While a driver has a started or picked-up line, the app writes a single current point to `tripRequests.driverLocations.{driverId}`. On a phone it keeps updating in the background (that needs a new store build, not an OTA update). On the web it updates while the app is open. It is not a route. Dispatch sees a warning when that point is missing or more than three minutes old.
+- **Driver pay.** `driverPayAgreements/{driverId}` and `config/driverPayDefault` are admin-only, and only Cloud Functions write them. Each change is appended to `driverPayAgreementLogs` with the date and the admin. `awbPay/{requestId}_{awbIndex}` is the snapshotted offer. A driver can read only the rows where `driverId` is their own uid. Customers cannot read pay. `awbPayOverrides` and `driverPayAudit` are admin-only.
 
-- **Auth & roles**: Firebase Authentication (email/password). Each user gets a `users/{uid}`
-  document in Firestore with a `role` of `admin` or `driver`.
-- **Trips**: each submitted trip is a document in the `trips` collection with the date, start/
-  finish time, AWB/document number, notes, and an array of proof file URLs. Trips are
-  write-once (drivers can't edit or delete a submitted trip) — see `firestore.rules`.
-- **Proof files**: uploaded to Firebase Storage under `proofs/{driverId}/...`, and the download
-  URL is saved on the trip document. Drivers can only write to their own folder; admins can
-  read every folder.
-- **Admin dashboard**: subscribes to all trips in real time, with a date filter (defaults to
-  today) and a driver count/trip count summary.
+## 6. Cloud Functions
 
-## 6. Daily email summary for admins (Cloud Function)
+`functions/index.js` sends mail through Gmail (daily trip summary at 11:59 PM `America/New_York`, plus mail when a request is created, a driver is assigned or declines, a trip starts, freight is picked up, a trip is completed, or a trip is deleted), Expo push notifications on native, QuickBooks invoicing, user administration, website intake, and the trip-log / proof / ULD-index callables. Functions run on Node.js 22.
 
-Every night at 11:59 PM (America/New_York — edit `TIME_ZONE` in `functions/index.js` if your
-fleet is elsewhere), a Cloud Function runs automatically, gathers every trip logged that day,
-and emails a summary table (grouped by driver) to everyone with the `admin` role. This runs on
-Google's servers — it works even if no one has the app open.
+### Website intake (Wix)
 
-One-time setup:
+`websiteIntake` is an HTTPS function. It creates a **pending lead**, not a trip request. It rejects every call unless `INTAKE_SHARED_SECRET` is set (or `RECAPTCHA_SECRET` is set and the body includes a token that verifies). It allows 8 requests per hour per IP.
 
-1. **Generate a Gmail App Password** (the account that will send the emails):
-   - Turn on 2-Step Verification on that Google account if it isn't already: https://myaccount.google.com/security
-   - Go to https://myaccount.google.com/apppasswords, create a new app password (name it
-     "ACK Freight"), and copy the 16-character password shown.
-2. **Install the Firebase CLI and link this project** (run these yourself in a terminal, in
-   this project folder):
-   ```bash
-   npm install -g firebase-tools
-   firebase login
-   firebase use ack-freight
-   ```
-   `firebase login` opens your browser for you to sign in with the same Google account that
-   owns the `ack-freight` Firebase project.
-3. **Store the Gmail credentials as secrets** (run these yourself — they'll prompt you to type
-   the value, which keeps it out of any file or chat history):
-   ```bash
-   firebase functions:secrets:set GMAIL_USER
-   firebase functions:secrets:set GMAIL_APP_PASSWORD
-   ```
-   For `GMAIL_USER` enter the full Gmail address; for `GMAIL_APP_PASSWORD` enter the 16-character
-   app password from step 1.
-4. **Deploy the function**:
-   ```bash
-   cd functions
-   npm install
-   cd ..
-   firebase deploy --only functions
-   ```
+Create the secret before the first deploy, or that deploy fails:
 
-To test it immediately instead of waiting until 11:59 PM, open the
-[Cloud Scheduler console](https://console.cloud.google.com/cloudscheduler), find the job
-`sendDailyTripSummary`, and click **Run now**.
+```bash
+firebase functions:secrets:set INTAKE_SHARED_SECRET
+```
 
-## 7. Going further (when you're ready to publish to the App Store / Play Store)
+Call it from **Wix Velo backend code** (a backend web module or `http-functions.js`), never from the public page, so the secret is not in the browser:
 
-This prototype runs great in Expo Go for testing with your drivers immediately. When you want a
-real installable app icon on their home screens and store listings, use
-[EAS Build](https://docs.expo.dev/build/introduction/) (`npx eas-cli build`) — no code changes
-needed, it's the same project. That step costs nothing to try but does involve Apple
-Developer ($99/yr) and Google Play ($25 one-time) developer accounts, which I can walk you
-through when you get there.
+```javascript
+import { fetch } from 'wix-fetch';
+
+export async function post_freightLead(request) {
+  const body = await request.body.json();
+  const response = await fetch('https://us-central1-ack-freight.cloudfunctions.net/websiteIntake', {
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-ack-intake-secret': 'THE_SECRET',
+    },
+    body: JSON.stringify({
+      contactName: body.contactName,
+      email: body.email,
+      from: body.from,
+      to: body.to,
+      tripDate: body.tripDate,       // optional, YYYY-MM-DD
+      pickupTime: body.pickupTime,   // optional, HH:mm
+      notes: body.notes,
+      phone: body.phone,
+      awbNumber: body.awbNumber,
+      qtyPieces: body.qtyPieces,
+      type: body.type,               // Loose, Skid, or a ULD type
+      kilograms: body.kilograms,
+      lengthIn: body.lengthIn,
+      widthIn: body.widthIn,
+      heightIn: body.heightIn,
+      hazmat: body.hazmat,
+      unNumber: body.unNumber,
+      hazmatClass: body.hazmatClass,
+    }),
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || 'Intake failed');
+  }
+  return payload;
+}
+```
+
+Required fields are `contactName`, `email`, `from`, and `to`. A successful call returns `{ id, status: "pending" }`. Dispatch approves or dismisses the lead in the app. Approval fails until a customer user exists with that email. Optional reCAPTCHA: set the function environment variable `RECAPTCHA_SECRET` and send `recaptchaToken` in the JSON body.
+
+One-time email setup:
+
+1. Turn on 2-Step Verification for the sending Google account and create an [app password](https://myaccount.google.com/apppasswords).
+2. Store it as secrets (the CLI prompts; the values are not written into the repo):
+
+```bash
+firebase functions:secrets:set GMAIL_USER
+firebase functions:secrets:set GMAIL_APP_PASSWORD
+```
+
+3. Deploy functions (from the repo root, after `npm install` inside `functions/`):
+
+```bash
+cd functions && npm install && cd ..
+firebase deploy --only functions
+```
+
+QuickBooks uses separate secrets (`QB_PROD_CLIENT_ID`, `QB_PROD_CLIENT_SECRET`, and the sandbox pair). An admin connects the company from the Dispatch screen on the web app. The OAuth redirect is `https://us-central1-ack-freight.cloudfunctions.net/quickbooksOAuthCallback`.
+
+To test the nightly summary without waiting, open Cloud Scheduler, find `sendDailyTripSummary`, and click **Run now**.
+
+## 7. Web hosting
+
+`npm run deploy:web` exports the Expo web bundle and deploys Firebase Hosting for project `ack-freight`. Do that only when you mean to publish. The legal pages in `legal/` are copied into the hosting output.
+
+## 8. Store builds and TestFlight
+
+Store binaries are built with [EAS Build](https://docs.expo.dev/build/introduction/) (`npx eas-cli build`). `eas.json` has a preview profile and a production profile. Set `GOOGLE_MAPS_ANDROID_API_KEY` in the build environment before building Android. Camera, photo library, and background location are native permission changes, so they need a new iOS build. An OTA update cannot add them.
+
+The driver app is meant to run on iPhone. Camera and photo-library prompts use `NSCameraUsageDescription` and `NSPhotoLibraryUsageDescription`. The app does not record audio, so it does not ask for the microphone. While a trip is started or picked up, the app asks for location While Using first, then Always. Always keeps sharing in the background and shows the blue location indicator. If the driver stays on While Using, sharing continues only while the app is open.
+
+Push uses an Expo push token. Expo delivers that token to Apple through the APNs key stored in EAS. The new-job notification includes that driver's pay. A simulator cannot receive it. The iPhone build has to be installed from TestFlight or an internal install.
+
+### TestFlight (production)
+
+This needs an Apple Developer account that can manage bundle id `com.ackfreight.driverlog` and App Store Connect app `6809931321`, plus EAS access for owner `victor.abreu13`.
+
+1. `npx eas-cli login`
+2. Upload the APNs key once, if it is not already on this project: `npx eas-cli credentials -p ios`. Choose the production profile, then Push Notifications, and upload the Apple `.p8` key (Key ID and Team ID). Without that key, iPhones do not get new-job pushes.
+3. Build the store binary:
+
+```bash
+npx eas-cli build --platform ios --profile production
+```
+
+4. When the build finishes, send it to App Store Connect (the production submit profile already has `ascAppId` `6809931321`):
+
+```bash
+npx eas-cli submit --platform ios --profile production
+```
+
+5. In App Store Connect → the app → TestFlight, wait until the build finishes processing. Internal testers (people on the App Store Connect team) can install it immediately. An external group needs a short Beta App Review the first time.
+
+### Internal install (registered devices)
+
+The preview profile is an ad hoc iOS build, not TestFlight. Each iPhone has to be registered first:
+
+```bash
+npx eas-cli device:create
+npx eas-cli build --platform ios --profile preview
+```
+
+Open the install link from the EAS build page on that iPhone. Android preview is still an APK (`eas.json` `android.buildType`).
+
+OTA updates (`eas update`) ship JavaScript changes to installs that already include `expo-updates`. Do not publish an update until the matching Cloud Functions and security rules are deployed.

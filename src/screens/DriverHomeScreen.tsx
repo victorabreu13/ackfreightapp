@@ -1,14 +1,22 @@
-import React, { useEffect } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { registerForPushNotifications, syncBadgeCount } from "../services/notifications";
+import { setOnDuty } from "../services/users";
+import { notify } from "../utils/alert";
 
 const TILES = [
+  {
+    key: "JobBoard",
+    icon: "📋",
+    label: "Open Jobs",
+    description: "Unassigned AWBs you can accept while on duty",
+  },
   {
     key: "MyTripRequests",
     icon: "🚚",
     label: "Trip Requests",
-    description: "Trips assigned to you by dispatch",
+    description: "Trips assigned to you, or that you accepted",
   },
   {
     key: "NewTrip",
@@ -22,15 +30,40 @@ const TILES = [
     label: "Trip History",
     description: "Every trip you've completed and logged",
   },
+  {
+    key: "DriverEarnings",
+    icon: "💵",
+    label: "Earnings",
+    description: "Today, this week, and past weeks",
+  },
 ] as const;
 
 export default function DriverHomeScreen({ navigation }: any) {
   const { user, profile, signOut } = useAuth();
+  const [onDuty, setOnDutyState] = useState(profile?.onDuty === true);
+  const [savingDuty, setSavingDuty] = useState(false);
+
+  useEffect(() => {
+    setOnDutyState(profile?.onDuty === true);
+  }, [profile?.onDuty]);
 
   useEffect(() => {
     registerForPushNotifications();
     if (user) syncBadgeCount(user.uid);
   }, [user]);
+
+  const toggleDuty = async (next: boolean) => {
+    setOnDutyState(next);
+    setSavingDuty(true);
+    try {
+      await setOnDuty(next);
+    } catch (err: any) {
+      setOnDutyState(!next);
+      notify("Couldn't update duty", err?.message ?? "Try again.");
+    } finally {
+      setSavingDuty(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -42,6 +75,18 @@ export default function DriverHomeScreen({ navigation }: any) {
         <TouchableOpacity onPress={signOut}>
           <Text style={styles.signOut}>Log out</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.dutyCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.dutyTitle}>{onDuty ? "On duty" : "Off duty"}</Text>
+          <Text style={styles.dutyHint}>
+            {onDuty
+              ? "Open jobs are visible. Dispatch can still assign you directly."
+              : "Turn this on to see unassigned AWBs."}
+          </Text>
+        </View>
+        <Switch value={onDuty} onValueChange={toggleDuty} disabled={savingDuty} />
       </View>
 
       <View style={styles.tileGrid}>
@@ -74,6 +119,17 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 24, fontWeight: "800", color: "#111" },
   subGreeting: { fontSize: 14, color: "#666" },
   signOut: { color: "#c0392b", fontSize: 15, fontWeight: "600" },
+  dutyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    marginHorizontal: 24,
+    marginBottom: 20,
+    borderRadius: 16,
+    padding: 16,
+  },
+  dutyTitle: { fontSize: 16, fontWeight: "800", color: "#111" },
+  dutyHint: { fontSize: 13, color: "#666", marginTop: 4, paddingRight: 12 },
   tileGrid: {
     flexDirection: "row",
     flexWrap: "wrap",

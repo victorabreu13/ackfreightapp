@@ -12,8 +12,8 @@ import {
   signOut as firebaseSignOut,
   User,
 } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { ADMIN_EMAILS, auth, db } from "../firebase/config";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { auth, db } from "../firebase/config";
 import { UserProfile } from "../types";
 
 interface AuthContextValue {
@@ -40,31 +40,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
-      if (firebaseUser) {
-        try {
-          const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-          setProfile(snap.exists() ? (snap.data() as UserProfile) : null);
-          setAuthError(null);
-        } catch (err: any) {
-          console.error("Failed to load user profile:", err);
-          setProfile(null);
-          setAuthError(
-            `Signed in, but couldn't load your account data (${err?.code ?? err?.message ?? "unknown error"}). Please try again or contact support.`
-          );
-          // Sign back out so the app doesn't sit in a half-authenticated
-          // limbo state — the user lands back on the login screen with
-          // the error message visible instead of a silent stuck spinner.
-          await firebaseSignOut(auth);
-        }
-      } else {
+      if (!firebaseUser) {
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = onSnapshot(
+      doc(db, "users", user.uid),
+      (snap) => {
+        setProfile(snap.exists() ? (snap.data() as UserProfile) : null);
+        setAuthError(null);
+        setLoading(false);
+      },
+      async (err) => {
+        console.error("Failed to load user profile:", err);
+        setProfile(null);
+        setAuthError(
+          `Signed in, but couldn't load your account data (${err?.code ?? err?.message ?? "unknown error"}). Please try again or contact support.`
+        );
+        setLoading(false);
+        // Sign back out so the app doesn't sit in a half-authenticated
+        // limbo state — the user lands back on the login screen with
+        // the error message visible instead of a silent stuck spinner.
+        await firebaseSignOut(auth);
+      }
+    );
+    return unsubscribe;
+  }, [user]);
 
   const signIn = async (email: string, password: string) => {
     setAuthError(null);
@@ -77,20 +86,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     requestedRole: "driver" | "customer"
   ) => {
-    const trimmedEmail = email.trim();
     const credential = await createUserWithEmailAndPassword(
       auth,
-      trimmedEmail,
+      email.trim(),
       password
     );
-    const role = ADMIN_EMAILS.includes(trimmedEmail.toLowerCase())
-      ? "admin"
-      : requestedRole;
+    // The profile email has to match the Auth token. Security rules reject
+    // any other value, and reject role "admin" — an existing admin promotes
+    // accounts from Manage Users (setUserRole).
+    await credential.user.getIdToken(true);
+    const canonicalEmail = credential.user.email;
+    if (!canonicalEmail) {
+      throw new Error("Couldn't read the new account email.");
+    }
     const newProfile: UserProfile = {
       uid: credential.user.uid,
-      email: trimmedEmail,
+      email: canonicalEmail,
       name: name.trim(),
-      role,
+      role: requestedRole,
       createdAt: Date.now(),
     };
     await setDoc(doc(db, "users", credential.user.uid), newProfile);

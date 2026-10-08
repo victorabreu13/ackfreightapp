@@ -153,6 +153,7 @@ export default function DispatchNewRequestScreen({ navigation }: any) {
             submitLabel="Create Trip Request"
             onSubmit={handleSubmit}
             driverAssignment={{ drivers }}
+            billing={selectedCustomer}
           />
         </>
       )}
