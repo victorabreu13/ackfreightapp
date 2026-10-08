@@ -7,7 +7,10 @@ const {
   applyComplete,
   applyDecline,
   applyPickup,
+  applyRemoveLine,
   applyStart,
+  awbKey,
+  awbKeysFromRequest,
   driversGainingAwbLines,
   linesEnteringStatus,
 } = require("../awbLogic");
@@ -318,5 +321,44 @@ describe("status transitions", () => {
       2
     );
     assert.equal(result.changed, false);
+  });
+});
+
+describe("awb keys", () => {
+  it("ignores case, spaces and dashes", () => {
+    assert.equal(awbKey("416-5234 5016"), "41652345016");
+    assert.equal(awbKey(" 416-abc "), "416ABC");
+  });
+
+  it("indexes every line, de-duplicated, and frees cancelled requests", () => {
+    const req = { status: "submitted", awbLines: [line({ awbNumber: "416-111" }), line({ awbNumber: "416111" }), line({ awbNumber: "222" })] };
+    assert.deepEqual(awbKeysFromRequest(req), ["222", "416111"]);
+    assert.deepEqual(awbKeysFromRequest({ ...req, status: "cancelled" }), []);
+  });
+});
+
+describe("applyRemoveLine", () => {
+  const three = () => [
+    line({ awbNumber: "1", status: "submitted" }),
+    line({ awbNumber: "2", assignedDriverId: "drv1", assignedDriverName: "Dee", status: "assigned" }),
+    line({ awbNumber: "3", status: "submitted" }),
+  ];
+
+  it("removes an unstarted line and recomputes the rollup", () => {
+    const result = applyRemoveLine(three(), 1);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.awbLines.map((l) => l.awbNumber), ["1", "3"]);
+    assert.equal(result.status, "submitted");
+    assert.deepEqual(result.assignedDriverIds, []);
+  });
+
+  it("refuses lines on the road, completed lines, and the last line", () => {
+    for (const status of ["in_progress", "picked_up", "completed"]) {
+      const lines = three();
+      lines[0] = { ...lines[0], assignedDriverId: "drv1", assignedDriverName: "Dee", status };
+      assert.equal(applyRemoveLine(lines, 0).ok, false);
+    }
+    assert.equal(applyRemoveLine([line({ awbNumber: "1" })], 0).ok, false);
+    assert.equal(applyRemoveLine(three(), 9).ok, false);
   });
 });

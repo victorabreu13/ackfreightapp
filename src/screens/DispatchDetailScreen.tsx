@@ -16,6 +16,7 @@ import { sendQuickBooksInvoice } from "../services/quickbooks";
 import { getUserProfile, setCustomerBillRate, subscribeToActiveDrivers } from "../services/users";
 import {
   assignAwbDriver,
+  removeAwbLine,
   setTripRequestStatus,
   subscribeToTripRequest,
   updateAwbKilograms,
@@ -58,6 +59,7 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
   const [request, setRequest] = useState(initialRequest);
   const [drivers, setDrivers] = useState<UserProfile[]>([]);
   const [assigningIndex, setAssigningIndex] = useState<number | null>(null);
+  const [removingIndex, setRemovingIndex] = useState<number | null>(null);
   const [changingStatus, setChangingStatus] = useState(false);
   const [editingKgIndex, setEditingKgIndex] = useState<number | null>(null);
   const [editKgValue, setEditKgValue] = useState("");
@@ -236,6 +238,34 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
     }
   };
 
+  const handleRemoveAwb = (awbIndex: number) => {
+    const line = request.awbLines[awbIndex];
+    confirmAction(
+      {
+        title: `Remove AWB ${line.awbNumber}?`,
+        message: line.assignedDriverName
+          ? `It will be taken off this trip and off ${line.assignedDriverName}'s list. This can't be undone.`
+          : "It will be taken off this trip. This can't be undone.",
+        confirmLabel: "Remove",
+        destructive: true,
+      },
+      async () => {
+        setRemovingIndex(awbIndex);
+        try {
+          await removeAwbLine(request.id, awbIndex);
+          setRequest((prev) => {
+            const awbLines = prev.awbLines.filter((_, i) => i !== awbIndex);
+            return { ...prev, awbLines, ...computeTripRequestRollup(awbLines) };
+          });
+        } catch (e: any) {
+          notify("Couldn't remove AWB", e?.message ?? "Something went wrong. Please try again.");
+        } finally {
+          setRemovingIndex(null);
+        }
+      }
+    );
+  };
+
   const changeStatus = (status: TripRequestStatus, confirmTitle: string) => {
     confirmAction(
       { title: confirmTitle, confirmLabel: "Confirm", destructive: status === "cancelled" },
@@ -313,6 +343,18 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
                   onSelect={(driver) => handleAssign(i, driver)}
                   disabled={locked}
                 />
+              )}
+              {removingIndex === i ? (
+                <ActivityIndicator style={styles.removeButton} />
+              ) : (
+                request.awbLines.length > 1 &&
+                (line.status === "submitted" ||
+                  line.status === "assigned" ||
+                  line.status === "accepted") && (
+                  <TouchableOpacity style={styles.removeButton} onPress={() => handleRemoveAwb(i)}>
+                    <Text style={styles.removeButtonText}>Remove</Text>
+                  </TouchableOpacity>
+                )
               )}
             </View>
           );
@@ -546,6 +588,14 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   priorityButtonText: { fontWeight: "700", fontSize: 13 },
+  removeButton: {
+    backgroundColor: "#fdecea",
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginLeft: 10,
+  },
+  removeButtonText: { color: "#c0392b", fontWeight: "700", fontSize: 13 },
   priorityModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",

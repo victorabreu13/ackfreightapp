@@ -4,6 +4,7 @@ const {
   onDocumentCreated,
   onDocumentDeleted,
   onDocumentUpdated,
+  onDocumentWritten,
 } = require("firebase-functions/v2/firestore");
 const { defineSecret } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
@@ -16,10 +17,14 @@ const {
   applyComplete,
   applyDecline,
   applyPickup,
+  applyRemoveLine,
   applyStart,
+  awbKey,
+  awbKeysFromRequest,
   driverStillOnTrip,
   driversGainingAwbLines,
   linesEnteringStatus,
+  sameKeyList,
 } = require("./awbLogic");
 const { intakeAuthorized, rateLimitDecision, validateIntakePayload } = require("./intake");
 const { proofsForRequest } = require("./proofs");
@@ -1074,6 +1079,127 @@ exports.declineAwbLine = onCall(
     return { success: true };
   }
 );
+
+// ---------------------------------------------------------------------------
+// One AWB, one trip. Every trip request carries `awbKeys` (normalized AWB
+// numbers; empty once cancelled) kept up to date by the trigger below, so
+// checking "is this AWB already on another trip" is a single indexed query.
+// Customers can't read each other's requests, so the check runs server-side
+// and only ever answers yes/no per AWB number.
+// ---------------------------------------------------------------------------
+exports.onTripRequestIndexAwbKeys = onDocumentWritten("tripRequests/{requestId}", async (event) => {
+  const after = event.data?.after;
+  if (!after?.exists) return;
+  const data = after.data();
+  const keys = awbKeysFromRequest(data);
+  if (sameKeyList(data.awbKeys, keys)) return;
+  await after.ref.update({ awbKeys: keys });
+});
+
+// Requests created before awbKeys existed get them once, the first time anyone
+// runs the check after this deploys.
+async function ensureAwbKeysBackfilled(db) {
+  const marker = db.collection("config").doc("awbKeysBackfill");
+  if ((await marker.get()).exists) return;
+  let last = null;
+  for (;;) {
+    let query = db.collection("tripRequests").orderBy(admin.firestore.FieldPath.documentId()).limit(300);
+    if (last) query = query.startAfter(last);
+    const snap = await query.get();
+    if (snap.empty) break;
+    const batch = db.batch();
+    let writes = 0;
+    for (const doc of snap.docs) {
+      const keys = awbKeysFromRequest(doc.data());
+      if (!sameKeyList(doc.data().awbKeys, keys)) {
+        batch.update(doc.ref, { awbKeys: keys });
+        writes++;
+      }
+    }
+    if (writes > 0) await batch.commit();
+    last = snap.docs[snap.docs.length - 1];
+  }
+  await marker.set({ doneAt: Date.now() });
+}
+
+exports.checkAwbInUse = onCall({ invoker: "public", timeoutSeconds: 180 }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const { awbNumbers, excludeRequestId } = request.data || {};
+  if (!Array.isArray(awbNumbers) || awbNumbers.length > 100) {
+    throw new HttpsError("invalid-argument", "awbNumbers must be a list of at most 100 AWB numbers.");
+  }
+  const db = admin.firestore();
+  await ensureAwbKeysBackfilled(db);
+
+  const inUse = [];
+  const seen = new Set();
+  for (const raw of awbNumbers) {
+    const key = awbKey(raw);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const snap = await db.collection("tripRequests").where("awbKeys", "array-contains", key).get();
+    const elsewhere = snap.docs.some(
+      (doc) => doc.id !== excludeRequestId && doc.data().status !== "cancelled"
+    );
+    if (elsewhere) inUse.push(String(raw).trim());
+  }
+  return { inUse };
+});
+
+// Admin takes an AWB off a trip request. Pay records are keyed by the line's
+// position (`<requestId>_<index>`), so the ones after the removed line shift
+// down with it.
+exports.removeAwbLine = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const { requestId, awbIndex } = request.data || {};
+  if (!requestId || !Number.isInteger(awbIndex) || awbIndex < 0) {
+    throw new HttpsError("invalid-argument", "requestId and awbIndex are required.");
+  }
+  const db = admin.firestore();
+  const ref = db.collection("tripRequests").doc(requestId);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const data = snap.data();
+    const lines = data.awbLines || [];
+    const removed = applyRemoveLine(lines, awbIndex);
+    if (!removed.ok) throw new HttpsError("failed-precondition", removed.message);
+
+    const payRefs = [];
+    for (const collection of ["awbPay", "awbPayOverrides"]) {
+      for (let i = awbIndex; i < lines.length; i++) {
+        payRefs.push({ collection, index: i, ref: db.collection(collection).doc(payDocId(requestId, i)) });
+      }
+    }
+    const paySnaps = await Promise.all(payRefs.map((entry) => tx.get(entry.ref)));
+
+    tx.update(ref, {
+      awbLines: removed.awbLines,
+      status: removed.status,
+      assignedDriverIds: removed.assignedDriverIds,
+      assignedDriverNames: removed.assignedDriverNames,
+      awbKeys: awbKeysFromRequest({ status: removed.status, awbLines: removed.awbLines }),
+      updatedAt: Date.now(),
+    });
+    // Delete first, then write the shifted copies, so a doc that is both
+    // vacated and refilled ends up holding the shifted data.
+    payRefs.forEach((entry, i) => {
+      if (paySnaps[i].exists) tx.delete(entry.ref);
+    });
+    payRefs.forEach((entry, i) => {
+      if (entry.index > awbIndex && paySnaps[i].exists) {
+        tx.set(
+          db.collection(entry.collection).doc(payDocId(requestId, entry.index - 1)),
+          { ...paySnaps[i].data(), awbIndex: entry.index - 1 }
+        );
+      }
+    });
+  });
+
+  return { success: true };
+});
 
 exports.markAwbPickedUp = onCall({ invoker: "public" }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");

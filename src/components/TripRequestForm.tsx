@@ -13,6 +13,7 @@ import {
 import AwbDriverPicker from "./AwbDriverPicker";
 import DateField from "./DateField";
 import { uploadTripRequestFile } from "../services/storage";
+import { checkAwbInUse } from "../services/tripRequests";
 import {
   AWB_PRIORITIES,
   AwbLine,
@@ -249,6 +250,25 @@ export default function TripRequestForm({
 
     setSubmitting(true);
     try {
+      // One AWB, one trip: refuse numbers already on another trip request. If
+      // the check itself can't run (offline), don't block the customer.
+      let inUse: string[] = [];
+      try {
+        inUse = await checkAwbInUse(
+          lines.map((l) => l.awbNumber.trim()),
+          requestId
+        );
+      } catch (err) {
+        console.error("AWB duplicate check failed:", err);
+      }
+      if (inUse.length > 0) {
+        notify(
+          "AWB already on a trip",
+          `${inUse.join(", ")} ${inUse.length === 1 ? "is" : "are"} already on another trip request. Remove ${inUse.length === 1 ? "it" : "them"} from this one, or ask dispatch to move it.`
+        );
+        return;
+      }
+
       const awbLines: AwbLine[] = [];
       for (let i = 0; i < lines.length; i++) {
         const l = lines[i];

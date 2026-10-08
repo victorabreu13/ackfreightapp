@@ -228,7 +228,50 @@ function applyAssignment(awbLines, awbIndex, driverId, driverName) {
   return { previousDriverId, awbLines: nextLines, ...computeRollup(nextLines) };
 }
 
+// Comparison key for "is this AWB already on another trip": case, spaces and
+// dashes don't matter ("416-5234 5016" and "41652345016" are the same AWB).
+function awbKey(value) {
+  return String(value ?? "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+// Keys stored on the request as `awbKeys` so "is this AWB used elsewhere" is one
+// indexed query. A cancelled request frees its AWBs.
+function awbKeysFromRequest(req) {
+  if (!req || req.status === "cancelled") return [];
+  return [...new Set((req.awbLines || []).map((l) => awbKey(l.awbNumber)).filter(Boolean))].sort();
+}
+
+function sameKeyList(a, b) {
+  return Array.isArray(a) && a.length === b.length && a.every((k, i) => k === b[i]);
+}
+
+// Admin removes an AWB from a trip request. Lines that are on the road or done
+// stay (they carry a driver's trip log / pay); the last line can't go (cancel
+// the request instead).
+function applyRemoveLine(awbLines, awbIndex) {
+  const lines = awbLines || [];
+  const line = lines[awbIndex];
+  if (!line) return { ok: false, message: "That AWB isn't on this trip request." };
+  if (lines.length === 1) {
+    return { ok: false, message: "A trip request needs at least one AWB. Cancel the trip request instead." };
+  }
+  if (line.status === "in_progress" || line.status === "picked_up") {
+    return { ok: false, message: "A driver is already on the road with this AWB. Unassign the driver first." };
+  }
+  if (line.status === "completed") {
+    return { ok: false, message: "This AWB is already completed and can't be removed." };
+  }
+  const nextLines = lines.filter((_, index) => index !== awbIndex);
+  return { ok: true, awbLines: nextLines, ...computeRollup(nextLines) };
+}
+
 module.exports = {
+  awbKey,
+  awbKeysFromRequest,
+  sameKeyList,
+  applyRemoveLine,
   normalizeAwb,
   computeRollup,
   driversGainingAwbLines,

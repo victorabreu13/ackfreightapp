@@ -280,6 +280,32 @@ export async function startMyAwbLines(requestId: string): Promise<void> {
   await callWithFreshToken(startMyAwbLinesFn, { requestId });
 }
 
+const removeAwbLineFn = httpsCallable<
+  { requestId: string; awbIndex: number },
+  { success: boolean }
+>(functions, "removeAwbLine");
+
+// Admin-only: takes one AWB off a trip request (server refuses lines already
+// on the road or completed, and the last remaining line).
+export async function removeAwbLine(requestId: string, awbIndex: number): Promise<void> {
+  await callWithFreshToken(removeAwbLineFn, { requestId, awbIndex });
+}
+
+const checkAwbInUseFn = httpsCallable<
+  { awbNumbers: string[]; excludeRequestId?: string },
+  { inUse: string[] }
+>(functions, "checkAwbInUse");
+
+// Which of these AWB numbers already sit on another (non-cancelled) trip
+// request. excludeRequestId keeps a request's own AWBs from counting against it.
+export async function checkAwbInUse(
+  awbNumbers: string[],
+  excludeRequestId?: string
+): Promise<string[]> {
+  const result = await callWithFreshToken(checkAwbInUseFn, { awbNumbers, excludeRequestId });
+  return result.inUse;
+}
+
 const completeMyAwbLinesFn = httpsCallable<
   { requestId: string; tripLogId: string; awbIndexes: number[] },
   { success: boolean }
