@@ -18,7 +18,18 @@ const PRIORITY_COLORS: Record<AwbPriority, { bg: string; text: string }> = {
   High: { bg: "#fdecea", text: "#c0392b" },
 };
 
-export default function TripRequestReadOnly({ request }: { request: TripRequest }) {
+// onlyDriverId: on the driver side, show just the AWBs assigned to that driver
+// — a request can split its AWBs across several drivers.
+export default function TripRequestReadOnly({
+  request,
+  onlyDriverId,
+}: {
+  request: TripRequest;
+  onlyDriverId?: string;
+}) {
+  const awbLines = onlyDriverId
+    ? request.awbLines.filter((l) => l.assignedDriverId === onlyDriverId)
+    : request.awbLines;
   return (
     <View style={{ marginTop: 10 }}>
       <View style={styles.section}>
@@ -47,7 +58,7 @@ export default function TripRequestReadOnly({ request }: { request: TripRequest 
       <LiveTrackingSection request={request} />
 
       <Text style={styles.sectionTitle}>AWBs</Text>
-      {request.awbLines.map((line, i) => {
+      {awbLines.map((line, i) => {
         const priority = line.priority ?? "Normal";
         return (
         <View key={i} style={styles.awbCard}>

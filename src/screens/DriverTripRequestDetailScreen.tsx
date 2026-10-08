@@ -343,7 +343,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
       </View>
       <Text style={styles.meta}>Customer: {request.customerName}</Text>
 
-      <TripRequestReadOnly request={request} />
+      <TripRequestReadOnly request={request} onlyDriverId={user?.uid} />
 
       {myAssignedLines.length > 0 && (
         <TouchableOpacity
