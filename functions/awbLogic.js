@@ -152,10 +152,15 @@ function applyDecline(awbLines, awbIndex, uid) {
   return { changed: true, awbNumber: line.awbNumber, awbLines: nextLines, ...computeRollup(nextLines) };
 }
 
+// Accept is optional: a driver may start a line dispatch assigned to them
+// directly ("assigned") as well as one they accepted ("accepted").
 function applyStart(awbLines, uid, now) {
   let changed = false;
   const nextLines = (awbLines || []).map((line) => {
-    if (line.assignedDriverId === uid && line.status === "accepted") {
+    if (
+      line.assignedDriverId === uid &&
+      (line.status === "accepted" || line.status === "assigned")
+    ) {
       changed = true;
       return { ...line, status: "in_progress", startedAt: now };
     }
@@ -176,10 +181,16 @@ function applyPickup(awbLines, uid, indexSet, now) {
   return { changed, awbLines: nextLines, ...computeRollup(nextLines) };
 }
 
+// Pickup is optional: a driver may complete a line straight from "in_progress"
+// (older app builds have no pickup step) as well as from "picked_up".
 function applyComplete(awbLines, uid, indexSet, tripLogId) {
   let changed = false;
   const nextLines = (awbLines || []).map((line, index) => {
-    if (indexSet.has(index) && line.assignedDriverId === uid && line.status === "picked_up") {
+    if (
+      indexSet.has(index) &&
+      line.assignedDriverId === uid &&
+      (line.status === "picked_up" || line.status === "in_progress")
+    ) {
       changed = true;
       return { ...line, status: "completed", tripLogId };
     }

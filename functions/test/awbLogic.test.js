@@ -82,14 +82,15 @@ describe("applyStart", () => {
     assert.equal(result.awbLines[0].status, "accepted");
   });
 
-  it("does not start a line that is assigned but not accepted", () => {
+  it("starts a line that is assigned but not yet accepted (accept is optional)", () => {
     const result = applyStart(
       [line({ assignedDriverId: "drv1", assignedDriverName: "Dee", status: "assigned" })],
       "drv1",
       50
     );
-    assert.equal(result.changed, false);
-    assert.equal(result.awbLines[0].status, "assigned");
+    assert.equal(result.changed, true);
+    assert.equal(result.awbLines[0].status, "in_progress");
+    assert.equal(result.awbLines[0].startedAt, 50);
   });
 });
 
@@ -117,15 +118,27 @@ describe("applyComplete", () => {
     assert.equal(result.status, "completed");
   });
 
-  it("refuses lines that are not picked up for this driver", () => {
+  it("completes an in-progress line directly (pickup is optional)", () => {
     const result = applyComplete(
       [line({ assignedDriverId: "drv1", assignedDriverName: "Dee", status: "in_progress" })],
       "drv1",
       new Set([0]),
       "trip-1"
     );
+    assert.equal(result.changed, true);
+    assert.equal(result.awbLines[0].status, "completed");
+    assert.equal(result.awbLines[0].tripLogId, "trip-1");
+  });
+
+  it("refuses lines that were never started for this driver", () => {
+    const result = applyComplete(
+      [line({ assignedDriverId: "drv1", assignedDriverName: "Dee", status: "assigned" })],
+      "drv1",
+      new Set([0]),
+      "trip-1"
+    );
     assert.equal(result.changed, false);
-    assert.equal(result.awbLines[0].status, "in_progress");
+    assert.equal(result.awbLines[0].status, "assigned");
   });
 });
 
