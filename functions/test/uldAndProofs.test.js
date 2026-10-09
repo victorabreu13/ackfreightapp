@@ -1,6 +1,6 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const { proofsForRequest } = require("../proofs");
+const { decodeSignatureStrokes, encodeSignatureStrokes, proofsForRequest } = require("../proofs");
 const { hasAnyTrip, uldDocId, uldPairs } = require("../uldKeys");
 
 describe("uld keys", () => {
@@ -45,7 +45,7 @@ describe("proofsForRequest", () => {
             { url: "https://files.example/b.pdf", name: "b.pdf", kind: "document" },
           ],
           signature: { url: "https://files.example/sign.svg", name: "signature.svg", kind: "document" },
-          signatureStrokes: [[[0.1, 0.2], [0.4, 0.6]]],
+          signatureStrokes: [{ p: [0.1, 0.2, 0.4, 0.6] }],
         },
       }
     );
@@ -54,9 +54,19 @@ describe("proofsForRequest", () => {
     assert.deepEqual(proofs[0].awbNumbers, ["111", "222"]);
     assert.equal(proofs[0].proofFiles.length, 2);
     assert.equal(proofs[0].signature.url, "https://files.example/sign.svg");
-    assert.equal(proofs[0].signatureStrokes.length, 1);
+    assert.deepEqual(proofs[0].signatureStrokes, [[[0.1, 0.2], [0.4, 0.6]]]);
     assert.equal(JSON.stringify(proofs).includes("dee@example.com"), false);
     assert.equal(JSON.stringify(proofs).includes("secret note"), false);
     assert.equal(JSON.stringify(proofs).includes("Dee"), false);
+  });
+  it("stores a signature without nested arrays and reads it back", () => {
+    const strokes = [[[0.1, 0.2], [0.4, 0.6]], [[0.5, 0.5]]];
+    const stored = encodeSignatureStrokes(strokes);
+    const hasNestedArray = (value) =>
+      Array.isArray(value) && value.some((v) => Array.isArray(v) || (v && typeof v === "object" && Object.values(v).some(hasNestedArray)));
+    assert.equal(hasNestedArray(stored), false);
+    assert.deepEqual(decodeSignatureStrokes(stored), strokes);
+    assert.deepEqual(encodeSignatureStrokes("junk"), []);
+    assert.deepEqual(decodeSignatureStrokes(strokes), strokes);
   });
 });
