@@ -5,7 +5,7 @@ import { AwbPay, AwbPayOverride, PayAgreement, PayAgreementLog } from "../types"
 
 async function callWithFreshToken<Req, Res>(fn: HttpsCallable<Req, Res>, data: Req): Promise<Res> {
   if (auth.currentUser) {
-    await auth.currentUser.getIdToken(true);
+    await auth.currentUser.getIdToken();
   }
   try {
     const result = await fn(data);

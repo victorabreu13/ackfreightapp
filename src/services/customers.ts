@@ -13,7 +13,7 @@ const createCustomerFn = httpsCallable<
 // generated server-side and never seen by the admin or this client.
 export async function createCustomer(name: string, email: string): Promise<string> {
   if (auth.currentUser) {
-    await auth.currentUser.getIdToken(true);
+    await auth.currentUser.getIdToken();
   }
   const result = await createCustomerFn({ name, email });
   await sendPasswordResetEmail(auth, email);
