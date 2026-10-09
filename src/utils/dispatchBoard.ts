@@ -123,16 +123,44 @@ export interface DayCounters {
   driversOnDuty: number;
 }
 
+/** The trip counter cards on the Today screen (each one opens a list). */
+export type TripCounterKey = "total" | "requested" | "assigned" | "onTheRoad" | "delivered";
+export type CounterKey = TripCounterKey | "drivers";
+
+/** Stages behind each trip counter card; null = every trip on the board. */
+export const COUNTER_STAGES: Record<TripCounterKey, TripStage[] | null> = {
+  total: null,
+  requested: ["requested"],
+  assigned: ["assigned"],
+  onTheRoad: ["to_pickup", "in_transit"],
+  delivered: ["delivered", "invoiced"],
+};
+
+/**
+ * Exactly the trips a counter card counts. dayCounters() is built on this,
+ * so the number on a card always equals the rows its list shows.
+ */
+export function tripsForCounter(trips: BoardTrip[], key: TripCounterKey): BoardTrip[] {
+  const stages = COUNTER_STAGES[key];
+  return stages ? trips.filter((t) => stages.includes(t.stage)) : trips;
+}
+
+/** On-duty, active drivers (free first, then busy, each by name). */
+export function onDutyDrivers(drivers: DriverState[]): DriverState[] {
+  return drivers
+    .filter((d) => d.driver.onDuty === true && d.driver.active !== false)
+    .sort((a, b) => Number(a.busy) - Number(b.busy) || (a.driver.name ?? "").localeCompare(b.driver.name ?? ""));
+}
+
 export function dayCounters(trips: BoardTrip[], drivers: DriverState[]): DayCounters {
-  const count = (s: TripStage) => trips.filter((t) => t.stage === s).length;
-  const onDuty = drivers.filter((d) => d.driver.onDuty === true && d.driver.active !== false);
+  const onDuty = onDutyDrivers(drivers);
   return {
-    total: trips.length,
-    requested: count("requested"),
-    assigned: count("assigned"),
-    onTheRoad: count("to_pickup") + count("in_transit"),
-    delivered: count("delivered") + count("invoiced"),
-    toInvoice: count("delivered"),
+    total: tripsForCounter(trips, "total").length,
+    requested: tripsForCounter(trips, "requested").length,
+    assigned: tripsForCounter(trips, "assigned").length,
+    onTheRoad: tripsForCounter(trips, "onTheRoad").length,
+    delivered: tripsForCounter(trips, "delivered").length,
+    toInvoice: trips.filter((t) => t.stage === "delivered").length,
     driversFree: onDuty.filter((d) => !d.busy).length,
     driversOnDuty: onDuty.length,
   };
@@ -250,4 +278,18 @@ export function computeAlerts(
   }
   const rank = { red: 0, amber: 1, info: 2 } as const;
   return alerts.sort((a, b) => rank[a.severity] - rank[b.severity]);
+}
+
+/** Alerts grouped by the trip and driver they point at (for list rows). */
+export function alertsByTarget(alerts: DispatchAlert[]): {
+  byRequest: Map<string, DispatchAlert[]>;
+  byDriver: Map<string, DispatchAlert[]>;
+} {
+  const byRequest = new Map<string, DispatchAlert[]>();
+  const byDriver = new Map<string, DispatchAlert[]>();
+  for (const a of alerts) {
+    if (a.requestId) byRequest.set(a.requestId, [...(byRequest.get(a.requestId) ?? []), a]);
+    if (a.driverId) byDriver.set(a.driverId, [...(byDriver.get(a.driverId) ?? []), a]);
+  }
+  return { byRequest, byDriver };
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import type { TripRequest } from "../types";
 import type { BoardTrip, DispatchAlert } from "../utils/dispatchBoard";
 import { allAssignedConfirmed, stageInfo, TripStage } from "../utils/tripStatus";
@@ -141,8 +141,8 @@ export function AlertsStrip({
   );
 }
 
-const ALERT_COLORS = { red: "#dc2626", amber: "#f59e0b", info: "#2563eb" };
-const ALERT_ICONS: Record<DispatchAlert["kind"], string> = {
+export const ALERT_COLORS = { red: "#dc2626", amber: "#f59e0b", info: "#2563eb" };
+export const ALERT_ICONS: Record<DispatchAlert["kind"], string> = {
   no_driver_soon: "⏰",
   pickup_late: "⌛",
   not_confirmed: "❔",
@@ -150,12 +150,51 @@ const ALERT_ICONS: Record<DispatchAlert["kind"], string> = {
   new_leads: "📥",
 };
 
-export function Counter({ value, label, color }: { value: string | number; label: string; color: string }) {
+export function Counter({
+  value,
+  label,
+  color,
+  onPress,
+  selected,
+  hint,
+}: {
+  value: string | number;
+  label: string;
+  color: string;
+  /** When set the card is a button (opens the list behind the number). */
+  onPress?: () => void;
+  selected?: boolean;
+  hint?: string;
+}) {
+  const body = (
+    <>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.counterValue}>{value}</Text>
+        <Text style={styles.counterLabel}>{label}</Text>
+      </View>
+      {onPress && <Text style={styles.counterChevron}>›</Text>}
+    </>
+  );
+  if (!onPress) return <View style={[styles.counter, { borderLeftColor: color }]}>{body}</View>;
   return (
-    <View style={[styles.counter, { borderLeftColor: color }]}>
-      <Text style={styles.counterValue}>{value}</Text>
-      <Text style={styles.counterLabel}>{label}</Text>
-    </View>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${value}. ${hint ?? "Show the list"}`}
+      accessibilityState={{ expanded: !!selected }}
+      // react-native-web also reports hovered/focused; native only pressed.
+      style={(state: any) => [
+        styles.counter,
+        styles.counterButton,
+        { borderLeftColor: color },
+        (state.hovered || state.focused) && styles.counterHover,
+        state.focused && styles.counterFocus,
+        state.pressed && styles.counterPressed,
+        selected && { borderColor: color, backgroundColor: "#f8fafc" },
+      ]}
+    >
+      {body}
+    </Pressable>
   );
 }
 
@@ -240,6 +279,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
+  counterButton: { flexDirection: "row", alignItems: "center", cursor: "pointer" as any },
+  counterHover: { borderColor: "#94a3b8", backgroundColor: "#f8fafc" },
+  counterFocus: { outlineStyle: "solid", outlineWidth: 2, outlineColor: "#2563eb", outlineOffset: 1 } as any,
+  counterPressed: { backgroundColor: "#eef2f7", transform: [{ scale: 0.98 }] },
+  counterChevron: { fontSize: 22, fontWeight: "700", color: "#94a3b8", marginLeft: 6 },
   counterValue: { fontSize: 22, fontWeight: "800", color: "#0f172a" },
   counterLabel: { fontSize: 11.5, fontWeight: "700", color: "#64748b" },
   btn: {

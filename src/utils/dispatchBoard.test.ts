@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { AwbLine, AwbLineStatus, newAwbLine, TripRequest, UserProfile } from "../types";
 import {
+  alertsByTarget,
   computeAlerts,
+  CounterKey,
   dayCounters,
   driverStates,
   latestDriverLocations,
+  onDutyDrivers,
   pickupDate,
+  tripsForCounter,
   tripsForDay,
 } from "./dispatchBoard";
 
@@ -116,5 +120,25 @@ describe("driver state + alerts", () => {
     assert.equal(c.onTheRoad, 1);
     assert.equal(c.driversOnDuty, 2);
     assert.equal(c.driversFree, 1);
+  });
+
+  it("every counter card lists exactly the rows it counts", () => {
+    const trips = tripsForDay(reqs, TODAY, TODAY);
+    const c = dayCounters(trips, states);
+    const keys: Exclude<CounterKey, "drivers">[] = ["total", "requested", "assigned", "onTheRoad", "delivered"];
+    for (const k of keys) assert.equal(tripsForCounter(trips, k).length, c[k], k);
+    assert.deepEqual(tripsForCounter(trips, "requested").map((t) => t.request.id).sort(), ["l", "n"]);
+    assert.deepEqual(tripsForCounter(trips, "onTheRoad").map((t) => t.request.id), ["m"]);
+    const onDuty = onDutyDrivers(states);
+    assert.equal(onDuty.length, c.driversOnDuty);
+    assert.equal(onDuty.filter((d) => !d.busy).length, c.driversFree);
+    assert.equal(onDuty[0].busy, false, "free drivers listed first");
+  });
+
+  it("groups alerts by trip and driver", () => {
+    const { byRequest, byDriver } = alertsByTarget(computeAlerts(reqs, states, NOW, 0));
+    assert.equal(byRequest.get("n")?.[0].kind, "no_driver_soon");
+    assert.equal(byDriver.get("d1")?.[0].kind, "gps_lost");
+    assert.equal(byRequest.get("m")?.[0].kind, "gps_lost");
   });
 });

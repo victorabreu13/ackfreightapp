@@ -1,10 +1,21 @@
 import React, { useMemo, useState } from "react";
+import { useIsFocused } from "@react-navigation/native";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import AdminShell, { WIDE_BREAKPOINT } from "../components/AdminShell";
+import CounterDrawer, { DrawerContent } from "../components/CounterDrawer";
 import { AlertsStrip, Btn, Counter, dispatchStyles, TripBoardCard } from "../components/DispatchUI";
 import FleetMap from "../components/FleetMap";
 import { useDispatchData } from "../hooks/useDispatchData";
-import { computeAlerts, DispatchAlert, dayCounters, tripsForDay } from "../utils/dispatchBoard";
+import {
+  alertsByTarget,
+  computeAlerts,
+  CounterKey,
+  DispatchAlert,
+  dayCounters,
+  onDutyDrivers,
+  tripsForCounter,
+  tripsForDay,
+} from "../utils/dispatchBoard";
 import { toLocalDateString } from "../utils/date";
 import { fleetMapDrivers, fleetMapRoutes } from "../utils/fleetMapData";
 import { BOARD_STAGES, stageInfo, TRIP_STAGES } from "../utils/tripStatus";
@@ -46,6 +57,11 @@ export default function TodayScreen({ navigation }: any) {
     () => new Set(alerts.filter((a) => a.severity === "red" && a.requestId).map((a) => a.requestId!)),
     [alerts]
   );
+  const targets = useMemo(() => alertsByTarget(alerts), [alerts]);
+  const isFocused = useIsFocused();
+  // Which counter's list is open. Kept while a trip is opened from the list,
+  // so going Back returns to the same list.
+  const [openCounter, setOpenCounter] = useState<CounterKey | null>(null);
   const mapDrivers = useMemo(() => fleetMapDrivers(driverStates, nowMs), [driverStates, nowMs]);
   const mapRoutes = useMemo(() => fleetMapRoutes(trips.map((t) => t.request)), [trips]);
 
@@ -58,6 +74,53 @@ export default function TodayScreen({ navigation }: any) {
     else if (a.requestId) openRequest(a.requestId);
     else navigation.navigate("Drivers");
   };
+
+  const isToday = day === today;
+  const dayText = isToday ? "today" : prettyDay(day, today);
+  const carryNote = isToday ? ", plus unfinished trips carried over from earlier days" : "";
+  const COUNTERS: Record<CounterKey, { label: string; color: string; value: string | number; description: string }> = {
+    total: {
+      label: "Trips",
+      color: "#0f172a",
+      value: counters.total,
+      description: `Every trip on the board for ${dayText}${carryNote} (cancelled trips excluded), by pickup time.`,
+    },
+    requested: {
+      label: "Need a driver",
+      color: TRIP_STAGES.requested.color,
+      value: counters.requested,
+      description: `Trips in "Requested": no AWB has a driver yet.`,
+    },
+    assigned: {
+      label: "Assigned",
+      color: TRIP_STAGES.assigned.color,
+      value: counters.assigned,
+      description: `Trips in "Assigned": driver set, not started yet.`,
+    },
+    onTheRoad: {
+      label: "On the road",
+      color: TRIP_STAGES.in_transit.color,
+      value: counters.onTheRoad,
+      description: `Trips in "To Pickup" or "Loaded / In Transit": a driver has started.`,
+    },
+    delivered: {
+      label: "Delivered",
+      color: TRIP_STAGES.delivered.color,
+      value: counters.delivered,
+      description: `Trips with every AWB completed (including invoiced ones).`,
+    },
+    drivers: {
+      label: "Drivers free / on duty",
+      color: "#16a34a",
+      value: `${counters.driversFree} / ${counters.driversOnDuty}`,
+      description: `Active drivers marked on duty — free first, then those on a trip, with their last GPS point.`,
+    },
+  };
+  const drawerContent: DrawerContent | null = openCounter
+    ? openCounter === "drivers"
+      ? { kind: "drivers", drivers: onDutyDrivers(driverStates) }
+      : { kind: "trips", trips: tripsForCounter(trips, openCounter) }
+    : null;
 
   const columns = BOARD_STAGES.map((stage) => ({
     stage,
@@ -145,17 +208,32 @@ export default function TodayScreen({ navigation }: any) {
         <>
           {!!error && <Text style={styles.error}>Couldn't load trips: {error}</Text>}
           <View style={styles.counters}>
-            <Counter value={counters.total} label="Trips" color="#0f172a" />
-            <Counter value={counters.requested} label="Need a driver" color={TRIP_STAGES.requested.color} />
-            <Counter value={counters.assigned} label="Assigned" color={TRIP_STAGES.assigned.color} />
-            <Counter value={counters.onTheRoad} label="On the road" color={TRIP_STAGES.in_transit.color} />
-            <Counter value={counters.delivered} label="Delivered" color={TRIP_STAGES.delivered.color} />
-            <Counter
-              value={`${counters.driversFree} / ${counters.driversOnDuty}`}
-              label="Drivers free / on duty"
-              color="#16a34a"
-            />
+            {(Object.keys(COUNTERS) as CounterKey[]).map((k) => (
+              <Counter
+                key={k}
+                value={COUNTERS[k].value}
+                label={COUNTERS[k].label}
+                color={COUNTERS[k].color}
+                selected={openCounter === k}
+                hint={k === "drivers" ? "Show the drivers" : "Show these trips"}
+                onPress={() => setOpenCounter(k)}
+              />
+            ))}
           </View>
+          {openCounter && drawerContent && (
+            <CounterDrawer
+              visible={isFocused}
+              onClose={() => setOpenCounter(null)}
+              title={COUNTERS[openCounter].label}
+              description={COUNTERS[openCounter].description}
+              color={COUNTERS[openCounter].color}
+              content={drawerContent}
+              alertsByRequest={targets.byRequest}
+              alertsByDriver={targets.byDriver}
+              nowMs={nowMs}
+              onOpenTrip={(request) => navigation.navigate("DispatchDetail", { request })}
+            />
+          )}
           {day === today && <AlertsStrip alerts={alerts} onPress={onAlert} />}
           {wide ? (
             <View style={styles.split}>
