@@ -20,6 +20,7 @@ import {
 import { toLocalDateString } from "../utils/date";
 import { fleetMapDrivers, fleetMapRoutes } from "../utils/fleetMapData";
 import { BOARD_STAGES, stageInfo, TRIP_STAGES } from "../utils/tripStatus";
+import { confirmMarkInvoiced } from "../utils/invoiceActions";
 
 function shiftDay(day: string, delta: number): string {
   const [y, m, d] = day.split("-").map(Number);
@@ -242,6 +243,7 @@ export default function TodayScreen({ navigation }: any) {
               alertsByDriver={targets.byDriver}
               nowMs={nowMs}
               onOpenTrip={(request) => navigation.navigate("DispatchDetail", { request })}
+              onMarkInvoiced={openCounter === "pendingInvoice" ? (request) => confirmMarkInvoiced(request) : undefined}
               footerLink={
                 openCounter === "pendingInvoice"
                   ? {

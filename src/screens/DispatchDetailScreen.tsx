@@ -35,6 +35,8 @@ import {
 } from "../types";
 import { confirmAction, notify } from "../utils/alert";
 import { toLocalDateString } from "../utils/date";
+import { confirmMarkInvoiced, confirmMarkNotInvoiced } from "../utils/invoiceActions";
+import { canMarkInvoiced, canUndoInvoiced, notInvoicedStatus } from "../utils/invoicing";
 
 const PRIORITY_COLORS: Record<AwbPriority, { text: string }> = {
   Low: { text: "#888" },
@@ -468,32 +470,66 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
         </Text>
       )}
       <View style={styles.statusActions}>
-        {request.status === "completed" && (
+        {canMarkInvoiced(request) && (
           <>
             <TouchableOpacity
-              style={styles.qbInvoiceButton}
-              onPress={handleSendInvoice}
-              disabled={sendingInvoice}
+              style={styles.markInvoicedButton}
+              onPress={() =>
+                confirmMarkInvoiced(request, {
+                  onStart: () => setChangingStatus(true),
+                  onDone: (ok) => {
+                    setChangingStatus(false);
+                    if (ok) setRequest((prev) => ({ ...prev, status: "invoiced", invoicedAt: Date.now() }));
+                  },
+                })
+              }
+              disabled={changingStatus}
+              accessibilityRole="button"
             >
-              {sendingInvoice ? (
+              {changingStatus ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.qbInvoiceButtonText}>Send Invoice via QuickBooks</Text>
+                <Text style={styles.markInvoicedButtonText}>✓ Mark as Invoiced</Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.statusButton}
-              onPress={() => changeStatus("invoiced", "Mark this trip as invoiced?")}
-              disabled={changingStatus}
-            >
-              <Text style={styles.statusButtonText}>Mark Invoiced Manually</Text>
-            </TouchableOpacity>
+            {/* The QuickBooks callable only accepts a stored "completed" rollup. */}
+            {request.status === "completed" && (
+              <TouchableOpacity
+                style={styles.qbInvoiceButton}
+                onPress={handleSendInvoice}
+                disabled={sendingInvoice}
+              >
+                {sendingInvoice ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.qbInvoiceButtonText}>Send Invoice via QuickBooks</Text>
+                )}
+              </TouchableOpacity>
+            )}
           </>
         )}
-        {request.status === "invoiced" && request.quickbooksInvoiceId && (
+        {request.status === "invoiced" && (
           <Text style={styles.statusHint}>
-            ✅ Invoiced via QuickBooks{request.invoicedAt ? ` on ${toLocalDateString(new Date(request.invoicedAt))}` : ""}.
+            ✅ Invoiced{request.quickbooksInvoiceId ? " via QuickBooks" : ""}
+            {request.invoicedAt ? ` on ${toLocalDateString(new Date(request.invoicedAt))}` : ""}.
           </Text>
+        )}
+        {canUndoInvoiced(request) && (
+          <TouchableOpacity
+            style={styles.statusButton}
+            onPress={() =>
+              confirmMarkNotInvoiced(request, {
+                onStart: () => setChangingStatus(true),
+                onDone: (ok) => {
+                  setChangingStatus(false);
+                  if (ok) setRequest((prev) => ({ ...prev, status: notInvoicedStatus(prev), invoicedAt: undefined }));
+                },
+              })
+            }
+            disabled={changingStatus}
+          >
+            <Text style={styles.statusButtonText}>Mark as not invoiced</Text>
+          </TouchableOpacity>
         )}
         {(request.status === "submitted" || request.status === "assigned") && (
           <TouchableOpacity
@@ -648,6 +684,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statusButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 15 },
+  markInvoicedButton: {
+    backgroundColor: "#0f766e",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  markInvoicedButtonText: { color: "#fff", fontWeight: "800", fontSize: 15 },
   qbInvoiceButton: {
     backgroundColor: "#1d4ed8",
     borderRadius: 10,

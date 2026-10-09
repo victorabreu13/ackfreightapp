@@ -1,7 +1,7 @@
 const { readFileSync } = require("node:fs");
 const { after, before, beforeEach, describe, it } = require("node:test");
 const { assertFails, assertSucceeds, initializeTestEnvironment } = require("@firebase/rules-unit-testing");
-const { doc, getDoc, setDoc, updateDoc } = require("firebase/firestore");
+const { deleteField, doc, getDoc, setDoc, updateDoc } = require("firebase/firestore");
 
 const PROJECT_ID = "demo-ack-freight";
 
@@ -345,6 +345,23 @@ describe("firestore rules", () => {
         assignedDriverNames: ["Sam"],
         updatedAt: 2,
       })
+    );
+  });
+
+  it("lets an admin mark a delivered trip invoiced and undo it, but not the customer or driver", async () => {
+    await seed("users/admin1", { uid: "admin1", email: "admin@example.com", name: "Ada", role: "admin", createdAt: 1 });
+    await seed("users/drv1", { uid: "drv1", email: "driver@example.com", name: "Dee", role: "driver", createdAt: 1 });
+    await seed("tripRequests/req1", requestDoc({ status: "completed", awbLines: [line({ status: "completed" })] }));
+
+    const customer = asUser("cust1", "cust@example.com");
+    await assertFails(updateDoc(doc(customer, "tripRequests/req1"), { status: "invoiced", invoicedAt: 5, updatedAt: 5 }));
+    const driver = asUser("drv1", "driver@example.com");
+    await assertFails(updateDoc(doc(driver, "tripRequests/req1"), { status: "invoiced", invoicedAt: 5, updatedAt: 5 }));
+
+    const admin = asUser("admin1", "admin@example.com");
+    await assertSucceeds(updateDoc(doc(admin, "tripRequests/req1"), { status: "invoiced", invoicedAt: 5, updatedAt: 5 }));
+    await assertSucceeds(
+      updateDoc(doc(admin, "tripRequests/req1"), { status: "completed", invoicedAt: deleteField(), updatedAt: 6 })
     );
   });
 
