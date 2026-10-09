@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { registerForPushNotifications } from "../services/notifications";
 
@@ -66,6 +66,7 @@ const NATIVE_TILES = WEB_TILES.filter(
 );
 
 const TILES = Platform.OS === "web" ? WEB_TILES : NATIVE_TILES;
+const COMPACT = Platform.OS !== "web";
 
 export default function AdminDashboardScreen({ navigation }: any) {
   const { signOut } = useAuth();
@@ -75,7 +76,7 @@ export default function AdminDashboardScreen({ navigation }: any) {
   }, []);
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 24 }}>
       <View style={styles.header}>
         <Text style={styles.title}>ACK Freight Admin</Text>
         <TouchableOpacity onPress={signOut}>
@@ -83,20 +84,27 @@ export default function AdminDashboardScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.tileGrid}>
+      <View style={[styles.tileGrid, COMPACT && styles.tileGridCompact]}>
         {TILES.map((tile) => (
           <TouchableOpacity
             key={tile.key}
-            style={styles.tile}
+            style={[styles.tile, COMPACT && styles.tileCompact]}
             onPress={() => navigation.navigate(tile.key)}
           >
-            <Text style={styles.tileIcon}>{tile.icon}</Text>
-            <Text style={styles.tileLabel}>{tile.label}</Text>
-            <Text style={styles.tileDescription}>{tile.description}</Text>
+            <Text style={[styles.tileIcon, COMPACT && styles.tileIconCompact]}>{tile.icon}</Text>
+            <View style={COMPACT ? styles.tileTextCompact : undefined}>
+              <Text style={[styles.tileLabel, COMPACT && styles.tileLabelCompact]}>{tile.label}</Text>
+              <Text
+                style={[styles.tileDescription, COMPACT && styles.tileDescriptionCompact]}
+                numberOfLines={COMPACT ? 2 : undefined}
+              >
+                {tile.description}
+              </Text>
+            </View>
           </TouchableOpacity>
         ))}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -131,6 +139,21 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
+  // Phone layout: slim full-width rows (icon left, text right) so the whole
+  // menu fits on one screen.
+  tileGridCompact: { flexDirection: "column", flexWrap: "nowrap", gap: 10 },
+  tileCompact: {
+    width: "100%",
+    flexDirection: "row",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    justifyContent: "flex-start",
+  },
+  tileIconCompact: { fontSize: 28, marginBottom: 0, marginRight: 14 },
+  tileTextCompact: { flex: 1 },
+  tileLabelCompact: { fontSize: 16, marginBottom: 2 },
+  tileDescriptionCompact: { fontSize: 12, textAlign: "left" },
   tileIcon: { fontSize: 44, marginBottom: 14 },
   tileLabel: { fontSize: 18, fontWeight: "800", color: "#111", marginBottom: 6 },
   tileDescription: { fontSize: 13, color: "#888", textAlign: "center" },
