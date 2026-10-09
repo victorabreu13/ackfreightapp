@@ -1,3 +1,5 @@
+import { StagePill } from "../components/DispatchUI";
+import { tripStage } from "../utils/tripStatus";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -43,15 +45,6 @@ const PRIORITY_COLORS: Record<AwbPriority, { text: string }> = {
 const BILL_TYPE_LABELS: Record<DriverPayType, string> = {
   perTrip: "per trip",
   perKilogram: "per kilogram",
-};
-
-const STATUS_LABELS: Record<TripRequestStatus, string> = {
-  submitted: "Submitted",
-  assigned: "Assigned",
-  in_progress: "In Progress",
-  completed: "Completed",
-  invoiced: "Invoiced",
-  cancelled: "Cancelled",
 };
 
 export default function DispatchDetailScreen({ route, navigation }: any) {
@@ -291,8 +284,8 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
 
       <View style={styles.headerRow}>
         <Text style={styles.title}>Trip Request</Text>
-        <View style={styles.statusBadge}>
-          <Text style={styles.statusBadgeText}>{STATUS_LABELS[request.status]}</Text>
+        <View>
+          <StagePill stage={tripStage(request)} />
         </View>
       </View>
       <Text style={styles.meta}>Customer: {request.customerName}</Text>

@@ -2,10 +2,10 @@ import { getApp, getApps, initializeApp } from "firebase/app";
 // getReactNativePersistence exists at runtime for this SDK version but isn't
 // in its type declarations yet — safe to silence, not a real type error.
 // @ts-expect-error
-import { getAuth, getReactNativePersistence, initializeAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getFunctions } from "firebase/functions";
-import { getStorage } from "firebase/storage";
+import { connectAuthEmulator, getAuth, getReactNativePersistence, initializeAuth } from "firebase/auth";
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
+import { connectFunctionsEmulator, getFunctions } from "firebase/functions";
+import { connectStorageEmulator, getStorage } from "firebase/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
@@ -32,5 +32,17 @@ export const auth =
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
+
+// Local development only: point the app at the Firebase emulators instead of
+// the live project. Off unless EXPO_PUBLIC_USE_FIREBASE_EMULATORS=1 is set at
+// build/start time (it is not in the production .env), and the emulator
+// project should be a "demo-" project id so nothing can reach real data.
+if (process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATORS === "1") {
+  const host = process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST || "127.0.0.1";
+  connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
+  connectFirestoreEmulator(db, host, 8080);
+  connectFunctionsEmulator(functions, host, 5001);
+  connectStorageEmulator(storage, host, 9199);
+}
 
 export default app;

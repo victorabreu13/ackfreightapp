@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { navigationRef } from "../navigation/navigationRef";
 
 const HOME_ROUTE_BY_ROLE: Record<string, string> = {
-  admin: "AdminDashboard",
+  admin: "Today",
   customer: "CustomerHome",
   driver: "DriverHome",
 };
