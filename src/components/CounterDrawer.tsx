@@ -27,6 +27,8 @@ interface Props {
   alertsByDriver: Map<string, DispatchAlert[]>;
   nowMs: number;
   onOpenTrip: (request: TripRequest) => void;
+  /** Pending invoice rows get a "Mark invoiced" button when this is set. */
+  onMarkInvoiced?: (request: TripRequest) => void;
   /** Optional link at the bottom of the list (e.g. "Open To Invoice →"). */
   footerLink?: { label: string; onPress: () => void };
 }
@@ -97,7 +99,12 @@ export default function CounterDrawer(props: Props) {
               ))}
             {content.kind === "invoice" &&
               content.requests.map((r) => (
-                <InvoiceRow key={r.id} request={r} onPress={() => props.onOpenTrip(r)} />
+                <InvoiceRow
+                  key={r.id}
+                  request={r}
+                  onPress={() => props.onOpenTrip(r)}
+                  onMarkInvoiced={props.onMarkInvoiced ? () => props.onMarkInvoiced!(r) : undefined}
+                />
               ))}
             {props.footerLink && (
               <Pressable
@@ -196,11 +203,19 @@ function TripRow({ trip, alerts, onPress }: { trip: BoardTrip; alerts: DispatchA
   );
 }
 
-function InvoiceRow({ request, onPress }: { request: TripRequest; onPress: () => void }) {
+function InvoiceRow({
+  request,
+  onPress,
+  onMarkInvoiced,
+}: {
+  request: TripRequest;
+  onPress: () => void;
+  onMarkInvoiced?: () => void;
+}) {
   const cargo = cargoSummary(request);
   const lines = request.awbLines ?? [];
   const drivers = request.assignedDriverNames ?? [];
-  return (
+  const row = (
     <RowShell onPress={onPress} color={stageInfo("delivered").color} label={`${request.customerName}, ${request.tripDate}, to invoice. Open trip`}>
       <View style={styles.rowTop}>
         <Text style={styles.time}>{request.tripDate}</Text>
@@ -229,6 +244,20 @@ function InvoiceRow({ request, onPress }: { request: TripRequest; onPress: () =>
         </Text>
       )}
     </RowShell>
+  );
+  if (!onMarkInvoiced) return row;
+  return (
+    <View>
+      {row}
+      <Pressable
+        onPress={onMarkInvoiced}
+        accessibilityRole="button"
+        accessibilityLabel={`Mark ${request.customerName} ${request.tripDate} as invoiced`}
+        style={(s: any) => [styles.markBtn, (s.hovered || s.focused || s.pressed) && styles.markBtnOn]}
+      >
+        <Text style={styles.markText}>✓ Mark invoiced</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -326,6 +355,17 @@ const styles = StyleSheet.create({
   free: { backgroundColor: "#f0fdf4", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
   freeText: { color: "#15803d", fontWeight: "800", fontSize: 11 },
   amount: { fontWeight: "800", fontSize: 13, color: "#0f766e" },
+  markBtn: {
+    marginTop: -4,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
+    backgroundColor: "#0f766e",
+    paddingVertical: 8,
+    alignItems: "center",
+    cursor: "pointer" as any,
+  },
+  markBtnOn: { backgroundColor: "#115e59" },
+  markText: { color: "#fff", fontWeight: "800", fontSize: 13 },
   footerLink: { padding: 12, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: "#e3e7ef", backgroundColor: "#fff" },
   footerLinkText: { color: "#1d4ed8", fontWeight: "800", fontSize: 13 },
   gps: { marginTop: 5, fontSize: 12, color: "#475569", fontWeight: "600" },

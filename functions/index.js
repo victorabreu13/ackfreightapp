@@ -786,7 +786,9 @@ exports.onTripRequestStatusEmails = onDocumentUpdated(
       );
     }
 
-    if (before.status === "completed" || after.status !== "completed") return;
+    // "invoiced" → "completed" is an admin undoing "Mark as invoiced", not a
+    // newly finished trip, so it must not re-send the completion email.
+    if (before.status === "completed" || before.status === "invoiced" || after.status !== "completed") return;
 
     const adminsSnap = await db.collection("users").where("role", "==", "admin").get();
     const recipients = adminsSnap.docs.map((d) => d.data().email).filter(isNotificationEmail);

@@ -20,6 +20,7 @@ import {
   TripRequest,
 } from "../types";
 import { applyAwbAssignment } from "../utils/awbMutations";
+import { markInvoicedUpdate, notInvoicedStatus } from "../utils/invoicing";
 
 // Force a fresh ID token before calling, and retry once on "unauthenticated":
 // on native the cached token can lag behind sign-in state, which makes a
@@ -245,6 +246,24 @@ export async function setTripRequestStatus(
 ): Promise<void> {
   await updateDoc(doc(db, "tripRequests", requestId), {
     status,
+    updatedAt: Date.now(),
+  });
+}
+
+// Manual "Mark as invoiced" (Dispatch only; rules already let admins update
+// trip requests). Same status the QuickBooks callable sets.
+export async function markTripRequestInvoiced(requestId: string): Promise<void> {
+  await updateDoc(doc(db, "tripRequests", requestId), markInvoicedUpdate(Date.now()));
+}
+
+// Undo a manual "Mark as invoiced": back to the AWB rollup (normally
+// "completed"), so the trip returns to To Invoice / Pending invoice.
+export async function markTripRequestNotInvoiced(
+  request: Pick<TripRequest, "id" | "awbLines">
+): Promise<void> {
+  await updateDoc(doc(db, "tripRequests", request.id), {
+    status: notInvoicedStatus(request),
+    invoicedAt: deleteField(),
     updatedAt: Date.now(),
   });
 }
