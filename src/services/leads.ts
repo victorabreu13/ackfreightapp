@@ -37,7 +37,7 @@ export function subscribeToPendingLeads(
 }
 
 async function callAdmin<T>(name: string, data: { leadId: string }): Promise<T> {
-  if (auth.currentUser) await auth.currentUser.getIdToken(true);
+  if (auth.currentUser) await auth.currentUser.getIdToken();
   const fn = httpsCallable<{ leadId: string }, T>(functions, name);
   const result = await fn(data);
   return result.data;

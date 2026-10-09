@@ -27,7 +27,7 @@ const {
   sameKeyList,
 } = require("./awbLogic");
 const { intakeAuthorized, rateLimitDecision, validateIntakePayload } = require("./intake");
-const { proofsForRequest } = require("./proofs");
+const { encodeSignatureStrokes, proofsForRequest } = require("./proofs");
 const { quoteForRequest } = require("./quote");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
 const { estimateRoute, haversineMiles } = require("./routeEstimate");
@@ -342,7 +342,7 @@ exports.submitTripLog = onCall({ invoker: "public" }, async (request) => {
     notes: String(input.notes || ""),
     proofFiles: Array.isArray(input.proofFiles) ? input.proofFiles : [],
     signature: input.signature && input.signature.url ? input.signature : null,
-    signatureStrokes: Array.isArray(input.signatureStrokes) ? input.signatureStrokes : [],
+    signatureStrokes: encodeSignatureStrokes(input.signatureStrokes),
     paid: false,
     createdAt: Date.now(),
   };
