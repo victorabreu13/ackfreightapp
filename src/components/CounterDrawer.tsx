@@ -2,6 +2,7 @@ import React from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import type { TripRequest } from "../types";
 import type { BoardTrip, DispatchAlert, DriverState } from "../utils/dispatchBoard";
+import { formatQuote } from "../utils/quote";
 import { allAssignedConfirmed, stageInfo } from "../utils/tripStatus";
 import { WIDE_BREAKPOINT } from "./AdminShell";
 import { ALERT_COLORS, ALERT_ICONS, cargoSummary, StagePill, Tag, to12h } from "./DispatchUI";
@@ -12,7 +13,8 @@ import { ALERT_COLORS, ALERT_ICONS, cargoSummary, StagePill, Tag, to12h } from "
 
 export type DrawerContent =
   | { kind: "trips"; trips: BoardTrip[] }
-  | { kind: "drivers"; drivers: DriverState[] };
+  | { kind: "drivers"; drivers: DriverState[] }
+  | { kind: "invoice"; requests: TripRequest[] };
 
 interface Props {
   visible: boolean;
@@ -25,16 +27,23 @@ interface Props {
   alertsByDriver: Map<string, DispatchAlert[]>;
   nowMs: number;
   onOpenTrip: (request: TripRequest) => void;
+  /** Optional link at the bottom of the list (e.g. "Open To Invoice →"). */
+  footerLink?: { label: string; onPress: () => void };
 }
 
 export default function CounterDrawer(props: Props) {
   const { visible, onClose, title, description, color, content } = props;
   const { width } = useWindowDimensions();
   const wide = width >= WIDE_BREAKPOINT;
-  const count = content.kind === "trips" ? content.trips.length : content.drivers.length;
+  const count =
+    content.kind === "trips"
+      ? content.trips.length
+      : content.kind === "drivers"
+      ? content.drivers.length
+      : content.requests.length;
   // Same numbers as the card: trips = rows; drivers = "free / on duty" rows.
   const countText =
-    content.kind === "trips"
+    content.kind !== "drivers"
       ? String(count)
       : `${content.drivers.filter((d) => !d.busy).length} free / ${count} on duty`;
 
@@ -67,24 +76,38 @@ export default function CounterDrawer(props: Props) {
           </View>
           <ScrollView contentContainerStyle={styles.list}>
             {count === 0 && <Text style={styles.empty}>Nothing here right now.</Text>}
-            {content.kind === "trips"
-              ? content.trips.map((t) => (
-                  <TripRow
-                    key={t.request.id}
-                    trip={t}
-                    alerts={props.alertsByRequest.get(t.request.id) ?? []}
-                    onPress={() => props.onOpenTrip(t.request)}
-                  />
-                ))
-              : content.drivers.map((d) => (
-                  <DriverRow
-                    key={d.driver.uid}
-                    state={d}
-                    nowMs={props.nowMs}
-                    alerts={props.alertsByDriver.get(d.driver.uid) ?? []}
-                    onPress={d.current ? () => props.onOpenTrip(d.current!.request) : undefined}
-                  />
-                ))}
+            {content.kind === "trips" &&
+              content.trips.map((t) => (
+                <TripRow
+                  key={t.request.id}
+                  trip={t}
+                  alerts={props.alertsByRequest.get(t.request.id) ?? []}
+                  onPress={() => props.onOpenTrip(t.request)}
+                />
+              ))}
+            {content.kind === "drivers" &&
+              content.drivers.map((d) => (
+                <DriverRow
+                  key={d.driver.uid}
+                  state={d}
+                  nowMs={props.nowMs}
+                  alerts={props.alertsByDriver.get(d.driver.uid) ?? []}
+                  onPress={d.current ? () => props.onOpenTrip(d.current!.request) : undefined}
+                />
+              ))}
+            {content.kind === "invoice" &&
+              content.requests.map((r) => (
+                <InvoiceRow key={r.id} request={r} onPress={() => props.onOpenTrip(r)} />
+              ))}
+            {props.footerLink && (
+              <Pressable
+                onPress={props.footerLink.onPress}
+                accessibilityRole="link"
+                style={(s: any) => [styles.footerLink, (s.hovered || s.focused) && styles.rowHover]}
+              >
+                <Text style={styles.footerLinkText}>{props.footerLink.label}</Text>
+              </Pressable>
+            )}
           </ScrollView>
         </View>
       </View>
@@ -169,6 +192,42 @@ function TripRow({ trip, alerts, onPress }: { trip: BoardTrip; alerts: DispatchA
         <Text style={styles.need}>+ {unassigned} AWB{unassigned === 1 ? "" : "s"} need a driver</Text>
       )}
       <AlertLines alerts={alerts} />
+    </RowShell>
+  );
+}
+
+function InvoiceRow({ request, onPress }: { request: TripRequest; onPress: () => void }) {
+  const cargo = cargoSummary(request);
+  const lines = request.awbLines ?? [];
+  const drivers = request.assignedDriverNames ?? [];
+  return (
+    <RowShell onPress={onPress} color={stageInfo("delivered").color} label={`${request.customerName}, ${request.tripDate}, to invoice. Open trip`}>
+      <View style={styles.rowTop}>
+        <Text style={styles.time}>{request.tripDate}</Text>
+        <View style={{ flex: 1 }} />
+        <Text style={styles.amount}>{formatQuote(request)}</Text>
+      </View>
+      <Text style={styles.client} numberOfLines={1}>
+        {request.customerName || "Customer"}
+      </Text>
+      <Text style={styles.route} numberOfLines={2}>
+        {request.from || "?"} → {request.to || "?"}
+      </Text>
+      <View style={styles.tags}>
+        {!!cargo.units && <Tag text={cargo.units} tone="uld" />}
+        {cargo.kg > 0 && <Tag text={`${cargo.kg.toLocaleString("en-US")} kg`} />}
+        <Tag text={`${lines.length} AWB`} />
+      </View>
+      {lines.length > 0 && (
+        <Text style={styles.awbs} numberOfLines={2}>
+          {lines.map((l) => l.awbNumber || "(no AWB #)").join(" · ")}
+        </Text>
+      )}
+      {drivers.length > 0 && (
+        <Text style={styles.driver} numberOfLines={1}>
+          👷 {drivers.join(", ")}
+        </Text>
+      )}
     </RowShell>
   );
 }
@@ -266,6 +325,9 @@ const styles = StyleSheet.create({
   alert: { fontSize: 12, fontWeight: "700", borderLeftWidth: 3, paddingLeft: 6 },
   free: { backgroundColor: "#f0fdf4", borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
   freeText: { color: "#15803d", fontWeight: "800", fontSize: 11 },
+  amount: { fontWeight: "800", fontSize: 13, color: "#0f766e" },
+  footerLink: { padding: 12, borderRadius: 10, alignItems: "center", borderWidth: 1, borderColor: "#e3e7ef", backgroundColor: "#fff" },
+  footerLinkText: { color: "#1d4ed8", fontWeight: "800", fontSize: 13 },
   gps: { marginTop: 5, fontSize: 12, color: "#475569", fontWeight: "600" },
   gpsBad: { color: "#b91c1c" },
 });

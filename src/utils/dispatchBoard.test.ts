@@ -9,6 +9,7 @@ import {
   driverStates,
   latestDriverLocations,
   onDutyDrivers,
+  pendingInvoiceRequests,
   pickupDate,
   tripsForCounter,
   tripsForDay,
@@ -140,5 +141,18 @@ describe("driver state + alerts", () => {
     assert.equal(byRequest.get("n")?.[0].kind, "no_driver_soon");
     assert.equal(byDriver.get("d1")?.[0].kind, "gps_lost");
     assert.equal(byRequest.get("m")?.[0].kind, "gps_lost");
+  });
+
+  it("pending invoice = delivered, not invoiced, any date, oldest first", () => {
+    const done = (id: string, tripDate: string, status: TripRequest["status"] = "completed") =>
+      request(id, { tripDate, status, awbLines: [line("completed", "d1")] });
+    const list = pendingInvoiceRequests([
+      done("new", TODAY),
+      done("old", "2026-10-01"),
+      done("inv", "2026-10-02", "invoiced"),
+      done("cx", "2026-10-03", "cancelled"),
+      moving,
+    ]);
+    assert.deepEqual(list.map((r) => r.id), ["old", "new"]);
   });
 });

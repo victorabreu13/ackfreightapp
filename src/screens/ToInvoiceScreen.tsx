@@ -4,19 +4,13 @@ import AdminShell from "../components/AdminShell";
 import { cargoSummary, dispatchStyles } from "../components/DispatchUI";
 import { useDispatchData } from "../hooks/useDispatchData";
 import { formatQuote } from "../utils/quote";
-import { tripStage } from "../utils/tripStatus";
+import { pendingInvoiceRequests } from "../utils/dispatchBoard";
 
 // Delivered trips that haven't been invoiced yet. Invoicing itself still
 // happens on the trip screen (QuickBooks or "Mark invoiced"), unchanged.
 export default function ToInvoiceScreen({ navigation }: any) {
   const { requests } = useDispatchData();
-  const rows = useMemo(
-    () =>
-      requests
-        .filter((r) => tripStage(r) === "delivered")
-        .sort((a, b) => (a.tripDate < b.tripDate ? -1 : 1)),
-    [requests]
-  );
+  const rows = useMemo(() => pendingInvoiceRequests(requests), [requests]);
 
   return (
     <AdminShell

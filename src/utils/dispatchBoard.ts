@@ -125,7 +125,7 @@ export interface DayCounters {
 
 /** The trip counter cards on the Today screen (each one opens a list). */
 export type TripCounterKey = "total" | "requested" | "assigned" | "onTheRoad" | "delivered";
-export type CounterKey = TripCounterKey | "drivers";
+export type CounterKey = TripCounterKey | "pendingInvoice" | "drivers";
 
 /** Stages behind each trip counter card; null = every trip on the board. */
 export const COUNTER_STAGES: Record<TripCounterKey, TripStage[] | null> = {
@@ -143,6 +143,16 @@ export const COUNTER_STAGES: Record<TripCounterKey, TripStage[] | null> = {
 export function tripsForCounter(trips: BoardTrip[], key: TripCounterKey): BoardTrip[] {
   const stages = COUNTER_STAGES[key];
   return stages ? trips.filter((t) => stages.includes(t.stage)) : trips;
+}
+
+/**
+ * Delivered trips not invoiced yet, any date, oldest first. The single
+ * definition behind the To Invoice page and the "Pending invoice" card.
+ */
+export function pendingInvoiceRequests(requests: TripRequest[]): TripRequest[] {
+  return requests
+    .filter((r) => tripStage(r) === "delivered")
+    .sort((a, b) => (a.tripDate < b.tripDate ? -1 : a.tripDate > b.tripDate ? 1 : 0));
 }
 
 /** On-duty, active drivers (free first, then busy, each by name). */

@@ -13,6 +13,7 @@ import {
   DispatchAlert,
   dayCounters,
   onDutyDrivers,
+  pendingInvoiceRequests,
   tripsForCounter,
   tripsForDay,
 } from "../utils/dispatchBoard";
@@ -75,6 +76,7 @@ export default function TodayScreen({ navigation }: any) {
     else navigation.navigate("Drivers");
   };
 
+  const pendingInvoice = useMemo(() => pendingInvoiceRequests(requests), [requests]);
   const isToday = day === today;
   const dayText = isToday ? "today" : prettyDay(day, today);
   const carryNote = isToday ? ", plus unfinished trips carried over from earlier days" : "";
@@ -109,6 +111,12 @@ export default function TodayScreen({ navigation }: any) {
       value: counters.delivered,
       description: `Trips with every AWB completed (including invoiced ones).`,
     },
+    pendingInvoice: {
+      label: "Pending invoice",
+      color: TRIP_STAGES.invoiced.color,
+      value: pendingInvoice.length,
+      description: "Delivered trips not invoiced yet, any date (oldest first) — the same list as the To Invoice page.",
+    },
     drivers: {
       label: "Drivers free / on duty",
       color: "#16a34a",
@@ -119,6 +127,8 @@ export default function TodayScreen({ navigation }: any) {
   const drawerContent: DrawerContent | null = openCounter
     ? openCounter === "drivers"
       ? { kind: "drivers", drivers: onDutyDrivers(driverStates) }
+      : openCounter === "pendingInvoice"
+      ? { kind: "invoice", requests: pendingInvoice }
       : { kind: "trips", trips: tripsForCounter(trips, openCounter) }
     : null;
 
@@ -232,6 +242,17 @@ export default function TodayScreen({ navigation }: any) {
               alertsByDriver={targets.byDriver}
               nowMs={nowMs}
               onOpenTrip={(request) => navigation.navigate("DispatchDetail", { request })}
+              footerLink={
+                openCounter === "pendingInvoice"
+                  ? {
+                      label: "Open To Invoice →",
+                      onPress: () => {
+                        setOpenCounter(null);
+                        navigation.navigate("ToInvoice");
+                      },
+                    }
+                  : undefined
+              }
             />
           )}
           {day === today && <AlertsStrip alerts={alerts} onPress={onAlert} />}
