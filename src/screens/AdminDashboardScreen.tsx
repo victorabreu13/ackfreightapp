@@ -36,6 +36,10 @@ const TILES = [
   },
 ] as const;
 
+// Phones (native app): slim full-width rows so the menu fits on one screen
+// (from Victor's c51851b, kept in the Settings layout).
+const COMPACT = Platform.OS !== "web";
+
 export default function AdminDashboardScreen({ navigation }: any) {
   const [qbStatus, setQbStatus] = useState<{
     connected: boolean;
@@ -91,12 +95,23 @@ export default function AdminDashboardScreen({ navigation }: any) {
 
   return (
     <AdminShell navigation={navigation} active="AdminDashboard" title="Settings">
-      <View style={styles.tileGrid}>
+      <View style={[styles.tileGrid, COMPACT && styles.tileGridCompact]}>
         {tiles.map((tile) => (
-          <TouchableOpacity key={tile.key} style={styles.tile} onPress={() => navigation.navigate(tile.key)}>
-            <Text style={styles.tileIcon}>{tile.icon}</Text>
-            <Text style={styles.tileLabel}>{tile.label}</Text>
-            <Text style={styles.tileDescription}>{tile.description}</Text>
+          <TouchableOpacity
+            key={tile.key}
+            style={[styles.tile, COMPACT && styles.tileCompact]}
+            onPress={() => navigation.navigate(tile.key)}
+          >
+            <Text style={[styles.tileIcon, COMPACT && styles.tileIconCompact]}>{tile.icon}</Text>
+            <View style={COMPACT ? styles.tileTextCompact : undefined}>
+              <Text style={[styles.tileLabel, COMPACT && styles.tileLabelCompact]}>{tile.label}</Text>
+              <Text
+                style={[styles.tileDescription, COMPACT && styles.tileDescriptionCompact]}
+                numberOfLines={COMPACT ? 2 : undefined}
+              >
+                {tile.description}
+              </Text>
+            </View>
           </TouchableOpacity>
         ))}
       </View>
@@ -154,4 +169,19 @@ const styles = StyleSheet.create({
   qbConnectText: { color: "#1d4ed8", fontWeight: "700", fontSize: 13 },
   qbConnectedText: { color: "#15803d", fontWeight: "600", fontSize: 13, flexShrink: 1 },
   qbDisconnectText: { color: "#c0392b", fontWeight: "600", fontSize: 12 },
+  // Phone layout: slim full-width rows (icon left, text right) so the whole
+  // menu fits on one screen.
+  tileGridCompact: { flexDirection: "column", flexWrap: "nowrap", gap: 10 },
+  tileCompact: {
+    width: "100%",
+    flexDirection: "row",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    justifyContent: "flex-start",
+  },
+  tileIconCompact: { fontSize: 28, marginBottom: 0, marginRight: 14 },
+  tileTextCompact: { flex: 1 },
+  tileLabelCompact: { fontSize: 16, marginBottom: 2 },
+  tileDescriptionCompact: { fontSize: 12, textAlign: "left" },
 });
