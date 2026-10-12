@@ -11,63 +11,39 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AdminShell from "../components/AdminShell";
 import DateField from "../components/DateField";
-import { approveLead, dismissLead, Lead, subscribeToPendingLeads } from "../services/leads";
-import {
-  disconnectQuickBooks,
-  getQuickBooksConnectUrl,
-  getQuickBooksStatus,
-} from "../services/quickbooks";
+import { Btn, cargoSummary, StagePill, to12h } from "../components/DispatchUI";
 import { subscribeToAllTripRequests } from "../services/tripRequests";
-import { TripRequest, TripRequestStatus } from "../types";
-import { confirmAction, notify } from "../utils/alert";
+import { TripRequest } from "../types";
 import { toLocalDateString } from "../utils/date";
+import { isOpenStage } from "../utils/dispatchBoard";
+import { STAGE_ORDER, stageInfo, tripStage, TripStage, unassignedCount } from "../utils/tripStatus";
 
-const STATUS_LABELS: Record<TripRequestStatus, string> = {
-  submitted: "Submitted",
-  assigned: "Assigned",
-  in_progress: "In Progress",
-  completed: "Completed",
-  invoiced: "Invoiced",
-  cancelled: "Cancelled",
-};
+type StageFilter = TripStage | "open" | "all";
 
-const STATUS_COLORS: Record<TripRequestStatus, string> = {
-  submitted: "#1d4ed8",
-  assigned: "#b45309",
-  in_progress: "#0891b2",
-  completed: "#15803d",
-  invoiced: "#6d28d9",
-  cancelled: "#c0392b",
-};
-
-const FILTERS: { key: TripRequestStatus | "all"; label: string }[] = [
-  { key: "submitted", label: "Submitted" },
-  { key: "assigned", label: "Assigned" },
-  { key: "in_progress", label: "In Progress" },
-  { key: "completed", label: "Completed" },
-  { key: "invoiced", label: "Invoiced" },
-  { key: "cancelled", label: "Cancelled" },
+// One chip per unified trip stage (see utils/tripStatus.ts), plus "Open"
+// (everything not yet delivered) and "All".
+const FILTERS: { key: StageFilter; label: string }[] = [
+  { key: "open", label: "Open" },
+  ...STAGE_ORDER.map((s) => ({ key: s as StageFilter, label: stageInfo(s).label })),
   { key: "all", label: "All" },
 ];
 
-export default function DispatchScreen({ navigation }: any) {
+// "Trips" in the admin menu (route name kept as Dispatch so existing links
+// and the /dispatch URL keep working). Website leads moved to New Requests
+// and the QuickBooks connection moved to Settings.
+export default function DispatchScreen({ navigation, route }: any) {
   const [requests, setRequests] = useState<TripRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<TripRequestStatus | "all">("submitted");
+  const [filter, setFilter] = useState<StageFilter>(route?.params?.stage ?? "open");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStartDate, setFilterStartDate] = useState<Date | null>(null);
   const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
-  const [customerFilter, setCustomerFilter] = useState<string | null>(null);
+  const [customerFilter, setCustomerFilter] = useState<string | null>(
+    route?.params?.customer ? String(route.params.customer).trim().toLowerCase() : null
+  );
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [leadBusyId, setLeadBusyId] = useState<string | null>(null);
-  const [qbStatus, setQbStatus] = useState<{
-    connected: boolean;
-    companyName?: string | null;
-    environment?: string;
-    realmId?: string;
-  } | null>(null);
 
   useEffect(() => {
     const unsubscribe = subscribeToAllTripRequests(
@@ -81,76 +57,9 @@ export default function DispatchScreen({ navigation }: any) {
   }, []);
 
   useEffect(() => {
-    return subscribeToPendingLeads(setLeads, (err) => console.error("leads subscription:", err));
-  }, []);
-
-  const handleApproveLead = async (lead: Lead) => {
-    setLeadBusyId(lead.id);
-    try {
-      await approveLead(lead.id);
-      notify("Lead approved", "A trip request was created for the customer with this email.");
-    } catch (e: any) {
-      notify("Couldn't approve lead", e?.message ?? "Create the customer account first, then approve.");
-    } finally {
-      setLeadBusyId(null);
-    }
-  };
-
-  const handleDismissLead = (lead: Lead) => {
-    confirmAction(
-      { title: "Dismiss this lead?", confirmLabel: "Dismiss", destructive: true },
-      async () => {
-        setLeadBusyId(lead.id);
-        try {
-          await dismissLead(lead.id);
-        } catch (e: any) {
-          notify("Couldn't dismiss lead", e?.message ?? "Try again.");
-        } finally {
-          setLeadBusyId(null);
-        }
-      }
-    );
-  };
-
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    getQuickBooksStatus()
-      .then(setQbStatus)
-      .catch((err) => console.error("getQuickBooksStatus error:", err));
-  }, []);
-
-  const handleConnectQuickBooks = async () => {
-    // Open the tab synchronously (within the click event) so browsers don't
-    // treat it as a popup — the URL itself comes back from an async call,
-    // so we point this already-open tab at it once we have it.
-    const tab = window.open("", "_blank");
-    try {
-      const url = await getQuickBooksConnectUrl();
-      if (tab) tab.location.href = url;
-    } catch (e: any) {
-      if (tab) tab.close();
-      notify("Couldn't start QuickBooks connection", e?.message ?? "Something went wrong. Please try again.");
-    }
-  };
-
-  const handleDisconnectQuickBooks = () => {
-    confirmAction(
-      {
-        title: "Disconnect QuickBooks?",
-        message: "You'll need to reconnect before sending any more invoices.",
-        confirmLabel: "Disconnect",
-        destructive: true,
-      },
-      async () => {
-        try {
-          await disconnectQuickBooks();
-          setQbStatus({ connected: false });
-        } catch (e: any) {
-          notify("Couldn't disconnect", e?.message ?? "Something went wrong. Please try again.");
-        }
-      }
-    );
-  };
+    if (route?.params?.customer) setCustomerFilter(String(route.params.customer).trim().toLowerCase());
+    if (route?.params?.stage) setFilter(route.params.stage);
+  }, [route?.params?.customer, route?.params?.stage]);
 
   // Customer names who actually have trip requests, for the customer filter
   // — unified by name (case-insensitively) rather than customerId, since the
@@ -170,8 +79,12 @@ export default function DispatchScreen({ navigation }: any) {
   }, [requests]);
   const customerName = customerFilter
     ? customerNames.find((c) => c.key === customerFilter)?.label ?? customerFilter
-    : "All Customers";
+    : "All Clients";
 
+  // Customer filter stays applied even while searching (narrowing an AWB
+  // search to one customer is useful); status and date only apply outside
+  // of a search — you're looking for one specific AWB wherever it is, not
+  // narrowing within the current status/date filter.
   // Customer filter stays applied even while searching (narrowing an AWB
   // search to one customer is useful); status and date only apply outside
   // of a search — you're looking for one specific AWB wherever it is, not
@@ -187,7 +100,12 @@ export default function DispatchScreen({ navigation }: any) {
         r.awbLines.some((l) => l.awbNumber.toLowerCase().includes(q))
       );
     }
-    let result = filter === "all" ? byCustomer : byCustomer.filter((r) => r.status === filter);
+    let result =
+      filter === "all"
+        ? byCustomer
+        : filter === "open"
+        ? byCustomer.filter((r) => isOpenStage(tripStage(r)))
+        : byCustomer.filter((r) => tripStage(r) === filter);
     if (filterStartDate) {
       const start = toLocalDateString(filterStartDate);
       result = result.filter((r) => r.tripDate >= start);
@@ -200,105 +118,48 @@ export default function DispatchScreen({ navigation }: any) {
   }, [requests, filter, searchQuery, filterStartDate, filterEndDate, customerFilter]);
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-        <Text style={styles.backButtonText}>‹ Back</Text>
-      </TouchableOpacity>
-
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Dispatch</Text>
-          <Text style={styles.subtitle}>
-            {filtered.length} request{filtered.length === 1 ? "" : "s"}
-          </Text>
-        </View>
+    <AdminShell
+      navigation={navigation}
+      active="Dispatch"
+      title="Trips"
+      subtitle={`${filtered.length} trip${filtered.length === 1 ? "" : "s"}`}
+      scroll={false}
+      right={<Btn label="+ New trip" primary onPress={() => navigation.navigate("DispatchNewRequest")} />}
+    >
+      <View style={styles.toolbar}>
         <TouchableOpacity
-          style={styles.newButton}
-          onPress={() => navigation.navigate("DispatchNewRequest")}
+          style={styles.customerButton}
+          onPress={() => setCustomerModalOpen(true)}
         >
-          <Text style={styles.newButtonText}>+ New Request</Text>
+          <Text style={styles.customerButtonText}>Client: {customerName}</Text>
+          <Text style={styles.chevron}>▾</Text>
         </TouchableOpacity>
+
+        <TextInput
+          style={[styles.searchInput, Platform.OS === "web" && styles.searchInputWeb]}
+          placeholder="Search by AWB #"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="characters"
+        />
       </View>
-
-      {Platform.OS === "web" && qbStatus && (
-        <View style={styles.qbRow}>
-          {qbStatus.connected ? (
-            <>
-              <Text style={styles.qbConnectedText}>
-                ✅ QuickBooks connected{qbStatus.companyName ? ` · ${qbStatus.companyName}` : ""}
-                {qbStatus.environment === "sandbox" ? " (sandbox)" : ""}
-                {qbStatus.realmId ? ` · realmId: ${qbStatus.realmId}` : ""}
-              </Text>
-              <TouchableOpacity onPress={handleDisconnectQuickBooks}>
-                <Text style={styles.qbDisconnectText}>Disconnect</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <TouchableOpacity onPress={handleConnectQuickBooks}>
-              <Text style={styles.qbConnectText}>🔗 Connect QuickBooks to send invoices</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-
-      {leads.length > 0 && (
-        <View style={styles.leadsBox}>
-          <Text style={styles.leadsTitle}>Website leads</Text>
-          {leads.map((lead) => (
-            <View key={lead.id} style={styles.leadCard}>
-              <Text style={styles.leadName}>{lead.contactName}</Text>
-              <Text style={styles.leadMeta}>
-                {lead.email} · {lead.from} → {lead.to}
-                {lead.tripDate ? ` · ${lead.tripDate}` : ""}
-              </Text>
-              <View style={styles.leadActions}>
-                <TouchableOpacity onPress={() => handleApproveLead(lead)} disabled={leadBusyId === lead.id}>
-                  <Text style={styles.leadApprove}>Approve</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDismissLead(lead)} disabled={leadBusyId === lead.id}>
-                  <Text style={styles.leadDismiss}>Dismiss</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-        </View>
-      )}
-
-      <TouchableOpacity
-        style={styles.customerButton}
-        onPress={() => setCustomerModalOpen(true)}
-      >
-        <Text style={styles.customerButtonText}>Customer: {customerName}</Text>
-        <Text style={styles.chevron}>▾</Text>
-      </TouchableOpacity>
-
-      <TextInput
-        style={[styles.searchInput, Platform.OS === "web" && styles.searchInputWeb]}
-        placeholder="Search by AWB #"
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        autoCapitalize="characters"
-      />
 
       {!searchQuery.trim() && (
         <>
           <View style={styles.filterRow}>
-            {FILTERS.map((f) => (
-              <TouchableOpacity
-                key={f.key}
-                style={[styles.filterButton, filter === f.key && styles.filterButtonActive]}
-                onPress={() => setFilter(f.key)}
-              >
-                <Text
-                  style={[
-                    styles.filterButtonText,
-                    filter === f.key && styles.filterButtonTextActive,
-                  ]}
+            {FILTERS.map((f) => {
+              const color = f.key === "open" || f.key === "all" ? "#0A1A3A" : stageInfo(f.key).color;
+              const on = filter === f.key;
+              return (
+                <TouchableOpacity
+                  key={f.key}
+                  style={[styles.filterButton, on && { backgroundColor: color, borderColor: color }]}
+                  onPress={() => setFilter(f.key)}
                 >
-                  {f.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text style={[styles.filterButtonText, { color: on ? "#fff" : color }]}>{f.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
           <View style={styles.dateFilterRow}>
             <View style={styles.filterDateField}>
@@ -347,44 +208,52 @@ export default function DispatchScreen({ navigation }: any) {
       ) : filtered.length === 0 ? (
         <Text style={styles.empty}>
           {searchQuery.trim()
-            ? "No trip request has an AWB matching that search."
-            : "No requests for this filter."}
+            ? "No trip has an AWB matching that search."
+            : "No trips for this filter."}
         </Text>
       ) : (
         <FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
+          style={{ flex: 1 }}
           contentContainerStyle={{ paddingVertical: 8 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() =>
-                navigation.navigate("DispatchDetail", { request: item })
-              }
-            >
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardDate}>{item.tripDate}</Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: STATUS_COLORS[item.status] },
-                  ]}
-                >
-                  <Text style={styles.statusBadgeText}>{STATUS_LABELS[item.status]}</Text>
+          renderItem={({ item }) => {
+            const stage = tripStage(item);
+            const cargo = cargoSummary(item);
+            const missing = unassignedCount(item);
+            return (
+              <TouchableOpacity
+                style={[styles.card, { borderLeftColor: stageInfo(stage).color }]}
+                onPress={() =>
+                  navigation.navigate("DispatchDetail", { request: item })
+                }
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={styles.cardDate}>
+                    {item.tripDate} · {to12h(item.pickupTime)}
+                  </Text>
+                  <StagePill stage={stage} />
                 </View>
-              </View>
-              <Text style={styles.cardCustomer}>{item.customerName}</Text>
-              <Text style={styles.cardRoute}>
-                {item.from} → {item.to}
-              </Text>
-              <Text style={styles.cardMeta}>
-                {item.awbLines.length} AWB{item.awbLines.length === 1 ? "" : "s"}
-                {item.assignedDriverNames.length > 0
-                  ? ` · Driver: ${item.assignedDriverNames.join(", ")}`
-                  : ""}
-              </Text>
-            </TouchableOpacity>
-          )}
+                <Text style={styles.cardCustomer}>{item.customerName}</Text>
+                <Text style={styles.cardRoute}>
+                  {item.from} → {item.to}
+                </Text>
+                <Text style={styles.cardMeta}>
+                  {item.awbLines.length} AWB{item.awbLines.length === 1 ? "" : "s"}
+                  {cargo.units ? ` · ${cargo.units}` : ""}
+                  {cargo.kg ? ` · ${cargo.kg.toLocaleString("en-US")} kg` : ""}
+                  {item.assignedDriverNames.length > 0
+                    ? ` · Driver: ${item.assignedDriverNames.join(", ")}`
+                    : ""}
+                </Text>
+                {missing > 0 && stage !== "requested" && (
+                  <Text style={styles.cardMissing}>
+                    {missing} AWB{missing === 1 ? "" : "s"} still need a driver
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          }}
         />
       )}
 
@@ -408,7 +277,7 @@ export default function DispatchScreen({ navigation }: any) {
                   setCustomerModalOpen(false);
                 }}
               >
-                <Text style={styles.modalOptionText}>All Customers</Text>
+                <Text style={styles.modalOptionText}>All Clients</Text>
               </TouchableOpacity>
               {customerNames.map(({ key, label }) => (
                 <TouchableOpacity
@@ -426,53 +295,11 @@ export default function DispatchScreen({ navigation }: any) {
           </View>
         </TouchableOpacity>
       </Modal>
-    </View>
+    </AdminShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f6fa" },
-  backButton: { marginTop: 24, marginLeft: 20, alignSelf: "flex-start" },
-  backButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 16 },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
-  newButton: {
-    backgroundColor: "#1d4ed8",
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  newButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  title: { fontSize: 22, fontWeight: "800", color: "#111" },
-  subtitle: { fontSize: 13, color: "#666" },
-  leadsBox: { marginHorizontal: 16, marginBottom: 8 },
-  leadsTitle: { fontSize: 14, fontWeight: "800", color: "#111", marginBottom: 6 },
-  leadCard: { backgroundColor: "#fff", borderRadius: 10, padding: 12, marginBottom: 8 },
-  leadName: { fontSize: 15, fontWeight: "800", color: "#111" },
-  leadMeta: { fontSize: 13, color: "#555", marginTop: 2 },
-  leadActions: { flexDirection: "row", gap: 16, marginTop: 8 },
-  leadApprove: { color: "#1d4ed8", fontWeight: "800" },
-  leadDismiss: { color: "#c0392b", fontWeight: "700" },
-  qbRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    marginHorizontal: 16,
-    marginBottom: 10,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  qbConnectText: { color: "#1d4ed8", fontWeight: "700", fontSize: 13 },
-  qbConnectedText: { color: "#15803d", fontWeight: "600", fontSize: 13 },
-  qbDisconnectText: { color: "#c0392b", fontWeight: "600", fontSize: 12 },
   searchInput: {
     backgroundColor: "#fff",
     borderRadius: 10,
@@ -481,10 +308,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     fontSize: 14,
-    marginHorizontal: 16,
     marginBottom: 8,
   },
-  searchInputWeb: { width: "25%" as any, minWidth: 160, marginHorizontal: 16 },
+  searchInputWeb: { width: 260, minWidth: 160 },
   customerButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -495,7 +321,6 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     paddingVertical: 10,
     paddingHorizontal: 14,
-    marginHorizontal: 16,
     marginBottom: 8,
   },
   customerButtonText: { color: "#111", fontWeight: "600", fontSize: 14 },
@@ -526,7 +351,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    paddingHorizontal: 16,
     marginBottom: 4,
   },
   filterButton: {
@@ -537,14 +361,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
-  filterButtonActive: { backgroundColor: "#1d4ed8", borderColor: "#1d4ed8" },
   filterButtonText: { color: "#333", fontWeight: "600", fontSize: 13 },
-  filterButtonTextActive: { color: "#fff" },
   dateFilterRow: {
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 8,
-    paddingHorizontal: 16,
     marginBottom: 8,
   },
   filterDateField: {},
@@ -560,9 +381,11 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: "#fff",
     borderRadius: 10,
-    padding: 14,
-    marginHorizontal: 16,
-    marginVertical: 6,
+    borderWidth: 1,
+    borderColor: "#e3e7ef",
+    borderLeftWidth: 4,
+    padding: 12,
+    marginVertical: 4,
   },
   cardHeader: {
     flexDirection: "row",
@@ -570,8 +393,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cardDate: { fontSize: 15, fontWeight: "700", color: "#111" },
-  statusBadge: { borderRadius: 12, paddingVertical: 3, paddingHorizontal: 10 },
-  statusBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  toolbar: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
+  cardMissing: { color: "#b91c1c", fontWeight: "800", fontSize: 12, marginTop: 4 },
   cardCustomer: { fontSize: 14, fontWeight: "700", color: "#1d4ed8", marginTop: 6 },
   cardRoute: { fontSize: 14, color: "#333", marginTop: 2 },
   cardMeta: { fontSize: 12, color: "#888", marginTop: 4 },

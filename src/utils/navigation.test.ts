@@ -17,3 +17,10 @@ describe("navigationTargets", () => {
     assert.match(targets.waze.webUrl, /^https:\/\/waze\.com\/ul\?q=/);
   });
 });
+
+// Dispatch board tests ride along here instead of being added to the
+// package.json "test" script: changing package.json scripts changes the Expo
+// fingerprint (runtimeVersion), which would cut existing native builds off
+// from OTA updates.
+import "./tripStatus.test";
+import "./dispatchBoard.test";

@@ -3,6 +3,12 @@ import React from "react";
 import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import AdminDashboardScreen from "../screens/AdminDashboardScreen";
+import ClientsScreen from "../screens/ClientsScreen";
+import DriversScreen from "../screens/DriversScreen";
+import LiveMapScreen from "../screens/LiveMapScreen";
+import NewRequestsScreen from "../screens/NewRequestsScreen";
+import TodayScreen from "../screens/TodayScreen";
+import ToInvoiceScreen from "../screens/ToInvoiceScreen";
 import CustomerHomeScreen from "../screens/CustomerHomeScreen";
 import CustomerTripRequestsScreen from "../screens/CustomerTripRequestsScreen";
 import DispatchDetailScreen from "../screens/DispatchDetailScreen";
@@ -54,6 +60,14 @@ export default function RootNavigator() {
   if (profile.role === "admin") {
     return (
       <Stack.Navigator>
+        {/* Today is the admin landing screen; the side menu (AdminShell)
+            links the other top-level screens. */}
+        <Stack.Screen name="Today" component={TodayScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="LiveMap" component={LiveMapScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="NewRequests" component={NewRequestsScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Drivers" component={DriversScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Clients" component={ClientsScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="ToInvoice" component={ToInvoiceScreen} options={{ headerShown: false }} />
         <Stack.Screen
           name="AdminDashboard"
           component={AdminDashboardScreen}
@@ -87,12 +101,12 @@ export default function RootNavigator() {
         <Stack.Screen
           name="DispatchDetail"
           component={DispatchDetailScreen}
-          options={{ title: "Dispatch Request" }}
+          options={{ title: "Trip" }}
         />
         <Stack.Screen
           name="DispatchNewRequest"
           component={DispatchNewRequestScreen}
-          options={{ title: "New Trip Request" }}
+          options={{ title: "New Trip" }}
         />
         <Stack.Screen
           name="DeletedTrips"
