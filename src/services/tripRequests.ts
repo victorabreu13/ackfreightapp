@@ -291,6 +291,20 @@ export async function removeAwbLine(requestId: string, awbIndex: number): Promis
   await callWithFreshToken(removeAwbLineFn, { requestId, awbIndex });
 }
 
+const adminCompleteAwbLinesFn = httpsCallable<
+  { requestId: string; awbIndexes: number[] },
+  { success: boolean }
+>(functions, "adminCompleteAwbLines");
+
+// Admin-only: marks AWBs completed on the assigned driver's behalf and logs the
+// trip for that driver (ULD numbers left blank).
+export async function adminCompleteAwbLines(
+  requestId: string,
+  awbIndexes: number[]
+): Promise<void> {
+  await callWithFreshToken(adminCompleteAwbLinesFn, { requestId, awbIndexes });
+}
+
 const checkAwbInUseFn = httpsCallable<
   { awbNumbers: string[]; excludeRequestId?: string },
   { inUse: string[] }

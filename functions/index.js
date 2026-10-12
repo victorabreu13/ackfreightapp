@@ -13,6 +13,7 @@ const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const {
   applyAcceptAssigned,
+  applyAdminComplete,
   applyBoardAccept,
   applyComplete,
   applyDecline,
@@ -1198,6 +1199,96 @@ exports.removeAwbLine = onCall({ invoker: "public" }, async (request) => {
     });
   });
 
+  return { success: true };
+});
+
+// Admin finishes AWBs on behalf of the driver (the driver never did). Each
+// affected driver gets a trip log entry (so Drivers Log and payroll count it),
+// written in the same transaction that completes the lines. ULD numbers aren't
+// known to the admin, so they're left blank.
+exports.adminCompleteAwbLines = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const { requestId, awbIndexes } = request.data || {};
+  if (
+    !requestId ||
+    !Array.isArray(awbIndexes) ||
+    awbIndexes.length === 0 ||
+    !awbIndexes.every((i) => Number.isInteger(i) && i >= 0)
+  ) {
+    throw new HttpsError("invalid-argument", "requestId and a non-empty awbIndexes array are required.");
+  }
+  const db = admin.firestore();
+  const ref = db.collection("tripRequests").doc(requestId);
+  const adminSnap = await db.collection("users").doc(request.auth.uid).get();
+  const adminName = String(adminSnap.data()?.name || request.auth.token.email || "an admin");
+
+  let completedData;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const data = snap.data();
+    const lines = data.awbLines || [];
+    const indexes = [...new Set(awbIndexes)];
+
+    const driverIds = [
+      ...new Set(indexes.map((i) => lines[i]?.assignedDriverId).filter(Boolean)),
+    ];
+    const driverSnaps = await Promise.all(driverIds.map((id) => tx.get(db.collection("users").doc(id))));
+    const tripIdByDriver = {};
+    driverIds.forEach((id) => {
+      tripIdByDriver[id] = db.collection("trips").doc().id;
+    });
+
+    const done = applyAdminComplete(lines, indexes, tripIdByDriver);
+    if (!done.ok) throw new HttpsError("failed-precondition", done.message);
+
+    driverIds.forEach((driverId, k) => {
+      const picked = indexes.map((i) => lines[i]).filter((l) => l.assignedDriverId === driverId);
+      const profile = driverSnaps[k].data() || {};
+      const time = String(data.pickupTime || "00:00");
+      tx.set(db.collection("trips").doc(tripIdByDriver[driverId]), {
+        driverId,
+        driverName: String(profile.name || picked[0].assignedDriverName || ""),
+        driverEmail: String(profile.email || ""),
+        date: String(data.tripDate || ""),
+        timeStart: time,
+        timeFinish: time,
+        from: String(data.from || ""),
+        to: String(data.to || ""),
+        qty: picked.length,
+        unitTypes: picked.map((l) => l.type),
+        uldNumbers: picked.map(() => ""),
+        awbNumber: picked.map((l) => String(l.awbNumber)).join(","),
+        kilograms: picked.reduce((sum, l) => sum + (Number(l.kilograms) || 0), 0),
+        notes: `From dispatch request for ${data.customerName || "customer"}. Marked completed by ${adminName} on behalf of the driver.`,
+        proofFiles: [],
+        signature: null,
+        signatureStrokes: [],
+        paid: false,
+        completedByAdmin: { uid: request.auth.uid, name: adminName },
+        createdAt: Date.now(),
+      });
+    });
+
+    const updates = {
+      awbLines: done.awbLines,
+      status: done.status,
+      assignedDriverIds: done.assignedDriverIds,
+      assignedDriverNames: done.assignedDriverNames,
+      updatedAt: Date.now(),
+    };
+    // Drop a driver's live pin once none of their lines are still on the road.
+    driverIds.forEach((driverId) => {
+      if (!driverStillOnTrip(done.awbLines, driverId)) {
+        updates[`driverLocations.${driverId}`] = admin.firestore.FieldValue.delete();
+      }
+    });
+    tx.update(ref, updates);
+    completedData = { ...data, awbLines: done.awbLines };
+  });
+
+  await lockCompletedPay(db, requestId, [...new Set(awbIndexes)], completedData);
   return { success: true };
 });
 

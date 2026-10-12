@@ -267,7 +267,35 @@ function applyRemoveLine(awbLines, awbIndex) {
   return { ok: true, awbLines: nextLines, ...computeRollup(nextLines) };
 }
 
+// Admin completes lines on behalf of their driver (driver never did it). Each
+// selected line must have a driver and still be open; lines complete from any
+// open stage (assigned, accepted, in progress, picked up). tripLogIdByDriver
+// maps each driver to the trip log created for them.
+const ADMIN_COMPLETABLE = new Set(["assigned", "accepted", "in_progress", "picked_up"]);
+
+function applyAdminComplete(awbLines, indexes, tripLogIdByDriver) {
+  const lines = awbLines || [];
+  const indexSet = new Set(indexes);
+  for (const index of indexSet) {
+    const line = lines[index];
+    if (!line) return { ok: false, message: "That AWB isn't on this trip request." };
+    if (!line.assignedDriverId) {
+      return { ok: false, message: `AWB ${line.awbNumber} has no driver. Assign a driver first.` };
+    }
+    if (!ADMIN_COMPLETABLE.has(line.status)) {
+      return { ok: false, message: `AWB ${line.awbNumber} is already ${line.status} and can't be completed.` };
+    }
+  }
+  const nextLines = lines.map((line, index) =>
+    indexSet.has(index)
+      ? { ...line, status: "completed", tripLogId: tripLogIdByDriver[line.assignedDriverId] }
+      : line
+  );
+  return { ok: true, awbLines: nextLines, ...computeRollup(nextLines) };
+}
+
 module.exports = {
+  applyAdminComplete,
   awbKey,
   awbKeysFromRequest,
   sameKeyList,

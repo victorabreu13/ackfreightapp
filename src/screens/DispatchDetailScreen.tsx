@@ -15,6 +15,7 @@ import TripRequestReadOnly from "../components/TripRequestReadOnly";
 import { sendQuickBooksInvoice } from "../services/quickbooks";
 import { getUserProfile, setCustomerBillRate, subscribeToActiveDrivers } from "../services/users";
 import {
+  adminCompleteAwbLines,
   assignAwbDriver,
   removeAwbLine,
   setTripRequestStatus,
@@ -60,6 +61,7 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
   const [drivers, setDrivers] = useState<UserProfile[]>([]);
   const [assigningIndex, setAssigningIndex] = useState<number | null>(null);
   const [removingIndex, setRemovingIndex] = useState<number | null>(null);
+  const [completingIndex, setCompletingIndex] = useState<number | null>(null);
   const [changingStatus, setChangingStatus] = useState(false);
   const [editingKgIndex, setEditingKgIndex] = useState<number | null>(null);
   const [editKgValue, setEditKgValue] = useState("");
@@ -266,6 +268,33 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
     );
   };
 
+  const handleCompleteAwb = (awbIndex: number) => {
+    const line = request.awbLines[awbIndex];
+    confirmAction(
+      {
+        title: `Mark AWB ${line.awbNumber} completed?`,
+        message: `This completes it for ${line.assignedDriverName ?? "the driver"} and adds the trip to their Drivers Log (ULD # left blank). Use it when the driver didn't finish it in the app.`,
+        confirmLabel: "Mark Completed",
+      },
+      async () => {
+        setCompletingIndex(awbIndex);
+        try {
+          await adminCompleteAwbLines(request.id, [awbIndex]);
+          setRequest((prev) => {
+            const awbLines = prev.awbLines.map((l, i) =>
+              i === awbIndex ? { ...l, status: "completed" as const } : l
+            );
+            return { ...prev, awbLines, ...computeTripRequestRollup(awbLines) };
+          });
+        } catch (e: any) {
+          notify("Couldn't complete AWB", e?.message ?? "Something went wrong. Please try again.");
+        } finally {
+          setCompletingIndex(null);
+        }
+      }
+    );
+  };
+
   const changeStatus = (status: TripRequestStatus, confirmTitle: string) => {
     confirmAction(
       { title: confirmTitle, confirmLabel: "Confirm", destructive: status === "cancelled" },
@@ -343,6 +372,19 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
                   onSelect={(driver) => handleAssign(i, driver)}
                   disabled={locked}
                 />
+              )}
+              {completingIndex === i ? (
+                <ActivityIndicator style={styles.completeButton} />
+              ) : (
+                !!line.assignedDriverId &&
+                (line.status === "assigned" ||
+                  line.status === "accepted" ||
+                  line.status === "in_progress" ||
+                  line.status === "picked_up") && (
+                  <TouchableOpacity style={styles.completeButton} onPress={() => handleCompleteAwb(i)}>
+                    <Text style={styles.completeButtonText}>Complete</Text>
+                  </TouchableOpacity>
+                )
               )}
               {removingIndex === i ? (
                 <ActivityIndicator style={styles.removeButton} />
@@ -471,7 +513,7 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
       <Text style={styles.sectionTitle}>Status</Text>
       {(request.status === "assigned" || request.status === "in_progress") && (
         <Text style={styles.statusHint}>
-          The driver marks this In Progress and Completed from their app.
+          The driver marks this In Progress and Completed from their app. If they don't, use Complete next to the AWB above.
         </Text>
       )}
       <View style={styles.statusActions}>
@@ -588,6 +630,14 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   priorityButtonText: { fontWeight: "700", fontSize: 13 },
+  completeButton: {
+    backgroundColor: "#e6f4ea",
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginLeft: 10,
+  },
+  completeButtonText: { color: "#15803d", fontWeight: "700", fontSize: 13 },
   removeButton: {
     backgroundColor: "#fdecea",
     borderRadius: 8,

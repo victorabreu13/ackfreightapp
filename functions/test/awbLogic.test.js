@@ -6,6 +6,7 @@ const {
   applyBoardAccept,
   applyComplete,
   applyDecline,
+  applyAdminComplete,
   applyPickup,
   applyRemoveLine,
   applyStart,
@@ -360,5 +361,35 @@ describe("applyRemoveLine", () => {
     }
     assert.equal(applyRemoveLine([line({ awbNumber: "1" })], 0).ok, false);
     assert.equal(applyRemoveLine(three(), 9).ok, false);
+  });
+});
+
+describe("applyAdminComplete", () => {
+  const lines = () => [
+    line({ awbNumber: "1", assignedDriverId: "drv1", assignedDriverName: "Dee", status: "assigned" }),
+    line({ awbNumber: "2", assignedDriverId: "drv2", assignedDriverName: "Sam", status: "in_progress" }),
+    line({ awbNumber: "3", assignedDriverId: "drv1", assignedDriverName: "Dee", status: "picked_up" }),
+    line({ awbNumber: "4", status: "submitted" }),
+  ];
+
+  it("completes the chosen lines from any open stage and tags each driver's trip log", () => {
+    const result = applyAdminComplete(lines(), [0, 1, 2], { drv1: "t1", drv2: "t2" });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.awbLines.map((l) => l.status), ["completed", "completed", "completed", "submitted"]);
+    assert.deepEqual(result.awbLines.map((l) => l.tripLogId), ["t1", "t2", "t1", undefined]);
+    assert.equal(result.status, "in_progress");
+  });
+
+  it("rolls the request up to completed when every line is done", () => {
+    const only = [lines()[0]];
+    assert.equal(applyAdminComplete(only, [0], { drv1: "t1" }).status, "completed");
+  });
+
+  it("refuses unassigned, already completed, or missing lines", () => {
+    assert.equal(applyAdminComplete(lines(), [3], {}).ok, false);
+    const done = lines();
+    done[0] = { ...done[0], status: "completed" };
+    assert.equal(applyAdminComplete(done, [0], { drv1: "t1" }).ok, false);
+    assert.equal(applyAdminComplete(lines(), [9], {}).ok, false);
   });
 });
