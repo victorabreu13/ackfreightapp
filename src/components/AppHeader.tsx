@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import { navigationRef } from "../navigation/navigationRef";
 
@@ -14,7 +14,10 @@ export default function AppHeader() {
 
   const goHome = () => {
     if (!navigationRef.isReady() || !profile) return;
-    const routeName = HOME_ROUTE_BY_ROLE[profile.role] ?? "DriverHome";
+    const routeName =
+      profile.role === "admin" && Platform.OS !== "web"
+        ? "AdminHome"
+        : HOME_ROUTE_BY_ROLE[profile.role] ?? "DriverHome";
     navigationRef.navigate(routeName as never);
   };
 

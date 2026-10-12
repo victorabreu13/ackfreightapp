@@ -1,8 +1,9 @@
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
 import AdminDashboardScreen from "../screens/AdminDashboardScreen";
+import AdminHomeScreen from "../screens/AdminHomeScreen";
 import ClientsScreen from "../screens/ClientsScreen";
 import DriversScreen from "../screens/DriversScreen";
 import LiveMapScreen from "../screens/LiveMapScreen";
@@ -59,9 +60,11 @@ export default function RootNavigator() {
 
   if (profile.role === "admin") {
     return (
-      <Stack.Navigator>
-        {/* Today is the admin landing screen; the side menu (AdminShell)
-            links the other top-level screens. */}
+      <Stack.Navigator initialRouteName={Platform.OS === "web" ? "Today" : "AdminHome"}>
+        {/* Website: Today is the landing screen and the side menu (AdminShell)
+            links the other top-level screens. Phones: a simple home with four
+            buttons (Trips, New Trip, Live Map, Users). */}
+        <Stack.Screen name="AdminHome" component={AdminHomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Today" component={TodayScreen} options={{ headerShown: false }} />
         <Stack.Screen name="LiveMap" component={LiveMapScreen} options={{ headerShown: false }} />
         <Stack.Screen name="NewRequests" component={NewRequestsScreen} options={{ headerShown: false }} />

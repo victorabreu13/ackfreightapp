@@ -18,6 +18,7 @@ const linking = {
     screens: {
       Login: "login",
       SignUp: "signup",
+      AdminHome: "admin-home",
       Today: "today",
       LiveMap: "live-map",
       NewRequests: "new-requests",
