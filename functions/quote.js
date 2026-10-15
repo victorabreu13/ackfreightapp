@@ -6,16 +6,35 @@ function roundMoney(value) {
   return Math.round(value * 100) / 100;
 }
 
+// Loose cargo and skids aren't ULDs; the rest are, counted by piece quantity.
+function uldCountForLines(awbLines) {
+  return (awbLines || []).reduce(
+    (sum, line) =>
+      sum +
+      (line && line.type && line.type !== "Loose" && line.type !== "Skid"
+        ? Number(line.qtyPieces) || 0
+        : 0),
+    0
+  );
+}
+
 function quoteForRequest(profile, awbLines) {
   const rate = profile && typeof profile.billRate === "number" ? profile.billRate : null;
   const basis = profile && profile.billType;
   const usable =
-    rate != null && rate > 0 && (basis === "perTrip" || basis === "perKilogram");
+    rate != null && rate > 0 && (basis === "perTrip" || basis === "perKilogram" || basis === "perUld");
   if (!usable) {
     return { quotedAmount: null, quoteStatus: "no quote", quoteBasis: null };
   }
   if (basis === "perTrip") {
     return { quotedAmount: roundMoney(rate), quoteStatus: "quoted", quoteBasis: "perTrip" };
+  }
+  if (basis === "perUld") {
+    return {
+      quotedAmount: roundMoney(rate * uldCountForLines(awbLines)),
+      quoteStatus: "quoted",
+      quoteBasis: "perUld",
+    };
   }
   const kilograms = (awbLines || []).reduce(
     (sum, line) => sum + (Number(line && line.kilograms) || 0),
@@ -28,4 +47,4 @@ function quoteForRequest(profile, awbLines) {
   };
 }
 
-module.exports = { quoteForRequest, roundMoney };
+module.exports = { quoteForRequest, roundMoney, uldCountForLines };

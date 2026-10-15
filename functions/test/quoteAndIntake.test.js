@@ -94,4 +94,13 @@ describe("website intake", () => {
     assert.equal(good.lead.unNumber, "UN1993");
     assert.equal(good.lead.status, "pending");
   });
+
+  it("quotes per ULD from the non-loose piece count", () => {
+    const quote = quoteForRequest({ billType: "perUld", billRate: 25 }, [
+      { kilograms: 100, type: "PMC", qtyPieces: 3 },
+      { kilograms: 50, type: "Loose", qtyPieces: 11 },
+    ]);
+    assert.equal(quote.quotedAmount, 75);
+    assert.equal(quote.quoteBasis, "perUld");
+  });
 });

@@ -1,4 +1,5 @@
 import { AwbLine, DriverPayType } from "../types";
+import { uldCountForLines } from "./uld";
 
 export interface QuoteSnapshot {
   quotedAmount: number | null;
@@ -14,16 +15,23 @@ function roundMoney(value: number): number {
 // stored quote when the request is created.
 export function quoteForRequest(
   profile: { billRate?: number | null; billType?: string | null } | null | undefined,
-  awbLines: Pick<AwbLine, "kilograms">[]
+  awbLines: Pick<AwbLine, "kilograms" | "type" | "qtyPieces">[]
 ): QuoteSnapshot {
   const rate = profile && typeof profile.billRate === "number" ? profile.billRate : null;
   const basis = profile?.billType;
-  const usable = rate != null && rate > 0 && (basis === "perTrip" || basis === "perKilogram");
+  const usable = rate != null && rate > 0 && (basis === "perTrip" || basis === "perKilogram" || basis === "perUld");
   if (!usable) {
     return { quotedAmount: null, quoteStatus: "no quote", quoteBasis: null };
   }
   if (basis === "perTrip") {
     return { quotedAmount: roundMoney(rate), quoteStatus: "quoted", quoteBasis: "perTrip" };
+  }
+  if (basis === "perUld") {
+    return {
+      quotedAmount: roundMoney(rate * uldCountForLines(awbLines)),
+      quoteStatus: "quoted",
+      quoteBasis: "perUld",
+    };
   }
   const kilograms = (awbLines || []).reduce((sum, line) => sum + (Number(line?.kilograms) || 0), 0);
   return {
@@ -41,6 +49,7 @@ export function formatQuote(quote: {
   if (quote.quoteStatus === "no quote" || quote.quotedAmount == null) return "No quote";
   const amount = `$${Number(quote.quotedAmount).toFixed(2)}`;
   if (quote.quoteBasis === "perKilogram") return `${amount} (per kg)`;
+  if (quote.quoteBasis === "perUld") return `${amount} (per ULD)`;
   if (quote.quoteBasis === "perTrip") return `${amount} (per trip)`;
   return amount;
 }

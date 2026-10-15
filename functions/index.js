@@ -29,7 +29,7 @@ const {
 } = require("./awbLogic");
 const { intakeAuthorized, rateLimitDecision, validateIntakePayload } = require("./intake");
 const { encodeSignatureStrokes, proofsForRequest } = require("./proofs");
-const { quoteForRequest } = require("./quote");
+const { quoteForRequest, uldCountForLines } = require("./quote");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
 const { estimateRoute, haversineMiles } = require("./routeEstimate");
 const {
@@ -340,6 +340,9 @@ exports.submitTripLog = onCall({ invoker: "public" }, async (request) => {
     uldNumbers: input.uldNumbers.map((value) => String(value ?? "")),
     awbNumber: String(input.awbNumber),
     kilograms: Number(input.kilograms) || 0,
+    ...(Number.isFinite(Number(input.uldCount)) && input.uldCount !== null
+      ? { uldCount: Math.max(0, Math.round(Number(input.uldCount))) }
+      : {}),
     notes: String(input.notes || ""),
     proofFiles: Array.isArray(input.proofFiles) ? input.proofFiles : [],
     signature: input.signature && input.signature.url ? input.signature : null,
@@ -1263,6 +1266,7 @@ exports.adminCompleteAwbLines = onCall({ invoker: "public" }, async (request) =>
         uldNumbers: picked.map(() => ""),
         awbNumber: picked.map((l) => String(l.awbNumber)).join(","),
         kilograms: picked.reduce((sum, l) => sum + (Number(l.kilograms) || 0), 0),
+        uldCount: uldCountForLines(picked),
         notes: `From dispatch request for ${data.customerName || "customer"}. Marked completed by ${adminName} on behalf of the driver.`,
         proofFiles: [],
         signature: null,
@@ -1835,13 +1839,15 @@ exports.sendQuickBooksInvoice = onCall(
     const amount =
       customer.billType === "perTrip"
         ? customer.billRate
+        : customer.billType === "perUld"
+        ? uldCountForLines(tripRequest.awbLines) * customer.billRate
         : (tripRequest.awbLines || []).reduce((sum, l) => sum + (l.kilograms || 0), 0) *
           customer.billRate;
 
     if (!amount || amount <= 0) {
       throw new HttpsError(
         "failed-precondition",
-        "Computed invoice amount is $0 — check the customer's billing rate and this trip's AWB weights."
+        "Computed invoice amount is $0 — check the customer's billing rate and this trip's AWB weights and ULD counts."
       );
     }
 

@@ -17,6 +17,7 @@ import DateField from "../components/DateField";
 import LiveMap from "../components/LiveMap";
 import SignaturePad, { strokesToSvg, SignatureStrokes } from "../components/SignaturePad";
 import TripRequestReadOnly from "../components/TripRequestReadOnly";
+import { uldCountForLines } from "../utils/uld";
 import { ensureAlwaysLocationPermission, promptToAllowAlwaysLocation } from "../utils/locationPermission";
 import { useAuth } from "../context/AuthContext";
 import { subscribeToDriverAwbPay } from "../services/driverPay";
@@ -508,6 +509,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
         uldNumbers: trimmedUlds,
         awbNumber: joinedAwb,
         kilograms: selectedEntries.reduce((sum, { line }) => sum + line.kilograms, 0),
+        uldCount: uldCountForLines(selectedEntries.map(({ line }) => line)),
         notes: driverNote.trim()
           ? `From dispatch request for ${request.customerName}. Driver note: ${driverNote.trim()}`
           : `From dispatch request for ${request.customerName}.`,

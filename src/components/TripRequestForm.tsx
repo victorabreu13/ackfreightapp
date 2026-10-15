@@ -370,7 +370,11 @@ export default function TripRequestForm({
             ? `${formatQuote(
                 quoteForRequest(
                   billing,
-                  lines.map((line) => ({ kilograms: parseFloat(line.kilograms) || 0 }))
+                  lines.map((line) => ({
+                    kilograms: parseFloat(line.kilograms) || 0,
+                    type: line.type,
+                    qtyPieces: parseInt(line.qtyPieces, 10) || 0,
+                  }))
                 )
               )} — preview from this customer's billing rate. Saved when the request is submitted.`
             : "No quote until this customer's billing rate is on file."}

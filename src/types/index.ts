@@ -13,7 +13,7 @@ export const ULD_TYPES = [
 
 export type UldType = (typeof ULD_TYPES)[number];
 
-export type DriverPayType = "perTrip" | "perKilogram";
+export type DriverPayType = "perTrip" | "perKilogram" | "perUld";
 
 export const AWB_PRIORITIES = ["Low", "Normal", "High"] as const;
 export type AwbPriority = (typeof AWB_PRIORITIES)[number];
@@ -26,9 +26,9 @@ export interface UserProfile {
   createdAt: number;
   pushToken?: string;
   payType?: DriverPayType; // driver payroll basis, admin-configured
-  payRate?: number; // dollars per trip, or dollars per kilogram, depending on payType
+  payRate?: number; // dollars per trip, per kilogram, or per ULD, depending on payType
   billType?: DriverPayType; // customer billing basis, admin-configured (same shape as driver pay)
-  billRate?: number; // dollars per trip, or dollars per kilogram, depending on billType
+  billRate?: number; // dollars per trip, per kilogram, or per ULD, depending on billType
   quickbooksCustomerId?: string; // set by the server once this customer exists in QuickBooks
   active?: boolean; // undefined/true = active; admin-set false also disables their Auth login
   onDuty?: boolean; // driver job-board visibility; only true means on duty
@@ -55,6 +55,7 @@ export interface Trip {
   uldNumbers: string[]; // one entry per unit, length === qty
   awbNumber: string;
   kilograms: number; // total weight moved on this trip, used for per-kg payroll
+  uldCount?: number; // ULDs moved (non-loose pieces), used for per-ULD payroll; older trips lack it
   notes: string;
   proofFiles: ProofFile[];
   signature?: ProofFile | null; // delivery signature, stored beside the proof files

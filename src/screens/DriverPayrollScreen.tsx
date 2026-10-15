@@ -14,6 +14,7 @@ import { setDriverPayRate, subscribeToDrivers } from "../services/users";
 import { DriverPayType, Trip, UserProfile } from "../types";
 import { confirmAction, notify } from "../utils/alert";
 import { duplicateAwbCount, duplicateAwbTrips } from "../utils/duplicateAwb";
+import { uldCountForTrip } from "../utils/uld";
 import { toLocalDateString as toDateStr } from "../utils/date";
 
 // All local-calendar-day arithmetic below (not UTC) — trip.date strings are
@@ -84,14 +85,22 @@ const TRIP_STATUS_FILTERS: { key: TripStatusFilter; label: string }[] = [
   { key: "all", label: "All" },
 ];
 
+const PAY_TYPE_OPTIONS: { key: DriverPayType; label: string }[] = [
+  { key: "perTrip", label: "Per Trip" },
+  { key: "perKilogram", label: "Per Kilogram" },
+  { key: "perUld", label: "Per ULD" },
+];
+
 const PAY_TYPE_LABELS: Record<DriverPayType, string> = {
   perTrip: "per trip",
   perKilogram: "per kilogram",
+  perUld: "per ULD",
 };
 
 function amountFor(trips: Trip[], payType: DriverPayType | undefined, payRate: number | undefined) {
   if (!payType || !payRate) return 0;
   if (payType === "perTrip") return trips.length * payRate;
+  if (payType === "perUld") return trips.reduce((sum, t) => sum + uldCountForTrip(t), 0) * payRate;
   return trips.reduce((sum, t) => sum + (t.kilograms || 0), 0) * payRate;
 }
 
@@ -333,6 +342,7 @@ export default function DriverPayrollScreen({ navigation }: any) {
           const unpaidAmount = amountFor(unpaidTrips, driver.payType, driver.payRate);
           const paidAmount = amountFor(paidTrips, driver.payType, driver.payRate);
           const totalKg = driverTrips.reduce((sum, t) => sum + (t.kilograms || 0), 0);
+          const totalUlds = driverTrips.reduce((sum, t) => sum + uldCountForTrip(t), 0);
           const isExpanded = expandedDriverId === driver.uid;
           const isEditingRate = editingRateId === driver.uid;
 
@@ -365,40 +375,19 @@ export default function DriverPayrollScreen({ navigation }: any) {
 
               {isEditingRate ? (
                 <View style={styles.rateEditor}>
-                  <View style={styles.payTypeRow}>
-                    <TouchableOpacity
-                      style={[
-                        styles.payTypeButton,
-                        editPayType === "perTrip" && styles.payTypeButtonActive,
-                      ]}
-                      onPress={() => setEditPayType("perTrip")}
-                    >
-                      <Text
-                        style={[
-                          styles.payTypeButtonText,
-                          editPayType === "perTrip" && styles.payTypeButtonTextActive,
-                        ]}
-                      >
-                        Per Trip
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.payTypeButton,
-                        editPayType === "perKilogram" && styles.payTypeButtonActive,
-                      ]}
-                      onPress={() => setEditPayType("perKilogram")}
-                    >
-                      <Text
-                        style={[
-                          styles.payTypeButtonText,
-                          editPayType === "perKilogram" && styles.payTypeButtonTextActive,
-                        ]}
-                      >
-                        Per Kilogram
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+          <View style={styles.payTypeRow}>
+            {PAY_TYPE_OPTIONS.map((o) => (
+              <TouchableOpacity
+                key={o.key}
+                style={[styles.payTypeButton, editPayType === o.key && styles.payTypeButtonActive]}
+                onPress={() => setEditPayType(o.key)}
+              >
+                <Text style={[styles.payTypeButtonText, editPayType === o.key && styles.payTypeButtonTextActive]}>
+                  {o.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
                   <View style={styles.rateInputRow}>
                     <Text style={styles.dollarSign}>$</Text>
                     <TextInput
@@ -437,6 +426,7 @@ export default function DriverPayrollScreen({ navigation }: any) {
               <Text style={styles.tripMeta}>
                 {driverTrips.length} trip{driverTrips.length === 1 ? "" : "s"}
                 {driver.payType === "perKilogram" ? ` · ${totalKg} kg total` : ""}
+                {driver.payType === "perUld" ? ` · ${totalUlds} ULD${totalUlds === 1 ? "" : "s"} total` : ""}
               </Text>
 
               {isExpanded && (

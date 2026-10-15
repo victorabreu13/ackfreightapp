@@ -19,4 +19,13 @@ describe("quoteForRequest", () => {
     assert.equal(quoteForRequest(null, [{ kilograms: 10 }]).quotedAmount, null);
     assert.equal(formatQuote({ quoteStatus: "no quote", quotedAmount: null }), "No quote");
   });
+
+  it("quotes per ULD from the non-loose piece count", () => {
+    const quote = quoteForRequest({ billType: "perUld", billRate: 25 }, [
+      { kilograms: 100, type: "PMC", qtyPieces: 3 },
+      { kilograms: 50, type: "Loose", qtyPieces: 11 },
+    ]);
+    assert.equal(quote.quotedAmount, 75);
+    assert.equal(quote.quoteBasis, "perUld");
+  });
 });

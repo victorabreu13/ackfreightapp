@@ -45,9 +45,16 @@ const PRIORITY_COLORS: Record<AwbPriority, { text: string }> = {
   High: { text: "#c0392b" },
 };
 
+const PAY_TYPE_OPTIONS: { key: DriverPayType; label: string }[] = [
+  { key: "perTrip", label: "Per Trip" },
+  { key: "perKilogram", label: "Per Kilogram" },
+  { key: "perUld", label: "Per ULD" },
+];
+
 const BILL_TYPE_LABELS: Record<DriverPayType, string> = {
   perTrip: "per trip",
   perKilogram: "per kilogram",
+  perUld: "per ULD",
 };
 
 export default function DispatchDetailScreen({ route, navigation }: any) {
@@ -444,35 +451,17 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
       {editingRate ? (
         <View style={styles.rateEditor}>
           <View style={styles.payTypeRow}>
-            <TouchableOpacity
-              style={[styles.payTypeButton, editBillType === "perTrip" && styles.payTypeButtonActive]}
-              onPress={() => setEditBillType("perTrip")}
-            >
-              <Text
-                style={[
-                  styles.payTypeButtonText,
-                  editBillType === "perTrip" && styles.payTypeButtonTextActive,
-                ]}
+            {PAY_TYPE_OPTIONS.map((o) => (
+              <TouchableOpacity
+                key={o.key}
+                style={[styles.payTypeButton, editBillType === o.key && styles.payTypeButtonActive]}
+                onPress={() => setEditBillType(o.key)}
               >
-                Per Trip
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.payTypeButton,
-                editBillType === "perKilogram" && styles.payTypeButtonActive,
-              ]}
-              onPress={() => setEditBillType("perKilogram")}
-            >
-              <Text
-                style={[
-                  styles.payTypeButtonText,
-                  editBillType === "perKilogram" && styles.payTypeButtonTextActive,
-                ]}
-              >
-                Per Kilogram
-              </Text>
-            </TouchableOpacity>
+                <Text style={[styles.payTypeButtonText, editBillType === o.key && styles.payTypeButtonTextActive]}>
+                  {o.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
           <View style={styles.rateInputRow}>
             <Text style={styles.dollarSign}>$</Text>
