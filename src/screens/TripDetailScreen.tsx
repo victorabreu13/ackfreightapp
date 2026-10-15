@@ -1,3 +1,4 @@
+import { goBackOrHome } from "../navigation/goBackOrHome";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -27,7 +28,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     setDeleting(true);
     try {
       await deleteTrip(trip.id);
-      navigation.goBack();
+      goBackOrHome(navigation);
     } catch (err: any) {
       notify(
         "Couldn't delete trip",
@@ -54,7 +55,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       <View style={styles.topRow}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => goBackOrHome(navigation)}
         >
           <Text style={styles.backButtonText}>‹ Back</Text>
         </TouchableOpacity>

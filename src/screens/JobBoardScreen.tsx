@@ -1,3 +1,4 @@
+import { goBackOrHome } from "../navigation/goBackOrHome";
 import * as Location from "expo-location";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -108,7 +109,7 @@ export default function JobBoardScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+      <TouchableOpacity style={styles.backButton} onPress={() => goBackOrHome(navigation)}>
         <Text style={styles.backButtonText}>‹ Back</Text>
       </TouchableOpacity>
       <View style={styles.header}>

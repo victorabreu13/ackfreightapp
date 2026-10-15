@@ -1,3 +1,4 @@
+import { goBackOrHome } from "../navigation/goBackOrHome";
 import React from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
 import TripRequestForm, {
@@ -24,12 +25,12 @@ export default function NewTripRequestScreen({ navigation }: any) {
       status: "submitted",
       ...values,
     });
-    navigation.goBack();
+    goBackOrHome(navigation);
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+      <TouchableOpacity style={styles.backButton} onPress={() => goBackOrHome(navigation)}>
         <Text style={styles.backButtonText}>‹ Back</Text>
       </TouchableOpacity>
 

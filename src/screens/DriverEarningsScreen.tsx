@@ -1,3 +1,4 @@
+import { goBackOrHome } from "../navigation/goBackOrHome";
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
@@ -92,7 +93,7 @@ export default function DriverEarningsScreen({ navigation }: any) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+      <TouchableOpacity style={styles.backButton} onPress={() => goBackOrHome(navigation)}>
         <Text style={styles.backButtonText}>‹ Back</Text>
       </TouchableOpacity>
       <Text style={styles.title}>Earnings</Text>

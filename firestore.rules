@@ -42,7 +42,7 @@ service cloud.firestore {
           )) ||
         (isAdmin() &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-            ["payType", "payRate", "billType", "billRate", "name"])));
+            ["payType", "payRate", "dailyMinPay", "billType", "billRate", "name"])));
       allow delete: if false;
     }
 

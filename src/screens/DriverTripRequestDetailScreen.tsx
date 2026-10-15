@@ -1,3 +1,4 @@
+import { goBackOrHome } from "../navigation/goBackOrHome";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -529,7 +530,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
         ),
       }));
       notify("Trip completed", "Logged and marked completed.");
-      navigation.goBack();
+      goBackOrHome(navigation);
     } catch (e: any) {
       console.error("completeTrip error:", e);
       notify("Error", `Couldn't complete the trip: ${e?.message ?? "unknown error"}`);
@@ -540,7 +541,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }} scrollEnabled={!signing}>
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+      <TouchableOpacity style={styles.backButton} onPress={() => goBackOrHome(navigation)}>
         <Text style={styles.backButtonText}>‹ Back</Text>
       </TouchableOpacity>
 

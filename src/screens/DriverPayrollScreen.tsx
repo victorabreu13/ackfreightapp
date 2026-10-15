@@ -1,3 +1,4 @@
+import { goBackOrHome } from "../navigation/goBackOrHome";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,6 +15,7 @@ import { setDriverPayRate, subscribeToDrivers } from "../services/users";
 import { DriverPayType, Trip, UserProfile } from "../types";
 import { confirmAction, notify } from "../utils/alert";
 import { duplicateAwbCount, duplicateAwbTrips } from "../utils/duplicateAwb";
+import { payrollSummary } from "../utils/payroll";
 import { uldCountForTrip } from "../utils/uld";
 import { toLocalDateString as toDateStr } from "../utils/date";
 
@@ -97,13 +99,6 @@ const PAY_TYPE_LABELS: Record<DriverPayType, string> = {
   perUld: "per ULD",
 };
 
-function amountFor(trips: Trip[], payType: DriverPayType | undefined, payRate: number | undefined) {
-  if (!payType || !payRate) return 0;
-  if (payType === "perTrip") return trips.length * payRate;
-  if (payType === "perUld") return trips.reduce((sum, t) => sum + uldCountForTrip(t), 0) * payRate;
-  return trips.reduce((sum, t) => sum + (t.kilograms || 0), 0) * payRate;
-}
-
 export default function DriverPayrollScreen({ navigation }: any) {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<UserProfile[]>([]);
@@ -118,6 +113,7 @@ export default function DriverPayrollScreen({ navigation }: any) {
   const [editingRateId, setEditingRateId] = useState<string | null>(null);
   const [editPayType, setEditPayType] = useState<DriverPayType>("perTrip");
   const [editPayRate, setEditPayRate] = useState("");
+  const [editDailyMin, setEditDailyMin] = useState("");
   const [savingRate, setSavingRate] = useState(false);
   const [togglingTripId, setTogglingTripId] = useState<string | null>(null);
   const [onlyDuplicates, setOnlyDuplicates] = useState(false);
@@ -224,6 +220,7 @@ export default function DriverPayrollScreen({ navigation }: any) {
     setEditingRateId(driver.uid);
     setEditPayType(driver.payType ?? "perTrip");
     setEditPayRate(driver.payRate ? String(driver.payRate) : "");
+    setEditDailyMin(driver.dailyMinPay ? String(driver.dailyMinPay) : "");
   };
 
   const saveRate = async (driverId: string) => {
@@ -234,7 +231,8 @@ export default function DriverPayrollScreen({ navigation }: any) {
     }
     setSavingRate(true);
     try {
-      await setDriverPayRate(driverId, editPayType, rate);
+      const dailyMin = parseFloat(editDailyMin);
+      await setDriverPayRate(driverId, editPayType, rate, dailyMin > 0 ? dailyMin : 0);
       setEditingRateId(null);
     } catch (e: any) {
       notify("Couldn't save rate", e?.message ?? "Something went wrong. Please try again.");
@@ -269,7 +267,7 @@ export default function DriverPayrollScreen({ navigation }: any) {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
-      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+      <TouchableOpacity style={styles.backButton} onPress={() => goBackOrHome(navigation)}>
         <Text style={styles.backButtonText}>‹ Back</Text>
       </TouchableOpacity>
 
@@ -339,8 +337,15 @@ export default function DriverPayrollScreen({ navigation }: any) {
           const driverTrips = tripsInPeriod.filter((t) => t.driverId === driver.uid);
           const unpaidTrips = driverTrips.filter((t) => !t.paid);
           const paidTrips = driverTrips.filter((t) => t.paid);
-          const unpaidAmount = amountFor(unpaidTrips, driver.payType, driver.payRate);
-          const paidAmount = amountFor(paidTrips, driver.payType, driver.payRate);
+          // "Only duplicates" shows a partial set of trips, so skip the daily minimum there.
+          const summary = payrollSummary(
+            driverTrips,
+            driver.payType,
+            driver.payRate,
+            onlyDuplicates ? 0 : driver.dailyMinPay
+          );
+          const unpaidAmount = summary.unpaid;
+          const paidAmount = summary.paid;
           const totalKg = driverTrips.reduce((sum, t) => sum + (t.kilograms || 0), 0);
           const totalUlds = driverTrips.reduce((sum, t) => sum + uldCountForTrip(t), 0);
           const isExpanded = expandedDriverId === driver.uid;
@@ -412,12 +417,24 @@ export default function DriverPayrollScreen({ navigation }: any) {
                       <Text style={styles.cancelRateText}>Cancel</Text>
                     </TouchableOpacity>
                   </View>
+                  <View style={styles.rateInputRow}>
+                    <Text style={styles.dailyMinLabel}>Daily minimum $</Text>
+                    <TextInput
+                      style={styles.rateInput}
+                      keyboardType="numeric"
+                      placeholder="None"
+                      value={editDailyMin}
+                      onChangeText={setEditDailyMin}
+                    />
+                  </View>
                 </View>
               ) : (
                 <TouchableOpacity onPress={() => startEditingRate(driver)}>
                   <Text style={styles.rateText}>
                     {driver.payType && driver.payRate
-                      ? `${money(driver.payRate)} ${PAY_TYPE_LABELS[driver.payType]} · Edit`
+                      ? `${money(driver.payRate)} ${PAY_TYPE_LABELS[driver.payType]}${driver.dailyMinPay ? ` · ${money(driver.dailyMinPay)} daily minimum` : ""} · Edit`
+                      : driver.dailyMinPay
+                      ? `No pay rate set · ${money(driver.dailyMinPay)} daily minimum · Edit`
                       : "No pay rate set · Tap to set one"}
                   </Text>
                 </TouchableOpacity>
@@ -538,6 +555,14 @@ export default function DriverPayrollScreen({ navigation }: any) {
                                     </TouchableOpacity>
                                   ))}
                               </TouchableOpacity>
+                            ))}
+                            {summary.topUps.map((t) => (
+                              <View key={t.date} style={styles.topUpRow}>
+                                <Text style={styles.topUpText}>
+                                  Daily minimum {t.date}: trips came to {money(t.earned)}, topped up {money(t.topUp)} to {money(driver.dailyMinPay ?? 0)}
+                                  {t.settled ? " · Paid" : ""}
+                                </Text>
+                              </View>
                             ))}
                           </>
                         );
@@ -674,6 +699,9 @@ const styles = StyleSheet.create({
   dupFlag: { fontSize: 12, fontWeight: "700", color: "#b91c1c", marginTop: 3, marginLeft: 10 },
   dupDelete: { backgroundColor: "#fdecea", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, marginLeft: 8 },
   dupDeleteText: { color: "#c0392b", fontWeight: "700", fontSize: 13 },
+  dailyMinLabel: { fontSize: 13, fontWeight: "700", color: "#444", marginRight: 8 },
+  topUpRow: { backgroundColor: "#fffbeb", borderRadius: 8, padding: 10, marginBottom: 6 },
+  topUpText: { fontSize: 12.5, color: "#92400e", fontWeight: "600" },
   tripRow: {
     flexDirection: "row",
     alignItems: "center",

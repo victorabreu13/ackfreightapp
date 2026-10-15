@@ -73,9 +73,10 @@ export async function setOnDuty(onDuty: boolean): Promise<void> {
 export async function setDriverPayRate(
   driverId: string,
   payType: DriverPayType,
-  payRate: number
+  payRate: number,
+  dailyMinPay = 0
 ): Promise<void> {
-  await updateDoc(doc(db, "users", driverId), { payType, payRate });
+  await updateDoc(doc(db, "users", driverId), { payType, payRate, dailyMinPay });
 }
 
 export function subscribeToCustomers(

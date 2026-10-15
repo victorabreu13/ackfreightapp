@@ -1,3 +1,4 @@
+import { goBackOrHome } from "../navigation/goBackOrHome";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
@@ -208,7 +209,7 @@ export default function NewTripScreen({ navigation }: any) {
         proofFiles: uploaded,
       });
 
-      navigation.goBack();
+      goBackOrHome(navigation);
     } catch (e: any) {
       console.error("createTrip error:", e);
       notify("Error", `Couldn't save the trip: ${e?.message ?? "unknown error"}`);
@@ -221,7 +222,7 @@ export default function NewTripScreen({ navigation }: any) {
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 20 }}>
       <TouchableOpacity
         style={styles.backButton}
-        onPress={() => navigation.goBack()}
+        onPress={() => goBackOrHome(navigation)}
       >
         <Text style={styles.backButtonText}>‹ Back</Text>
       </TouchableOpacity>
