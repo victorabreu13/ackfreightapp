@@ -10,6 +10,7 @@ const {
   applyPickup,
   applyRemoveLine,
   applyStart,
+  tripAwbKeys,
   awbKey,
   awbKeysFromRequest,
   driversGainingAwbLines,
@@ -391,5 +392,12 @@ describe("applyAdminComplete", () => {
     done[0] = { ...done[0], status: "completed" };
     assert.equal(applyAdminComplete(done, [0], { drv1: "t1" }).ok, false);
     assert.equal(applyAdminComplete(lines(), [9], {}).ok, false);
+  });
+});
+
+describe("tripAwbKeys", () => {
+  it("normalizes and splits the AWBs of a trip log", () => {
+    assert.deepEqual(tripAwbKeys({ awbNumber: "729-95818844, 810 51718343,729-95818844" }), ["72995818844", "81051718343"]);
+    assert.deepEqual(tripAwbKeys({ awbNumber: "" }), []);
   });
 });

@@ -294,7 +294,30 @@ function applyAdminComplete(awbLines, indexes, tripLogIdByDriver) {
   return { ok: true, awbLines: nextLines, ...computeRollup(nextLines) };
 }
 
+// AWBs on a trip log ("111,222" holds two): normalized keys plus the number as
+// typed, so a refusal can name it.
+function tripAwbEntries(trip) {
+  const seen = new Set();
+  const out = [];
+  for (const part of String((trip && trip.awbNumber) || "").split(/[,;\n]/)) {
+    const label = part.trim();
+    const key = awbKey(label);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ key, label });
+  }
+  return out;
+}
+
+function tripAwbKeys(trip) {
+  return tripAwbEntries(trip)
+    .map((e) => e.key)
+    .sort();
+}
+
 module.exports = {
+  tripAwbEntries,
+  tripAwbKeys,
   applyAdminComplete,
   awbKey,
   awbKeysFromRequest,

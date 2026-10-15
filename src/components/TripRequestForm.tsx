@@ -263,8 +263,8 @@ export default function TripRequestForm({
       }
       if (inUse.length > 0) {
         notify(
-          "AWB already on a trip",
-          `${inUse.join(", ")} ${inUse.length === 1 ? "is" : "are"} already on another trip request. Remove ${inUse.length === 1 ? "it" : "them"} from this one, or ask dispatch to move it.`
+          "AWB duplicated",
+          `${inUse.join(", ")} ${inUse.length === 1 ? "is" : "are"} already on another trip request (AWB duplicated). Remove ${inUse.length === 1 ? "it" : "them"} from this one, or ask dispatch to move it.`
         );
         return;
       }

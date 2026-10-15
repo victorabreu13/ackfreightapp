@@ -26,6 +26,8 @@ const {
   driversGainingAwbLines,
   linesEnteringStatus,
   sameKeyList,
+  tripAwbEntries,
+  tripAwbKeys,
 } = require("./awbLogic");
 const { intakeAuthorized, rateLimitDecision, validateIntakePayload } = require("./intake");
 const { encodeSignatureStrokes, proofsForRequest } = require("./proofs");
@@ -311,6 +313,52 @@ exports.checkDuplicateUld = onCall({ invoker: "public" }, async (request) => {
 // Writes the trip and its ULD claims in one transaction. Direct client
 // creates are still allowed by the security rules for already-shipped
 // builds; those are indexed by onTripCreatedIndexUldKeys.
+// One AWB, one trip log. Trip logs carry `awbKeys` (set on create, and by the
+// trigger below for logs from older app builds) so "has this AWB been logged
+// already" is one indexed query.
+async function ensureTripAwbKeysBackfilled(db) {
+  const marker = db.collection("config").doc("tripAwbKeysBackfill");
+  if ((await marker.get()).exists) return;
+  let last = null;
+  for (;;) {
+    let query = db.collection("trips").orderBy(admin.firestore.FieldPath.documentId()).limit(300);
+    if (last) query = query.startAfter(last);
+    const snap = await query.get();
+    if (snap.empty) break;
+    const batch = db.batch();
+    let writes = 0;
+    for (const doc of snap.docs) {
+      const keys = tripAwbKeys(doc.data());
+      if (!sameKeyList(doc.data().awbKeys, keys)) {
+        batch.update(doc.ref, { awbKeys: keys });
+        writes++;
+      }
+    }
+    if (writes > 0) await batch.commit();
+    last = snap.docs[snap.docs.length - 1];
+  }
+  await marker.set({ doneAt: Date.now() });
+}
+
+// Returns the first AWB (as typed) of `trip` that another trip log already has.
+async function findDuplicateTripAwb(db, trip) {
+  await ensureTripAwbKeysBackfilled(db);
+  for (const { key, label } of tripAwbEntries(trip)) {
+    const snap = await db.collection("trips").where("awbKeys", "array-contains", key).limit(1).get();
+    if (!snap.empty) return label;
+  }
+  return null;
+}
+
+exports.onTripIndexAwbKeys = onDocumentWritten("trips/{tripId}", async (event) => {
+  const after = event.data?.after;
+  if (!after?.exists) return;
+  const data = after.data();
+  const keys = tripAwbKeys(data);
+  if (sameKeyList(data.awbKeys, keys)) return;
+  await after.ref.update({ awbKeys: keys });
+});
+
 exports.submitTripLog = onCall({ invoker: "public" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be signed in.");
@@ -350,6 +398,15 @@ exports.submitTripLog = onCall({ invoker: "public" }, async (request) => {
     paid: false,
     createdAt: Date.now(),
   };
+
+  const dupAwb = await findDuplicateTripAwb(db, trip);
+  if (dupAwb) {
+    throw new HttpsError(
+      "already-exists",
+      `AWB ${dupAwb} duplicated — it's already logged on another trip.`
+    );
+  }
+  trip.awbKeys = tripAwbKeys(trip);
 
   const result = await commitTripIfUnique(db, tripId, trip);
   if (result.duplicate) {
@@ -1228,6 +1285,19 @@ exports.adminCompleteAwbLines = onCall({ invoker: "public" }, async (request) =>
   const adminSnap = await db.collection("users").doc(request.auth.uid).get();
   const adminName = String(adminSnap.data()?.name || request.auth.token.email || "an admin");
 
+  const preSnap = await ref.get();
+  if (!preSnap.exists) throw new HttpsError("not-found", "Trip request not found.");
+  for (const i of new Set(awbIndexes)) {
+    const awb = (preSnap.data().awbLines || [])[i]?.awbNumber;
+    const dup = awb ? await findDuplicateTripAwb(db, { awbNumber: awb }) : null;
+    if (dup) {
+      throw new HttpsError(
+        "failed-precondition",
+        `AWB ${dup} duplicated — it's already logged on another trip.`
+      );
+    }
+  }
+
   let completedData;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -1265,6 +1335,7 @@ exports.adminCompleteAwbLines = onCall({ invoker: "public" }, async (request) =>
         unitTypes: picked.map((l) => l.type),
         uldNumbers: picked.map(() => ""),
         awbNumber: picked.map((l) => String(l.awbNumber)).join(","),
+        awbKeys: tripAwbKeys({ awbNumber: picked.map((l) => String(l.awbNumber)).join(",") }),
         kilograms: picked.reduce((sum, l) => sum + (Number(l.kilograms) || 0), 0),
         uldCount: uldCountForLines(picked),
         notes: `From dispatch request for ${data.customerName || "customer"}. Marked completed by ${adminName} on behalf of the driver.`,

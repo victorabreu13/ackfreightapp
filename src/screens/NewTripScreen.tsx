@@ -15,6 +15,7 @@ import {
 import DateField from "../components/DateField";
 import { useAuth } from "../context/AuthContext";
 import { checkDuplicateUld, createTrip, duplicateUldMessage } from "../services/trips";
+import { checkAwbInUse } from "../services/tripRequests";
 import { uploadProofFile } from "../services/storage";
 import { ProofFile, ULD_TYPES, UldType } from "../types";
 import { confirmAction, notify } from "../utils/alert";
@@ -174,6 +175,22 @@ export default function NewTripScreen({ navigation }: any) {
     setSubmitting(true);
     try {
       const trimmedUlds = uldNumbers.map((u) => u.trim());
+      // An AWB that's on a trip request is completed from that request, not logged
+      // by hand (it would be counted twice). Skip the check if it can't run.
+      let onRequest: string[] = [];
+      try {
+        onRequest = await checkAwbInUse([awbNumber.trim()]);
+      } catch (err) {
+        console.error("AWB request check failed:", err);
+      }
+      if (onRequest.length > 0) {
+        notify(
+          "AWB duplicated",
+          `AWB ${onRequest[0]} is already on a trip request. Complete it from your trip requests instead of logging it by hand.`
+        );
+        setSubmitting(false);
+        return;
+      }
       const dup = await checkDuplicateUld(awbNumber.trim(), trimmedUlds);
       if (dup.duplicate) {
         notify("Duplicate ULD #", duplicateUldMessage(dup.uldNumber, "submitting"));
