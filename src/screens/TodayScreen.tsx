@@ -3,8 +3,8 @@ import { useIsFocused } from "@react-navigation/native";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import AdminShell, { WIDE_BREAKPOINT } from "../components/AdminShell";
 import CounterDrawer, { DrawerContent } from "../components/CounterDrawer";
-import { AlertsStrip, Btn, Counter, dispatchStyles, TripBoardCard } from "../components/DispatchUI";
-import FleetMap from "../components/FleetMap";
+import { Btn } from "../components/DispatchUI";
+import { AttentionPanel, Kpi, MapTile, QuickLinks, TripTile } from "../components/TodayUI";
 import { useDispatchData } from "../hooks/useDispatchData";
 import {
   alertsByTarget,
@@ -18,8 +18,7 @@ import {
   tripsForDay,
 } from "../utils/dispatchBoard";
 import { toLocalDateString } from "../utils/date";
-import { fleetMapDrivers, fleetMapRoutes } from "../utils/fleetMapData";
-import { BOARD_STAGES, stageInfo, TRIP_STAGES } from "../utils/tripStatus";
+import { TRIP_STAGES, TripStage } from "../utils/tripStatus";
 import { confirmMarkInvoiced } from "../utils/invoiceActions";
 
 function shiftDay(day: string, delta: number): string {
@@ -64,8 +63,6 @@ export default function TodayScreen({ navigation }: any) {
   // Which counter's list is open. Kept while a trip is opened from the list,
   // so going Back returns to the same list.
   const [openCounter, setOpenCounter] = useState<CounterKey | null>(null);
-  const mapDrivers = useMemo(() => fleetMapDrivers(driverStates, nowMs), [driverStates, nowMs]);
-  const mapRoutes = useMemo(() => fleetMapRoutes(trips.map((t) => t.request)), [trips]);
 
   const openRequest = (id?: string) => {
     const request = requests.find((r) => r.id === id);
@@ -133,69 +130,46 @@ export default function TodayScreen({ navigation }: any) {
       : { kind: "trips", trips: tripsForCounter(trips, openCounter) }
     : null;
 
-  const columns = BOARD_STAGES.map((stage) => ({
-    stage,
-    items: trips.filter((t) => t.stage === stage || (stage === "delivered" && t.stage === "invoiced")),
+  // Four calm columns. "To pickup" and "Loaded / in transit" read as one stage
+  // ("On the road") and Invoiced trips stay in Delivered.
+  const COLUMNS: { label: string; stages: TripStage[] }[] = [
+    { label: "Requested", stages: ["requested"] },
+    { label: "Assigned", stages: ["assigned"] },
+    { label: "On the road", stages: ["to_pickup", "in_transit"] },
+    { label: "Delivered", stages: ["delivered", "invoiced"] },
+  ];
+  const columns = COLUMNS.map((c) => ({
+    label: c.label,
+    items: trips.filter((t) => c.stages.includes(t.stage)),
   }));
 
   const board = (
     <ScrollView horizontal={!wide} contentContainerStyle={wide ? styles.boardWide : styles.boardNarrow}>
-      {columns.map(({ stage, items }) => {
-        const s = stageInfo(stage);
-        return (
-          <View key={stage} style={[styles.col, wide ? { flex: 1 } : { width: 250 }]}>
-            <View style={styles.colHead}>
-              <View style={[styles.dot, { backgroundColor: s.color }]} />
-              <Text style={styles.colTitle} numberOfLines={2}>
-                {s.label}
-              </Text>
-              <Text style={styles.colCount}>{items.length}</Text>
-            </View>
-            {items.length === 0 && <Text style={styles.colEmpty}>—</Text>}
-            {items.map((t) => (
-              <TripBoardCard
-                key={t.request.id}
-                trip={t}
-                alert={alertedRequestIds.has(t.request.id)}
-                onPress={() => navigation.navigate("DispatchDetail", { request: t.request })}
-              />
-            ))}
+      {columns.map(({ label, items }) => (
+        <View key={label} style={[styles.col, wide ? { flex: 1 } : { width: 260 }]}>
+          <View style={styles.colHead}>
+            <Text style={styles.colTitle}>{label}</Text>
+            <Text style={styles.colCount}>{items.length}</Text>
           </View>
-        );
-      })}
+          {items.length === 0 && <Text style={styles.colEmpty}>No trips</Text>}
+          {items.map((t) => (
+            <TripTile
+              key={t.request.id}
+              trip={t}
+              needsAttention={alertedRequestIds.has(t.request.id)}
+              onPress={() => navigation.navigate("DispatchDetail", { request: t.request })}
+            />
+          ))}
+        </View>
+      ))}
     </ScrollView>
   );
 
-  const map = (
-    <View style={wide ? styles.mapWide : styles.mapNarrow}>
-      <View style={styles.mapHead}>
-        <Text style={dispatchStyles.sectionTitle}>Live Map</Text>
-        <Btn label="Full screen ⤢" onPress={() => navigation.navigate("LiveMap")} />
-      </View>
-      <FleetMap
-        drivers={mapDrivers}
-        routes={mapRoutes}
-        height={wide ? 460 : 300}
-        onPressDriver={() => navigation.navigate("LiveMap")}
-      />
-      <View style={styles.legend}>
-        {(["to_pickup", "in_transit"] as const).map((k) => (
-          <Text key={k} style={styles.legendItem}>
-            <Text style={{ color: TRIP_STAGES[k].color }}>●</Text> {TRIP_STAGES[k].short}
-          </Text>
-        ))}
-        <Text style={styles.legendItem}>
-          <Text style={{ color: "#16a34a" }}>●</Text> Free
-        </Text>
-        <Text style={styles.legendItem}>
-          <Text style={{ color: "#64748b" }}>●</Text> GPS lost
-        </Text>
-      </View>
-      {mapDrivers.length === 0 && (
-        <Text style={dispatchStyles.empty}>No driver has shared a location yet.</Text>
-      )}
-    </View>
-  );
+  const onTheRoadDrivers = Math.max(0, counters.driversOnDuty - counters.driversFree);
+  const mapSummary =
+    counters.driversOnDuty === 0
+      ? "No drivers on duty"
+      : `${onTheRoadDrivers} on the road · ${counters.driversFree} free`;
 
   return (
     <AdminShell
@@ -219,14 +193,13 @@ export default function TodayScreen({ navigation }: any) {
         <>
           {!!error && <Text style={styles.error}>Couldn't load trips: {error}</Text>}
           <View style={styles.counters}>
-            {(Object.keys(COUNTERS) as CounterKey[]).map((k) => (
-              <Counter
+            {(["total", "requested", "onTheRoad", "delivered"] as CounterKey[]).map((k) => (
+              <Kpi
                 key={k}
                 value={COUNTERS[k].value}
                 label={COUNTERS[k].label}
-                color={COUNTERS[k].color}
+                danger={k === "requested" && counters.requested > 0}
                 selected={openCounter === k}
-                hint={k === "drivers" ? "Show the drivers" : "Show these trips"}
                 onPress={() => setOpenCounter(k)}
               />
             ))}
@@ -257,18 +230,15 @@ export default function TodayScreen({ navigation }: any) {
               }
             />
           )}
-          {day === today && <AlertsStrip alerts={alerts} onPress={onAlert} />}
-          {wide ? (
-            <View style={styles.split}>
-              <View style={{ flex: 1, minWidth: 0 }}>{board}</View>
-              {map}
-            </View>
-          ) : (
-            <>
-              {board}
-              {map}
-            </>
-          )}
+          {day === today && <AttentionPanel alerts={alerts} onPress={onAlert} />}
+          {board}
+          <QuickLinks
+            items={[
+              { label: `${pendingInvoice.length} pending invoice`, onPress: () => setOpenCounter("pendingInvoice") },
+              { label: `${counters.driversFree} of ${counters.driversOnDuty} drivers free`, onPress: () => setOpenCounter("drivers") },
+            ]}
+          />
+          <MapTile summary={mapSummary} onPress={() => navigation.navigate("LiveMap")} />
         </>
       )}
     </AdminShell>
@@ -276,20 +246,13 @@ export default function TodayScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  counters: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 12 },
-  split: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
-  boardWide: { flexDirection: "row", gap: 7, flexGrow: 1 },
-  boardNarrow: { flexDirection: "row", gap: 7, paddingBottom: 6 },
-  col: { backgroundColor: "#eef1f6", borderRadius: 10, padding: 6, minHeight: 420 },
-  colHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8, paddingHorizontal: 2 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  colTitle: { flex: 1, fontSize: 11.5, fontWeight: "800", color: "#334155", textTransform: "uppercase" },
-  colCount: { backgroundColor: "#fff", borderRadius: 10, paddingHorizontal: 7, fontWeight: "800", color: "#475569", fontSize: 12 },
-  colEmpty: { color: "#94a3b8", textAlign: "center", paddingVertical: 8 },
-  mapWide: { width: 380 },
-  mapNarrow: { marginTop: 12 },
-  mapHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  legend: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 6 },
-  legendItem: { fontSize: 11.5, fontWeight: "700", color: "#475569" },
+  counters: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginBottom: 14 },
+  boardWide: { flexDirection: "row", gap: 12, flexGrow: 1 },
+  boardNarrow: { flexDirection: "row", gap: 12, paddingBottom: 6 },
+  col: { minHeight: 200 },
+  colHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, paddingHorizontal: 2 },
+  colTitle: { fontSize: 12.5, fontWeight: "700", color: "#475569" },
+  colCount: { fontSize: 12.5, fontWeight: "700", color: "#94a3b8" },
+  colEmpty: { color: "#94a3b8", fontSize: 12.5, paddingVertical: 8, paddingHorizontal: 2 },
   error: { color: "#b91c1c", fontWeight: "700", marginBottom: 8 },
 });
