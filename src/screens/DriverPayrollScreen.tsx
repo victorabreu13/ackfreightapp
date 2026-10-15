@@ -9,10 +9,11 @@ import {
   View,
 } from "react-native";
 import DateField from "../components/DateField";
-import { setTripPaid, subscribeToAllTrips } from "../services/trips";
+import { deleteTrip, setTripPaid, subscribeToAllTrips } from "../services/trips";
 import { setDriverPayRate, subscribeToDrivers } from "../services/users";
 import { DriverPayType, Trip, UserProfile } from "../types";
-import { notify } from "../utils/alert";
+import { confirmAction, notify } from "../utils/alert";
+import { duplicateAwbCount, duplicateAwbTrips } from "../utils/duplicateAwb";
 import { toLocalDateString as toDateStr } from "../utils/date";
 
 // All local-calendar-day arithmetic below (not UTC) — trip.date strings are
@@ -110,6 +111,8 @@ export default function DriverPayrollScreen({ navigation }: any) {
   const [editPayRate, setEditPayRate] = useState("");
   const [savingRate, setSavingRate] = useState(false);
   const [togglingTripId, setTogglingTripId] = useState<string | null>(null);
+  const [onlyDuplicates, setOnlyDuplicates] = useState(false);
+  const [deletingTripId, setDeletingTripId] = useState<string | null>(null);
   const [bulkPaying, setBulkPaying] = useState<string | null>(null);
 
   useEffect(() => {
@@ -174,10 +177,37 @@ export default function DriverPayrollScreen({ navigation }: any) {
   const periodStartStr = periodStart ? toDateStr(periodStart) : null;
   const periodEndStr = periodEnd ? toDateStr(periodEnd) : null;
 
+  // Trip logs sharing an AWB with another trip log (any driver, any date).
+  const dupMap = useMemo(() => duplicateAwbTrips(trips), [trips]);
+  const dupCount = useMemo(() => duplicateAwbCount(trips), [trips]);
+
   const tripsInPeriod = useMemo(() => {
+    // "Only duplicates" ignores the pay period so both copies show together.
+    if (onlyDuplicates) return trips.filter((t) => dupMap.has(t.id));
     if (!periodStartStr || !periodEndStr) return trips;
     return trips.filter((t) => t.date >= periodStartStr && t.date <= periodEndStr);
-  }, [trips, periodStartStr, periodEndStr]);
+  }, [trips, periodStartStr, periodEndStr, onlyDuplicates, dupMap]);
+
+  const handleDeleteDuplicate = (trip: Trip) => {
+    confirmAction(
+      {
+        title: `Delete this trip log for AWB ${trip.awbNumber}?`,
+        message: `${trip.driverName} · ${trip.date} · ULD ${(trip.uldNumbers ?? []).filter(Boolean).join(", ") || "—"}. It's saved in Deleted Trips, so you can restore it if it was a mistake.`,
+        confirmLabel: "Delete",
+        destructive: true,
+      },
+      async () => {
+        setDeletingTripId(trip.id);
+        try {
+          await deleteTrip(trip.id);
+        } catch (e: any) {
+          notify("Couldn't delete", e?.message ?? "Something went wrong. Please try again.");
+        } finally {
+          setDeletingTripId(null);
+        }
+      }
+    );
+  };
 
   const loading = !tripsLoaded || !driversLoaded;
 
@@ -236,6 +266,22 @@ export default function DriverPayrollScreen({ navigation }: any) {
 
       <Text style={styles.title}>Driver Payroll</Text>
       <Text style={styles.subtitle}>What each driver is owed, and what's already been paid</Text>
+
+      {dupCount > 0 && (
+        <View style={styles.dupBanner}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.dupTitle}>
+              ⚠ {dupCount} AWB{dupCount === 1 ? " is" : "s are"} logged more than once
+            </Text>
+            <Text style={styles.dupText}>
+              Each copy is marked in red below. Check the ULD # before deleting — the same AWB can legitimately be split across trips.
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.dupButton} onPress={() => setOnlyDuplicates((v) => !v)}>
+            <Text style={styles.dupButtonText}>{onlyDuplicates ? "Show all trips" : "Show only duplicates"}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.presetRow}>
         {PRESETS.map((p) => (
@@ -486,7 +532,21 @@ export default function DriverPayrollScreen({ navigation }: any) {
                                     AWB {trip.awbNumber || "—"} · {trip.kilograms || 0} kg
                                     {trip.paid ? " · Paid" : ""}
                                   </Text>
+                                  {dupMap.has(trip.id) && (
+                                    <Text style={styles.dupFlag}>
+                                      ⚠ Duplicate AWB ({dupMap.get(trip.id)!.join(", ")}) · ULD{" "}
+                                      {(trip.uldNumbers ?? []).filter(Boolean).join(", ") || "—"}
+                                    </Text>
+                                  )}
                                 </View>
+                                {dupMap.has(trip.id) &&
+                                  (deletingTripId === trip.id ? (
+                                    <ActivityIndicator size="small" color="#b91c1c" />
+                                  ) : (
+                                    <TouchableOpacity style={styles.dupDelete} onPress={() => handleDeleteDuplicate(trip)}>
+                                      <Text style={styles.dupDeleteText}>Delete</Text>
+                                    </TouchableOpacity>
+                                  ))}
                               </TouchableOpacity>
                             ))}
                           </>
@@ -606,6 +666,24 @@ const styles = StyleSheet.create({
   },
   selectAllText: { color: "#1d4ed8", fontWeight: "700", fontSize: 13, marginLeft: 10, flex: 1 },
   checkbox: { fontSize: 20, color: "#1d4ed8", width: 22, textAlign: "center" },
+  dupBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#fef2f2",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+  dupTitle: { fontSize: 14, fontWeight: "800", color: "#991b1b" },
+  dupText: { fontSize: 12.5, color: "#7f1d1d", marginTop: 2 },
+  dupButton: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#fca5a5", borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 },
+  dupButtonText: { fontSize: 13, fontWeight: "700", color: "#991b1b" },
+  dupFlag: { fontSize: 12, fontWeight: "700", color: "#b91c1c", marginTop: 3, marginLeft: 10 },
+  dupDelete: { backgroundColor: "#fdecea", borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10, marginLeft: 8 },
+  dupDeleteText: { color: "#c0392b", fontWeight: "700", fontSize: 13 },
   tripRow: {
     flexDirection: "row",
     alignItems: "center",
