@@ -334,7 +334,7 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
         Submitted: {toLocalDateString(new Date(request.submittedAt))}
       </Text>
 
-      <TripRequestReadOnly request={request} editableDocs />
+      <TripRequestReadOnly request={request} editableDocs canPrint />
       <SendToCounterButton request={request} />
 
       <Text style={styles.sectionTitle}>Assign Drivers per AWB</Text>

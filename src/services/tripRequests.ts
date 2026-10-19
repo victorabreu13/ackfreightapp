@@ -365,6 +365,19 @@ export async function sendDocumentsToCounter(
   return callWithFreshToken(sendDocumentsToCounterFn, { requestId, email });
 }
 
+const mergeRequestDocumentsFn = httpsCallable<
+  { requestId: string; items?: { awbIndex: number; slot: "awb" | "loa" | "do" }[] },
+  { url: string; pages: number; skipped: number; documents: number }
+>(functions, "mergeRequestDocuments");
+
+// Admin-only: all (or the picked) documents merged into one PDF, ready to print.
+export async function mergeRequestDocuments(
+  requestId: string,
+  items?: { awbIndex: number; slot: "awb" | "loa" | "do" }[]
+): Promise<{ url: string; pages: number; skipped: number; documents: number }> {
+  return callWithFreshToken(mergeRequestDocumentsFn, { requestId, items });
+}
+
 const checkAwbInUseFn = httpsCallable<
   { awbNumbers: string[]; excludeRequestId?: string },
   { inUse: string[] }

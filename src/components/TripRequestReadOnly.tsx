@@ -1,7 +1,7 @@
 import * as DocumentPicker from "expo-document-picker";
 import React, { useState } from "react";
-import { ActivityIndicator, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { updateAwbDocument, zipRequestDocuments } from "../services/tripRequests";
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { mergeRequestDocuments, updateAwbDocument, zipRequestDocuments } from "../services/tripRequests";
 import { uploadTripRequestFile } from "../services/storage";
 import { notify } from "../utils/alert";
 import LiveTrackingSection from "./LiveTrackingSection";
@@ -30,12 +30,15 @@ export default function TripRequestReadOnly({
   showQuote = true,
   onlyDriverId,
   editableDocs = false,
+  canPrint = false,
 }: {
   request: TripRequest;
   showQuote?: boolean;
   onlyDriverId?: string;
   /** Admin / owning customer can add or replace each AWB's documents. */
   editableDocs?: boolean;
+  /** Admins: print all or the picked documents as one PDF. */
+  canPrint?: boolean;
 }) {
   const [busyDoc, setBusyDoc] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -58,6 +61,32 @@ export default function TripRequestReadOnly({
       else next.add(key);
       return next;
     });
+  const printDocs = async (keys: string[]) => {
+    // Open the tab now, inside the click, so the browser doesn't block it; the
+    // PDF's link only exists after the server has built it.
+    const tab = Platform.OS === "web" ? window.open("", "_blank") : null;
+    setZipping(true);
+    try {
+      const items = keys.map((k) => {
+        const [i, slot] = k.split("-");
+        return { awbIndex: Number(i), slot: slot as "awb" | "loa" | "do" };
+      });
+      const { url, skipped } = await mergeRequestDocuments(request.id, items);
+      if (tab) tab.location.href = url;
+      else Linking.openURL(url);
+      if (skipped > 0) {
+        notify(
+          "Some files were left out",
+          `${skipped} file${skipped === 1 ? "" : "s"} couldn't be printed from here (only PDF, JPG and PNG). Use Download for those.`
+        );
+      }
+    } catch (e: any) {
+      if (tab) tab.close();
+      notify("Couldn't prepare the print", e?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setZipping(false);
+    }
+  };
   const downloadDocs = async (keys: string[]) => {
     setZipping(true);
     try {
@@ -156,6 +185,19 @@ export default function TripRequestReadOnly({
                 <TouchableOpacity style={styles.downloadButton} onPress={() => downloadDocs(allDocKeys)}>
                   <Text style={styles.downloadButtonText}>Download all ({allDocKeys.length})</Text>
                 </TouchableOpacity>
+                {canPrint && (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.downloadButton, picked.size === 0 && styles.downloadButtonOff]}
+                      onPress={() => picked.size > 0 && printDocs([...picked])}
+                    >
+                      <Text style={styles.downloadButtonText}>🖨 Print selected ({picked.size})</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.downloadButton} onPress={() => printDocs(allDocKeys)}>
+                      <Text style={styles.downloadButtonText}>🖨 Print all ({allDocKeys.length})</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </>
             )}
           </View>

@@ -33,6 +33,7 @@ const { intakeAuthorized, rateLimitDecision, validateIntakePayload } = require("
 const { encodeSignatureStrokes, proofsForRequest } = require("./proofs");
 const JSZip = require("jszip");
 const { documentsForRequest, safeName, zipEntryNames } = require("./zipDocs");
+const { mergeToPdf } = require("./mergeDocs");
 const { quoteForRequest, uldCountForLines } = require("./quote");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
 const { estimateRoute, haversineMiles } = require("./routeEstimate");
@@ -1566,6 +1567,74 @@ exports.sendDocumentsToCounter = onCall(
       }),
     });
     return { success: true, documents: docs.length };
+  }
+);
+
+// Admin: all of a trip's documents (or the picked ones) merged into one PDF, so
+// they print in a single job. PDFs keep their pages; photos get a page each.
+exports.mergeRequestDocuments = onCall(
+  { invoker: "public", memory: "1GiB", timeoutSeconds: 120 },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+    await requireAdmin(request.auth.uid);
+    const { requestId, items } = request.data || {};
+    if (!requestId) throw new HttpsError("invalid-argument", "requestId is required.");
+
+    const db = admin.firestore();
+    const snap = await db.collection("tripRequests").doc(requestId).get();
+    if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const data = snap.data();
+
+    const docs = documentsForRequest(data, requestId, items);
+    if (docs.length === 0) throw new HttpsError("failed-precondition", "There are no documents to print.");
+    if (docs.length > 60) throw new HttpsError("invalid-argument", "Select at most 60 documents at a time.");
+
+    const bucket = admin.storage().bucket(docs[0].bucket);
+    const buffers = [];
+    for (const d of docs) {
+      const [buffer] = await bucket.file(d.path).download();
+      buffers.push(buffer);
+    }
+    const merged = await mergeToPdf(buffers);
+    if (merged.pages === 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "None of these files can be printed from here (only PDF, JPG and PNG). Use Download instead."
+      );
+    }
+    if (merged.bytes.length > 60 * 1024 * 1024) {
+      throw new HttpsError("resource-exhausted", "These documents are too large to print at once. Select fewer.");
+    }
+
+    const folder = `tripRequestDocs/${data.customerId}/${requestId}/zips/`;
+    try {
+      const [old] = await bucket.getFiles({ prefix: folder });
+      await Promise.all(
+        old
+          .filter((f) => Date.now() - new Date(f.metadata.timeCreated).getTime() > 24 * 3600 * 1000)
+          .map((f) => f.delete().catch(() => {}))
+      );
+    } catch (err) {
+      logger.warn("merged pdf cleanup failed:", err);
+    }
+
+    const token = crypto.randomUUID();
+    const path = folder + Date.now() + "-print.pdf";
+    await bucket.file(path).save(Buffer.from(merged.bytes), {
+      metadata: {
+        contentType: "application/pdf",
+        contentDisposition: 'inline; filename="documents-to-print.pdf"',
+        metadata: { firebaseStorageDownloadTokens: token },
+      },
+    });
+    const url =
+      "https://firebasestorage.googleapis.com/v0/b/" +
+      bucket.name +
+      "/o/" +
+      encodeURIComponent(path) +
+      "?alt=media&token=" +
+      token;
+    return { url, pages: merged.pages, skipped: merged.skipped, documents: docs.length };
   }
 );
 
