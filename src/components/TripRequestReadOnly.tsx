@@ -1,6 +1,7 @@
 import * as DocumentPicker from "expo-document-picker";
 import React, { useState } from "react";
 import { ActivityIndicator, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import SendToCounterModal from "./SendToCounterModal";
 import { mergeRequestDocuments, updateAwbDocument, zipRequestDocuments } from "../services/tripRequests";
 import { uploadTripRequestFile } from "../services/storage";
 import { notify } from "../utils/alert";
@@ -43,6 +44,7 @@ export default function TripRequestReadOnly({
   const [busyDoc, setBusyDoc] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [zipping, setZipping] = useState(false);
+  const [counterKeys, setCounterKeys] = useState<string[] | null>(null);
 
   // Every document on the AWBs this viewer can see, keyed by "<index in request>-<slot>".
   const visibleLines = onlyDriverId
@@ -106,7 +108,7 @@ export default function TripRequestReadOnly({
     }
   };
 
-  const changeDoc = async (awbIndex: number, slot: "awb" | "loa" | "do") => {
+  const changeDoc = async (awbIndex: number, slot: "awb" | "loa" | "do" | "fee") => {
     const busyKey = `${awbIndex}-${slot}`;
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"] });
@@ -164,6 +166,7 @@ export default function TripRequestReadOnly({
 
       <LiveTrackingSection request={request} />
 
+      {canPrint && <SendToCounterModal request={request} keys={counterKeys} onClose={() => setCounterKeys(null)} />}
       <Text style={styles.sectionTitle}>AWBs</Text>
       {allDocKeys.length > 0 && (
         <View style={styles.downloadBar}>
@@ -199,12 +202,33 @@ export default function TripRequestReadOnly({
                     <TouchableOpacity style={styles.downloadButton} onPress={() => printDocs(allDocKeys)}>
                       <Text style={styles.downloadButtonText}>🖨 Print all ({allDocKeys.length})</Text>
                     </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.downloadButton, picked.size === 0 && styles.downloadButtonOff]}
+                      onPress={() => picked.size > 0 && setCounterKeys([...picked])}
+                    >
+                      <Text style={styles.downloadButtonText}>✉ Send selected ({picked.size})</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.downloadButton} onPress={() => setCounterKeys(allDocKeys)}>
+                      <Text style={styles.downloadButtonText}>✉ Send all ({allDocKeys.length})</Text>
+                    </TouchableOpacity>
                   </>
                 )}
               </>
             )}
           </View>
         </View>
+      )}
+      {canPrint && (request.counterSends ?? []).length > 0 && (
+        <Text style={styles.sentNote}>
+          Last sent to {request.counterSends![request.counterSends!.length - 1].email} on{" "}
+          {new Date(request.counterSends![request.counterSends!.length - 1].sentAt).toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+          {request.counterSends!.length > 1 ? ` · ${request.counterSends!.length} sends in total` : ""}
+        </Text>
       )}
       {awbLines.map((line, i) => {
         const priority = line.priority ?? "Normal";
@@ -283,7 +307,7 @@ export default function TripRequestReadOnly({
         );
       })}
 
-      {request.importFeeFiles.length > 0 && (
+      {(request.importFeeFiles.length > 0 || editableDocs) && (
         <>
           <Text style={styles.sectionTitle}>Import Fee / 1F</Text>
           {request.importFeeFiles.map((file, i) => (
@@ -297,8 +321,30 @@ export default function TripRequestReadOnly({
                 </Text>
                 <Text style={styles.docOpen}>Open</Text>
               </TouchableOpacity>
+              {editableDocs &&
+                (busyDoc === `${i}-fee` ? (
+                  <ActivityIndicator size="small" color="#1d4ed8" />
+                ) : (
+                  <TouchableOpacity onPress={() => changeDoc(i, "fee")}>
+                    <Text style={styles.docChange}>Replace</Text>
+                  </TouchableOpacity>
+                ))}
             </View>
           ))}
+          {editableDocs && (
+            <View style={styles.docRow}>
+              <Text style={styles.docMissing}>
+                {request.importFeeFiles.length === 0 ? "No import fee file yet" : "Need another file?"}
+              </Text>
+              {busyDoc === `${request.importFeeFiles.length}-fee` ? (
+                <ActivityIndicator size="small" color="#1d4ed8" />
+              ) : (
+                <TouchableOpacity onPress={() => changeDoc(request.importFeeFiles.length, "fee")}>
+                  <Text style={styles.docChange}>Upload</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </>
       )}
     </View>
@@ -328,6 +374,7 @@ const styles = StyleSheet.create({
   },
   docMain: { flex: 1, flexDirection: "row", alignItems: "center" },
   docCheck: { fontSize: 20, color: "#1d4ed8", marginRight: 10 },
+  sentNote: { fontSize: 12, color: "#64748b", marginBottom: 8 },
   downloadBar: {
     flexDirection: "row",
     flexWrap: "wrap",

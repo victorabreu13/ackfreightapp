@@ -325,7 +325,7 @@ export async function adminCompleteAwbLines(
 }
 
 const updateAwbDocumentFn = httpsCallable<
-  { requestId: string; awbIndex: number; slot: "awb" | "loa" | "do"; file: { url: string; name: string } },
+  { requestId: string; awbIndex: number; slot: "awb" | "loa" | "do" | "fee"; file: { url: string; name: string } },
   { success: boolean }
 >(functions, "updateAwbDocument");
 
@@ -333,7 +333,7 @@ const updateAwbDocumentFn = httpsCallable<
 export async function updateAwbDocument(
   requestId: string,
   awbIndex: number,
-  slot: "awb" | "loa" | "do",
+  slot: "awb" | "loa" | "do" | "fee",
   file: { url: string; name: string }
 ): Promise<void> {
   await callWithFreshToken(updateAwbDocumentFn, { requestId, awbIndex, slot, file });
@@ -353,16 +353,17 @@ export async function zipRequestDocuments(
 }
 
 const sendDocumentsToCounterFn = httpsCallable<
-  { requestId: string; email: string },
+  { requestId: string; email: string; items?: { awbIndex: number; slot: "awb" | "loa" | "do" | "fee" }[] },
   { success: boolean; documents: number }
 >(functions, "sendDocumentsToCounter");
 
 // Admin-only: emails all of a request's documents (one zip) to the given address.
 export async function sendDocumentsToCounter(
   requestId: string,
-  email: string
+  email: string,
+  items?: { awbIndex: number; slot: "awb" | "loa" | "do" | "fee" }[]
 ): Promise<{ documents: number }> {
-  return callWithFreshToken(sendDocumentsToCounterFn, { requestId, email });
+  return callWithFreshToken(sendDocumentsToCounterFn, { requestId, email, items });
 }
 
 const mergeRequestDocumentsFn = httpsCallable<

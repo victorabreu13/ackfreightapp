@@ -1382,8 +1382,9 @@ const DOC_FIELDS = { awb: "awbFile", loa: "loaFile", do: "doFile" };
 exports.updateAwbDocument = onCall({ invoker: "public" }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
   const { requestId, awbIndex, slot, file } = request.data || {};
+  const isFee = slot === "fee";
   const field = DOC_FIELDS[slot];
-  if (!requestId || !Number.isInteger(awbIndex) || awbIndex < 0 || !field) {
+  if (!requestId || !Number.isInteger(awbIndex) || awbIndex < 0 || (!field && !isFee)) {
     throw new HttpsError("invalid-argument", "requestId, awbIndex and a valid slot are required.");
   }
   const url = file && typeof file.url === "string" ? file.url : "";
@@ -1408,6 +1409,15 @@ exports.updateAwbDocument = onCall({ invoker: "public" }, async (request) => {
     const folder = "tripRequestDocs%2F" + data.customerId + "%2F" + requestId + "%2F";
     if (!url.startsWith("https://firebasestorage.googleapis.com/") || !url.includes(folder)) {
       throw new HttpsError("invalid-argument", "That file isn't stored with this trip request.");
+    }
+    if (isFee) {
+      // awbIndex is the file number: an existing one is replaced, the next free number adds a file.
+      const files = data.importFeeFiles || [];
+      if (awbIndex > files.length) throw new HttpsError("not-found", "That import fee file isn't on this trip request.");
+      const importFeeFiles =
+        awbIndex === files.length ? [...files, { url, name }] : files.map((f, i) => (i === awbIndex ? { url, name } : f));
+      tx.update(ref, { importFeeFiles, updatedAt: Date.now() });
+      return;
     }
     const lines = data.awbLines || [];
     if (!lines[awbIndex]) throw new HttpsError("not-found", "That AWB isn't on this trip request.");
@@ -1497,7 +1507,7 @@ exports.sendDocumentsToCounter = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
     await requireAdmin(request.auth.uid);
-    const { requestId, email } = request.data || {};
+    const { requestId, email, items } = request.data || {};
     const to = String(email || "").trim();
     if (!requestId) throw new HttpsError("invalid-argument", "requestId is required.");
     if (to.length > 200 || !/^[^ @]+@[^ @]+[.][^ @]+$/.test(to)) {
@@ -1512,8 +1522,8 @@ exports.sendDocumentsToCounter = onCall(
     const adminSnap = await db.collection("users").doc(request.auth.uid).get();
     const adminProfile = adminSnap.data() || {};
 
-    const docs = documentsForRequest(data, requestId, []);
-    if (docs.length === 0) throw new HttpsError("failed-precondition", "This trip request has no documents to send.");
+    const docs = documentsForRequest(data, requestId, items);
+    if (docs.length === 0) throw new HttpsError("failed-precondition", "There are no documents to send.");
     if (docs.length > 60) throw new HttpsError("invalid-argument", "Too many documents to send in one email.");
 
     const bucket = admin.storage().bucket(docs[0].bucket);
