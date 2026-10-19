@@ -231,7 +231,15 @@ export interface AwbPayOverride {
   at: number;
 }
 
+export interface CounterSend {
+  email: string;
+  sentAt: number;
+  sentBy: string;
+  documents: number;
+}
+
 export interface TripRequest {
+  counterSends?: CounterSend[]; // each time an admin emailed the documents to a counter
   id: string;
   customerId: string;
   customerName: string; // denormalized, fixed at submit

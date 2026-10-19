@@ -352,6 +352,19 @@ export async function zipRequestDocuments(
   return callWithFreshToken(zipRequestDocumentsFn, { requestId, items });
 }
 
+const sendDocumentsToCounterFn = httpsCallable<
+  { requestId: string; email: string },
+  { success: boolean; documents: number }
+>(functions, "sendDocumentsToCounter");
+
+// Admin-only: emails all of a request's documents (one zip) to the given address.
+export async function sendDocumentsToCounter(
+  requestId: string,
+  email: string
+): Promise<{ documents: number }> {
+  return callWithFreshToken(sendDocumentsToCounterFn, { requestId, email });
+}
+
 const checkAwbInUseFn = httpsCallable<
   { awbNumbers: string[]; excludeRequestId?: string },
   { inUse: string[] }

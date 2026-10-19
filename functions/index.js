@@ -1488,6 +1488,87 @@ exports.zipRequestDocuments = onCall(
   }
 );
 
+// Admin emails every document of a trip request to the airline counter as one
+// zip (subject "Pick up request documents"). Replies go to the admin, and each
+// send is recorded on the request.
+exports.sendDocumentsToCounter = onCall(
+  { invoker: "public", memory: "1GiB", timeoutSeconds: 120, secrets: [GMAIL_USER, GMAIL_APP_PASSWORD] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+    await requireAdmin(request.auth.uid);
+    const { requestId, email } = request.data || {};
+    const to = String(email || "").trim();
+    if (!requestId) throw new HttpsError("invalid-argument", "requestId is required.");
+    if (to.length > 200 || !/^[^ @]+@[^ @]+[.][^ @]+$/.test(to)) {
+      throw new HttpsError("invalid-argument", "Enter a valid email address.");
+    }
+
+    const db = admin.firestore();
+    const ref = db.collection("tripRequests").doc(requestId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const data = snap.data();
+    const adminSnap = await db.collection("users").doc(request.auth.uid).get();
+    const adminProfile = adminSnap.data() || {};
+
+    const docs = documentsForRequest(data, requestId, []);
+    if (docs.length === 0) throw new HttpsError("failed-precondition", "This trip request has no documents to send.");
+    if (docs.length > 60) throw new HttpsError("invalid-argument", "Too many documents to send in one email.");
+
+    const bucket = admin.storage().bucket(docs[0].bucket);
+    const names = zipEntryNames(docs);
+    const zip = new JSZip();
+    for (let i = 0; i < docs.length; i++) {
+      const [buffer] = await bucket.file(docs[i].path).download();
+      zip.file(names[i], buffer);
+    }
+    const out = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+    if (out.length > 20 * 1024 * 1024) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "The documents are over 20 MB, too large to email. Use Download all and share the file another way."
+      );
+    }
+
+    const awbRows = (data.awbLines || [])
+      .map(
+        (l) =>
+          `<li>${escapeHtml(l.awbNumber)} — ${escapeHtml(l.type)} · ${Number(l.qtyPieces) || 0} pcs · ${Number(l.kilograms) || 0} kg</li>`
+      )
+      .join("");
+    const html =
+      "<p>Hello,</p>" +
+      "<p>Attached are the documents for the following pick up.</p>" +
+      "<p><b>Customer:</b> " + escapeHtml(data.customerName) + "<br/>" +
+      "<b>Pick up:</b> " + escapeHtml(data.from) + " → " + escapeHtml(data.to) + "<br/>" +
+      "<b>Date:</b> " + escapeHtml(data.tripDate) + (data.pickupTime ? " at " + escapeHtml(data.pickupTime) : "") + "</p>" +
+      "<p><b>AWBs</b></p><ul>" + awbRows + "</ul>" +
+      "<p>Thank you,<br/>" + escapeHtml(adminProfile.name || "ACK Freight") + "<br/>ACK Freight</p>";
+
+    const transporter = buildTransporter();
+    await transporter.sendMail({
+      from: `"ACK Freight" <${GMAIL_USER.value()}>`,
+      to,
+      replyTo: adminProfile.email || request.auth.token.email || undefined,
+      subject: "Pick up request documents",
+      html,
+      attachments: [
+        { filename: safeName(data.customerName || "documents") + "-documents.zip", content: out, contentType: "application/zip" },
+      ],
+    });
+
+    await ref.update({
+      counterSends: admin.firestore.FieldValue.arrayUnion({
+        email: to,
+        sentAt: Date.now(),
+        sentBy: String(adminProfile.name || request.auth.token.email || "admin"),
+        documents: docs.length,
+      }),
+    });
+    return { success: true, documents: docs.length };
+  }
+);
+
 exports.markAwbPickedUp = onCall({ invoker: "public" }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
   const { requestId, awbIndexes } = request.data || {};
