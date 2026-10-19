@@ -1544,6 +1544,7 @@ exports.sendDocumentsToCounter = onCall(
       "<b>Pick up:</b> " + escapeHtml(data.from) + " → " + escapeHtml(data.to) + "<br/>" +
       "<b>Date:</b> " + escapeHtml(data.tripDate) + (data.pickupTime ? " at " + escapeHtml(data.pickupTime) : "") + "</p>" +
       "<p><b>AWBs</b></p><ul>" + awbRows + "</ul>" +
+      (docs.some((d) => d.slot === "fee") ? "<p>Includes the import fee (1F) documents.</p>" : "") +
       "<p>Thank you,<br/>" + escapeHtml(adminProfile.name || "ACK Freight") + "<br/>ACK Freight</p>";
 
     const transporter = buildTransporter();

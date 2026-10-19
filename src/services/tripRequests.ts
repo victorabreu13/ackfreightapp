@@ -340,14 +340,14 @@ export async function updateAwbDocument(
 }
 
 const zipRequestDocumentsFn = httpsCallable<
-  { requestId: string; items?: { awbIndex: number; slot: "awb" | "loa" | "do" }[] },
+  { requestId: string; items?: { awbIndex: number; slot: "awb" | "loa" | "do" | "fee" }[] },
   { url: string; count: number }
 >(functions, "zipRequestDocuments");
 
 // One zip of a request's documents (all of them, or just the picked ones). Returns the download link.
 export async function zipRequestDocuments(
   requestId: string,
-  items?: { awbIndex: number; slot: "awb" | "loa" | "do" }[]
+  items?: { awbIndex: number; slot: "awb" | "loa" | "do" | "fee" }[]
 ): Promise<{ url: string; count: number }> {
   return callWithFreshToken(zipRequestDocumentsFn, { requestId, items });
 }
@@ -366,14 +366,14 @@ export async function sendDocumentsToCounter(
 }
 
 const mergeRequestDocumentsFn = httpsCallable<
-  { requestId: string; items?: { awbIndex: number; slot: "awb" | "loa" | "do" }[] },
+  { requestId: string; items?: { awbIndex: number; slot: "awb" | "loa" | "do" | "fee" }[] },
   { url: string; pages: number; skipped: number; documents: number }
 >(functions, "mergeRequestDocuments");
 
 // Admin-only: all (or the picked) documents merged into one PDF, ready to print.
 export async function mergeRequestDocuments(
   requestId: string,
-  items?: { awbIndex: number; slot: "awb" | "loa" | "do" }[]
+  items?: { awbIndex: number; slot: "awb" | "loa" | "do" | "fee" }[]
 ): Promise<{ url: string; pages: number; skipped: number; documents: number }> {
   return callWithFreshToken(mergeRequestDocumentsFn, { requestId, items });
 }

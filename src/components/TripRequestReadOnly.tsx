@@ -48,12 +48,15 @@ export default function TripRequestReadOnly({
   const visibleLines = onlyDriverId
     ? request.awbLines.filter((l) => l.assignedDriverId === onlyDriverId)
     : request.awbLines;
-  const allDocKeys = visibleLines.flatMap((line) => {
+  const feeKeys = request.importFeeFiles.map((_, i) => `${i}-fee`);
+  const lineDocKeys = visibleLines.flatMap((line) => {
     const idx = request.awbLines.indexOf(line);
     return (["awb", "loa", "do"] as const)
       .filter((slot) => !!(slot === "awb" ? line.awbFile : slot === "loa" ? line.loaFile : line.doFile))
       .map((slot) => `${idx}-${slot}`);
   });
+  // Import fee (1F) files belong to the whole request, so they print / download / send with the AWBs.
+  const allDocKeys = [...lineDocKeys, ...feeKeys];
   const togglePicked = (key: string) =>
     setPicked((prev) => {
       const next = new Set(prev);
@@ -69,7 +72,7 @@ export default function TripRequestReadOnly({
     try {
       const items = keys.map((k) => {
         const [i, slot] = k.split("-");
-        return { awbIndex: Number(i), slot: slot as "awb" | "loa" | "do" };
+        return { awbIndex: Number(i), slot: slot as "awb" | "loa" | "do" | "fee" };
       });
       const { url, skipped } = await mergeRequestDocuments(request.id, items);
       if (tab) tab.location.href = url;
@@ -92,7 +95,7 @@ export default function TripRequestReadOnly({
     try {
       const items = keys.map((k) => {
         const [i, slot] = k.split("-");
-        return { awbIndex: Number(i), slot: slot as "awb" | "loa" | "do" };
+        return { awbIndex: Number(i), slot: slot as "awb" | "loa" | "do" | "fee" };
       });
       const { url } = await zipRequestDocuments(request.id, items);
       Linking.openURL(url);
@@ -284,16 +287,17 @@ export default function TripRequestReadOnly({
         <>
           <Text style={styles.sectionTitle}>Import Fee / 1F</Text>
           {request.importFeeFiles.map((file, i) => (
-            <TouchableOpacity
-              key={i}
-              style={styles.docRow}
-              onPress={() => Linking.openURL(file.url)}
-            >
-              <Text style={styles.docName} numberOfLines={1}>
-                📄 {file.name}
-              </Text>
-              <Text style={styles.docOpen}>Open</Text>
-            </TouchableOpacity>
+            <View key={i} style={styles.docRow}>
+              <TouchableOpacity onPress={() => togglePicked(`${i}-fee`)} accessibilityLabel={`Select ${file.name}`}>
+                <Text style={styles.docCheck}>{picked.has(`${i}-fee`) ? "☑" : "☐"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.docMain} onPress={() => Linking.openURL(file.url)}>
+                <Text style={styles.docName} numberOfLines={1}>
+                  📄 {file.name}
+                </Text>
+                <Text style={styles.docOpen}>Open</Text>
+              </TouchableOpacity>
+            </View>
           ))}
         </>
       )}

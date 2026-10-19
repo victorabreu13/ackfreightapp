@@ -56,6 +56,21 @@ function documentsForRequest(req, requestId, items) {
       });
     }
   });
+  // The request's shared Import Fee / 1F files. Addressed as { slot: "fee", awbIndex: <file number> }.
+  (req.importFeeFiles || []).forEach((file, i) => {
+    if (!file || !file.url || !wanted(i, "fee")) return;
+    const parsed = parseStorageUrl(file.url);
+    if (!parsed || !parsed.path.startsWith(folder) || parsed.path.startsWith(folder + "zips/")) return;
+    out.push({
+      awbIndex: i,
+      slot: "fee",
+      label: "Import Fee",
+      awbNumber: "Import Fee 1F",
+      name: String(file.name || "import-fee"),
+      bucket: parsed.bucket,
+      path: parsed.path,
+    });
+  });
   return out;
 }
 

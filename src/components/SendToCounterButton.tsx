@@ -26,10 +26,10 @@ export default function SendToCounterButton({ request }: { request: TripRequest 
   const [sending, setSending] = useState(false);
   const [recent, setRecent] = useState<string[]>([]);
 
-  const documentCount = (request.awbLines ?? []).reduce(
-    (n, l) => n + [l.awbFile, l.loaFile, l.doFile].filter(Boolean).length,
-    0
-  );
+  // AWB documents plus the request's import fee (1F) files.
+  const documentCount =
+    (request.awbLines ?? []).reduce((n, l) => n + [l.awbFile, l.loaFile, l.doFile].filter(Boolean).length, 0) +
+    (request.importFeeFiles ?? []).length;
 
   useEffect(() => {
     if (!open) return;

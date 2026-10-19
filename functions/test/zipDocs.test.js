@@ -39,6 +39,21 @@ describe("zip documents", () => {
     assert.deepEqual(docs.map((d) => `${d.awbIndex}:${d.slot}`), ["0:loa", "1:do"]);
   });
 
+  it("includes the import fee files, all or selected", () => {
+    const withFee = {
+      ...request,
+      importFeeFiles: [
+        { url: mine("fee-0-1-a.pdf"), name: "fee-a.pdf" },
+        { url: mine("fee-1-1-b.pdf"), name: "fee-b.pdf" },
+      ],
+    };
+    const all = documentsForRequest(withFee, "req1", []);
+    assert.deepEqual(all.map((d) => d.slot), ["awb", "loa", "do", "fee", "fee"]);
+    const one = documentsForRequest(withFee, "req1", [{ awbIndex: 1, slot: "fee" }]);
+    assert.deepEqual(one.map((d) => d.name), ["fee-b.pdf"]);
+    assert.equal(zipEntryNames(one)[0], "Import Fee 1F/Import Fee - fee-b.pdf");
+  });
+
   it("skips files outside this request's folder", () => {
     const stray = {
       customerId: "cust1",
