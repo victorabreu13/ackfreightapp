@@ -1,0 +1,102 @@
+// Starter list of airlines (cargo and passenger) that serve Miami International
+// Airport, used to suggest places while someone types a trip's From / To.
+// Anything not here can still be typed; new places are saved to Firestore
+// (`places`) for everyone, so this list only seeds the suggestions.
+export type PlaceKind = "Cargo airline" | "Passenger airline" | "Airport" | "Saved place";
+
+export interface Place {
+  name: string;
+  kind: PlaceKind;
+}
+
+const CARGO = [
+  "Atlas Air",
+  "Amerijet International",
+  "Avianca Cargo",
+  "Tampa Cargo",
+  "LATAM Cargo",
+  "Kalitta Air",
+  "UPS Airlines",
+  "FedEx Express",
+  "DHL Express",
+  "DHL Aviation",
+  "Polar Air Cargo",
+  "Western Global Airlines",
+  "Southern Air",
+  "Capital Cargo International",
+  "Sky Lease Cargo",
+  "National Airlines",
+  "AeroUnion",
+  "MasAir",
+  "Aerosucre",
+  "Cargolux",
+  "Qatar Airways Cargo",
+  "Emirates SkyCargo",
+  "Lufthansa Cargo",
+  "Air France KLM Martinair Cargo",
+  "IAG Cargo",
+  "Iberia Cargo",
+  "Turkish Cargo",
+  "Cathay Cargo",
+  "Air China Cargo",
+  "China Airlines Cargo",
+  "Korean Air Cargo",
+  "Etihad Cargo",
+  "Ethiopian Cargo",
+  "Copa Airlines Cargo",
+  "Aeromexico Cargo",
+  "Aerolineas Argentinas Cargo",
+  "Sky Airline Cargo",
+  "Delta Cargo",
+  "American Airlines Cargo",
+  "United Cargo",
+];
+
+const PASSENGER = [
+  "American Airlines",
+  "Delta Air Lines",
+  "United Airlines",
+  "JetBlue",
+  "Spirit Airlines",
+  "Frontier Airlines",
+  "Southwest Airlines",
+  "Alaska Airlines",
+  "Air Canada",
+  "WestJet",
+  "Avianca",
+  "LATAM Airlines",
+  "Copa Airlines",
+  "Aeromexico",
+  "Volaris",
+  "Iberia",
+  "Air Europa",
+  "British Airways",
+  "Virgin Atlantic",
+  "Lufthansa",
+  "Air France",
+  "KLM",
+  "Swiss",
+  "Condor",
+  "TAP Air Portugal",
+  "Turkish Airlines",
+  "Emirates",
+  "Qatar Airways",
+  "Etihad Airways",
+  "Aerolineas Argentinas",
+  "Sky Airline",
+  "Wingo",
+  "Arajet",
+  "Bahamasair",
+  "Caribbean Airlines",
+  "Cayman Airways",
+  "interCaribbean Airways",
+  "Silver Airways",
+  "Eastern Airlines",
+  "Boliviana de Aviacion",
+];
+
+export const MIA_PLACES: Place[] = [
+  { name: "Miami International Airport (MIA)", kind: "Airport" },
+  ...CARGO.map((name) => ({ name, kind: "Cargo airline" as const })),
+  ...PASSENGER.map((name) => ({ name, kind: "Passenger airline" as const })),
+];

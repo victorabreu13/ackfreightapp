@@ -11,6 +11,8 @@ import {
   View,
 } from "react-native";
 import AwbDriverPicker from "./AwbDriverPicker";
+import PlaceInput from "./PlaceInput";
+import { savePlaceIfNew } from "../services/places";
 import DateField from "./DateField";
 import { uploadTripRequestFile } from "../services/storage";
 import { checkAwbInUse } from "../services/tripRequests";
@@ -248,6 +250,10 @@ export default function TripRequestForm({
       return;
     }
 
+    // Remember places nobody has used before so they are suggested next time.
+    savePlaceIfNew(from);
+    savePlaceIfNew(to);
+
     setSubmitting(true);
     try {
       // One AWB, one trip: refuse numbers already on another trip request. If
@@ -334,11 +340,11 @@ export default function TripRequestForm({
       <View style={styles.row}>
         <View style={styles.half}>
           <Text style={styles.label}>From</Text>
-          <TextInput style={styles.input} placeholder="Origin" value={from} onChangeText={setFrom} />
+          <PlaceInput style={styles.input} placeholder="Origin" value={from} onChangeText={setFrom} />
         </View>
         <View style={styles.half}>
           <Text style={styles.label}>To</Text>
-          <TextInput style={styles.input} placeholder="Destination" value={to} onChangeText={setTo} />
+          <PlaceInput style={styles.input} placeholder="Destination" value={to} onChangeText={setTo} />
         </View>
       </View>
 

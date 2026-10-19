@@ -16,6 +16,8 @@ import DateField from "../components/DateField";
 import { useAuth } from "../context/AuthContext";
 import { checkDuplicateUld, createTrip, duplicateUldMessage } from "../services/trips";
 import { checkAwbInUse } from "../services/tripRequests";
+import PlaceInput from "../components/PlaceInput";
+import { savePlaceIfNew } from "../services/places";
 import { uploadProofFile } from "../services/storage";
 import { ProofFile, ULD_TYPES, UldType } from "../types";
 import { confirmAction, notify } from "../utils/alert";
@@ -172,6 +174,8 @@ export default function NewTripScreen({ navigation }: any) {
 
   const submit = async () => {
     if (!user || !profile) return;
+    savePlaceIfNew(from);
+    savePlaceIfNew(to);
     setSubmitting(true);
     try {
       const trimmedUlds = uldNumbers.map((u) => u.trim());
@@ -261,7 +265,7 @@ export default function NewTripScreen({ navigation }: any) {
       <View style={styles.row}>
         <View style={styles.half}>
           <Text style={styles.label}>From</Text>
-          <TextInput
+          <PlaceInput
             style={styles.input}
             placeholder="Origin"
             value={from}
@@ -270,7 +274,7 @@ export default function NewTripScreen({ navigation }: any) {
         </View>
         <View style={styles.half}>
           <Text style={styles.label}>To</Text>
-          <TextInput
+          <PlaceInput
             style={styles.input}
             placeholder="Destination"
             value={to}

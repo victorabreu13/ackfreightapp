@@ -387,6 +387,20 @@ service cloud.firestore {
         && customerAwbLinesOk();
     }
 
+    // Places (airlines, warehouses) people type into a trip's From / To, shared so
+    // they are suggested to everyone. Anyone signed in can add a new one (the id is
+    // its normalized name, so it can't be overwritten); only admins edit or remove.
+    match /places/{placeId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.keys().hasOnly(["name", "createdBy", "createdAt"]) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() >= 2 &&
+        request.resource.data.name.size() <= 80 &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
     match /tripRequests/{requestId} {
       allow create: if isSignedIn() && (
         isAdmin() ||
