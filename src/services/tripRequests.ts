@@ -339,6 +339,19 @@ export async function updateAwbDocument(
   await callWithFreshToken(updateAwbDocumentFn, { requestId, awbIndex, slot, file });
 }
 
+const zipRequestDocumentsFn = httpsCallable<
+  { requestId: string; items?: { awbIndex: number; slot: "awb" | "loa" | "do" }[] },
+  { url: string; count: number }
+>(functions, "zipRequestDocuments");
+
+// One zip of a request's documents (all of them, or just the picked ones). Returns the download link.
+export async function zipRequestDocuments(
+  requestId: string,
+  items?: { awbIndex: number; slot: "awb" | "loa" | "do" }[]
+): Promise<{ url: string; count: number }> {
+  return callWithFreshToken(zipRequestDocumentsFn, { requestId, items });
+}
+
 const checkAwbInUseFn = httpsCallable<
   { awbNumbers: string[]; excludeRequestId?: string },
   { inUse: string[] }

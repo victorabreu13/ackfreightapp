@@ -12,6 +12,7 @@
   "dependencies": {
     "firebase-admin": "^12.6.0",
     "firebase-functions": "^5.1.1",
+    "jszip": "^3.10.2",
     "nodemailer": "^6.9.15"
   },
   "private": true

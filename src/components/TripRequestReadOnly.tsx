@@ -1,7 +1,7 @@
 import * as DocumentPicker from "expo-document-picker";
 import React, { useState } from "react";
 import { ActivityIndicator, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { updateAwbDocument } from "../services/tripRequests";
+import { updateAwbDocument, zipRequestDocuments } from "../services/tripRequests";
 import { uploadTripRequestFile } from "../services/storage";
 import { notify } from "../utils/alert";
 import LiveTrackingSection from "./LiveTrackingSection";
@@ -38,6 +38,41 @@ export default function TripRequestReadOnly({
   editableDocs?: boolean;
 }) {
   const [busyDoc, setBusyDoc] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [zipping, setZipping] = useState(false);
+
+  // Every document on the AWBs this viewer can see, keyed by "<index in request>-<slot>".
+  const visibleLines = onlyDriverId
+    ? request.awbLines.filter((l) => l.assignedDriverId === onlyDriverId)
+    : request.awbLines;
+  const allDocKeys = visibleLines.flatMap((line) => {
+    const idx = request.awbLines.indexOf(line);
+    return (["awb", "loa", "do"] as const)
+      .filter((slot) => !!(slot === "awb" ? line.awbFile : slot === "loa" ? line.loaFile : line.doFile))
+      .map((slot) => `${idx}-${slot}`);
+  });
+  const togglePicked = (key: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  const downloadDocs = async (keys: string[]) => {
+    setZipping(true);
+    try {
+      const items = keys.map((k) => {
+        const [i, slot] = k.split("-");
+        return { awbIndex: Number(i), slot: slot as "awb" | "loa" | "do" };
+      });
+      const { url } = await zipRequestDocuments(request.id, items);
+      Linking.openURL(url);
+    } catch (e: any) {
+      notify("Couldn't prepare the download", e?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setZipping(false);
+    }
+  };
 
   const changeDoc = async (awbIndex: number, slot: "awb" | "loa" | "do") => {
     const busyKey = `${awbIndex}-${slot}`;
@@ -98,6 +133,34 @@ export default function TripRequestReadOnly({
       <LiveTrackingSection request={request} />
 
       <Text style={styles.sectionTitle}>AWBs</Text>
+      {allDocKeys.length > 0 && (
+        <View style={styles.downloadBar}>
+          <TouchableOpacity
+            onPress={() => setPicked(picked.size === allDocKeys.length ? new Set() : new Set(allDocKeys))}
+          >
+            <Text style={styles.docChange}>
+              {picked.size === allDocKeys.length ? "Clear selection" : "Select all"}
+            </Text>
+          </TouchableOpacity>
+          <View style={styles.downloadButtons}>
+            {zipping ? (
+              <ActivityIndicator size="small" color="#1d4ed8" />
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.downloadButton, picked.size === 0 && styles.downloadButtonOff]}
+                  onPress={() => picked.size > 0 && downloadDocs([...picked])}
+                >
+                  <Text style={styles.downloadButtonText}>Download selected ({picked.size})</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.downloadButton} onPress={() => downloadDocs(allDocKeys)}>
+                  <Text style={styles.downloadButtonText}>Download all ({allDocKeys.length})</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      )}
       {awbLines.map((line, i) => {
         const priority = line.priority ?? "Normal";
         return (
@@ -143,6 +206,11 @@ export default function TripRequestReadOnly({
             if (!file && !editableDocs) return null;
             return (
               <View key={label} style={styles.docRow}>
+                {file && (
+                  <TouchableOpacity onPress={() => togglePicked(`${realIndex}-${slot}`)} accessibilityLabel={`Select ${label}`}>
+                    <Text style={styles.docCheck}>{picked.has(`${realIndex}-${slot}`) ? "☑" : "☐"}</Text>
+                  </TouchableOpacity>
+                )}
                 {file ? (
                   <TouchableOpacity style={styles.docMain} onPress={() => Linking.openURL(file.url)}>
                     <Text style={styles.docName} numberOfLines={1}>
@@ -213,6 +281,19 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   docMain: { flex: 1, flexDirection: "row", alignItems: "center" },
+  docCheck: { fontSize: 20, color: "#1d4ed8", marginRight: 10 },
+  downloadBar: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 8,
+  },
+  downloadButtons: { flexDirection: "row", gap: 8, alignItems: "center" },
+  downloadButton: { backgroundColor: "#e8edff", borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 },
+  downloadButtonOff: { opacity: 0.5 },
+  downloadButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 13 },
   docMissing: { flex: 1, color: "#94a3b8", marginRight: 8 },
   docChange: { color: "#1d4ed8", fontWeight: "700", marginLeft: 12 },
   docName: { flex: 1, color: "#333", marginRight: 8 },

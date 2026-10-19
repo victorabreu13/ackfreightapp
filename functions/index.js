@@ -31,6 +31,8 @@ const {
 } = require("./awbLogic");
 const { intakeAuthorized, rateLimitDecision, validateIntakePayload } = require("./intake");
 const { encodeSignatureStrokes, proofsForRequest } = require("./proofs");
+const JSZip = require("jszip");
+const { documentsForRequest, safeName, zipEntryNames } = require("./zipDocs");
 const { quoteForRequest, uldCountForLines } = require("./quote");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
 const { estimateRoute, haversineMiles } = require("./routeEstimate");
@@ -1414,6 +1416,77 @@ exports.updateAwbDocument = onCall({ invoker: "public" }, async (request) => {
 
   return { success: true };
 });
+
+// Download a trip request's documents as one zip: every document, or only the
+// ones picked. Allowed for the same people who can read them in Storage: admins,
+// the owning customer, and the assigned drivers.
+exports.zipRequestDocuments = onCall(
+  { invoker: "public", memory: "1GiB", timeoutSeconds: 120 },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+    const { requestId, items } = request.data || {};
+    if (!requestId) throw new HttpsError("invalid-argument", "requestId is required.");
+
+    const db = admin.firestore();
+    const snap = await db.collection("tripRequests").doc(requestId).get();
+    if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const data = snap.data();
+    const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+    const allowed =
+      callerSnap.data()?.role === "admin" ||
+      data.customerId === request.auth.uid ||
+      (data.assignedDriverIds || []).includes(request.auth.uid);
+    if (!allowed) throw new HttpsError("permission-denied", "You can't download this request's documents.");
+
+    const docs = documentsForRequest(data, requestId, items);
+    if (docs.length === 0) throw new HttpsError("failed-precondition", "There are no documents to download.");
+    if (docs.length > 60) throw new HttpsError("invalid-argument", "Select at most 60 documents at a time.");
+
+    const bucket = admin.storage().bucket(docs[0].bucket);
+    const names = zipEntryNames(docs);
+    const zip = new JSZip();
+    for (let i = 0; i < docs.length; i++) {
+      const [buffer] = await bucket.file(docs[i].path).download();
+      zip.file(names[i], buffer);
+    }
+    const out = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+    if (out.length > 60 * 1024 * 1024) {
+      throw new HttpsError("resource-exhausted", "These documents are too large for one zip. Select fewer.");
+    }
+
+    // Old zips in this request's folder are not needed again; clear them best-effort.
+    const zipFolder = `tripRequestDocs/${data.customerId}/${requestId}/zips/`;
+    try {
+      const [old] = await bucket.getFiles({ prefix: zipFolder });
+      await Promise.all(
+        old
+          .filter((f) => Date.now() - new Date(f.metadata.timeCreated).getTime() > 24 * 3600 * 1000)
+          .map((f) => f.delete().catch(() => {}))
+      );
+    } catch (err) {
+      logger.warn("zip cleanup failed:", err);
+    }
+
+    const token = crypto.randomUUID();
+    const label = safeName(docs.length === 1 ? docs[0].awbNumber : data.customerName || "documents");
+    const zipPath = zipFolder + Date.now() + "-documents.zip";
+    await bucket.file(zipPath).save(out, {
+      metadata: {
+        contentType: "application/zip",
+        contentDisposition: `attachment; filename="${label}-documents.zip"`,
+        metadata: { firebaseStorageDownloadTokens: token },
+      },
+    });
+    const url =
+      "https://firebasestorage.googleapis.com/v0/b/" +
+      bucket.name +
+      "/o/" +
+      encodeURIComponent(zipPath) +
+      "?alt=media&token=" +
+      token;
+    return { url, count: docs.length };
+  }
+);
 
 exports.markAwbPickedUp = onCall({ invoker: "public" }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
