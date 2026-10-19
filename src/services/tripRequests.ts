@@ -324,6 +324,21 @@ export async function adminCompleteAwbLines(
   await callWithFreshToken(adminCompleteAwbLinesFn, { requestId, awbIndexes });
 }
 
+const updateAwbDocumentFn = httpsCallable<
+  { requestId: string; awbIndex: number; slot: "awb" | "loa" | "do"; file: { url: string; name: string } },
+  { success: boolean }
+>(functions, "updateAwbDocument");
+
+// Admin or the owning customer: attach or replace an AWB's document after submit.
+export async function updateAwbDocument(
+  requestId: string,
+  awbIndex: number,
+  slot: "awb" | "loa" | "do",
+  file: { url: string; name: string }
+): Promise<void> {
+  await callWithFreshToken(updateAwbDocumentFn, { requestId, awbIndex, slot, file });
+}
+
 const checkAwbInUseFn = httpsCallable<
   { awbNumbers: string[]; excludeRequestId?: string },
   { inUse: string[] }

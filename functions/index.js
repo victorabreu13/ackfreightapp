@@ -1369,6 +1369,52 @@ exports.adminCompleteAwbLines = onCall({ invoker: "public" }, async (request) =>
   return { success: true };
 });
 
+// Attach or replace an AWB's document (AWB, Letter of Authorization, Delivery
+// Order) after the request was submitted. The customer's own form locks once a
+// trip is on the road, so this covers admins and the owning customer at any
+// stage short of cancelled. The file must already be in this request's folder
+// in Storage, so nobody can point a line at an arbitrary URL.
+const DOC_FIELDS = { awb: "awbFile", loa: "loaFile", do: "doFile" };
+
+exports.updateAwbDocument = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const { requestId, awbIndex, slot, file } = request.data || {};
+  const field = DOC_FIELDS[slot];
+  if (!requestId || !Number.isInteger(awbIndex) || awbIndex < 0 || !field) {
+    throw new HttpsError("invalid-argument", "requestId, awbIndex and a valid slot are required.");
+  }
+  const url = file && typeof file.url === "string" ? file.url : "";
+  const name = file && typeof file.name === "string" ? file.name.slice(0, 200) : "";
+  if (!url || !name) throw new HttpsError("invalid-argument", "A file with a url and name is required.");
+
+  const db = admin.firestore();
+  const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+  const isAdminCaller = callerSnap.data()?.role === "admin";
+  const ref = db.collection("tripRequests").doc(requestId);
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const data = snap.data();
+    if (!isAdminCaller && data.customerId !== request.auth.uid) {
+      throw new HttpsError("permission-denied", "You can only change documents on your own trip requests.");
+    }
+    if (!isAdminCaller && data.status === "cancelled") {
+      throw new HttpsError("failed-precondition", "This trip request was cancelled.");
+    }
+    const folder = "tripRequestDocs%2F" + data.customerId + "%2F" + requestId + "%2F";
+    if (!url.startsWith("https://firebasestorage.googleapis.com/") || !url.includes(folder)) {
+      throw new HttpsError("invalid-argument", "That file isn't stored with this trip request.");
+    }
+    const lines = data.awbLines || [];
+    if (!lines[awbIndex]) throw new HttpsError("not-found", "That AWB isn't on this trip request.");
+    const awbLines = lines.map((line, i) => (i === awbIndex ? { ...line, [field]: { url, name } } : line));
+    tx.update(ref, { awbLines, updatedAt: Date.now() });
+  });
+
+  return { success: true };
+});
+
 exports.markAwbPickedUp = onCall({ invoker: "public" }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
   const { requestId, awbIndexes } = request.data || {};

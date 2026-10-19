@@ -333,7 +333,7 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
         Submitted: {toLocalDateString(new Date(request.submittedAt))}
       </Text>
 
-      <TripRequestReadOnly request={request} />
+      <TripRequestReadOnly request={request} editableDocs />
 
       <Text style={styles.sectionTitle}>Assign Drivers per AWB</Text>
       {drivers.length === 0 ? (

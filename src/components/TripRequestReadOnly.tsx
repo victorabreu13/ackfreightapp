@@ -1,5 +1,9 @@
-import React from "react";
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import * as DocumentPicker from "expo-document-picker";
+import React, { useState } from "react";
+import { ActivityIndicator, Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { updateAwbDocument } from "../services/tripRequests";
+import { uploadTripRequestFile } from "../services/storage";
+import { notify } from "../utils/alert";
 import LiveTrackingSection from "./LiveTrackingSection";
 import { AwbLineStatus, AwbPriority, TripRequest } from "../types";
 import { formatQuote } from "../utils/quote";
@@ -25,11 +29,38 @@ export default function TripRequestReadOnly({
   request,
   showQuote = true,
   onlyDriverId,
+  editableDocs = false,
 }: {
   request: TripRequest;
   showQuote?: boolean;
   onlyDriverId?: string;
+  /** Admin / owning customer can add or replace each AWB's documents. */
+  editableDocs?: boolean;
 }) {
+  const [busyDoc, setBusyDoc] = useState<string | null>(null);
+
+  const changeDoc = async (awbIndex: number, slot: "awb" | "loa" | "do") => {
+    const busyKey = `${awbIndex}-${slot}`;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"] });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      setBusyDoc(busyKey);
+      const uploaded = await uploadTripRequestFile(
+        asset.uri,
+        request.customerId,
+        request.id,
+        `${slot}-${awbIndex}`,
+        asset.name
+      );
+      await updateAwbDocument(request.id, awbIndex, slot, uploaded);
+    } catch (e: any) {
+      notify("Couldn't save the document", e?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setBusyDoc(null);
+    }
+  };
+
   const awbLines = onlyDriverId
     ? request.awbLines.filter((l) => l.assignedDriverId === onlyDriverId)
     : request.awbLines;
@@ -99,24 +130,42 @@ export default function TripRequestReadOnly({
               {line.hazmatClass ? ` · class ${line.hazmatClass}` : ""}
             </Text>
           )}
-          {[
-            ["AWB document", line.awbFile],
-            ["Letter of Authorization", line.loaFile],
-            ["Delivery Order / Ticket", line.doFile],
-          ].map(([label, file]: any) =>
-            file ? (
-              <TouchableOpacity
-                key={label}
-                style={styles.docRow}
-                onPress={() => Linking.openURL(file.url)}
-              >
-                <Text style={styles.docName} numberOfLines={1}>
-                  📄 {label}: {file.name}
-                </Text>
-                <Text style={styles.docOpen}>Open</Text>
-              </TouchableOpacity>
-            ) : null
-          )}
+          {(
+            [
+              ["AWB document", line.awbFile, "awb"],
+              ["Letter of Authorization", line.loaFile, "loa"],
+              ["Delivery Order / Ticket", line.doFile, "do"],
+            ] as const
+          ).map(([label, file, slot]) => {
+            // Rows keep their index in the full request, not the filtered list.
+            const realIndex = request.awbLines.indexOf(line);
+            const busy = busyDoc === `${realIndex}-${slot}`;
+            if (!file && !editableDocs) return null;
+            return (
+              <View key={label} style={styles.docRow}>
+                {file ? (
+                  <TouchableOpacity style={styles.docMain} onPress={() => Linking.openURL(file.url)}>
+                    <Text style={styles.docName} numberOfLines={1}>
+                      📄 {label}: {file.name}
+                    </Text>
+                    <Text style={styles.docOpen}>Open</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.docMissing} numberOfLines={1}>
+                    {label}: not uploaded
+                  </Text>
+                )}
+                {editableDocs &&
+                  (busy ? (
+                    <ActivityIndicator size="small" color="#1d4ed8" />
+                  ) : (
+                    <TouchableOpacity onPress={() => changeDoc(realIndex, slot)}>
+                      <Text style={styles.docChange}>{file ? "Replace" : "Upload"}</Text>
+                    </TouchableOpacity>
+                  ))}
+              </View>
+            );
+          })}
         </View>
         );
       })}
@@ -163,6 +212,9 @@ const styles = StyleSheet.create({
     padding: 12,
     marginTop: 8,
   },
+  docMain: { flex: 1, flexDirection: "row", alignItems: "center" },
+  docMissing: { flex: 1, color: "#94a3b8", marginRight: 8 },
+  docChange: { color: "#1d4ed8", fontWeight: "700", marginLeft: 12 },
   docName: { flex: 1, color: "#333", marginRight: 8 },
   docOpen: { color: "#1d4ed8", fontWeight: "700" },
 });

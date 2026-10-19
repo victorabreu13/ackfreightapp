@@ -111,7 +111,7 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
 
       {locked ? (
         <>
-          <TripRequestReadOnly request={request} />
+          <TripRequestReadOnly request={request} editableDocs={request.status !== "cancelled"} />
           {request.awbLines.some((line) => line.tripLogId) && (
             <CustomerProofSection requestId={request.id} />
           )}
