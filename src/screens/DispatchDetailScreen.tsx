@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import AwbDriverPicker from "../components/AwbDriverPicker";
+import EditTripDetails from "../components/EditTripDetails";
 import DispatchAwbPay from "../components/DispatchAwbPay";
 import TripRequestReadOnly from "../components/TripRequestReadOnly";
 import { sendQuickBooksInvoice } from "../services/quickbooks";
@@ -333,6 +334,7 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
         Submitted: {toLocalDateString(new Date(request.submittedAt))}
       </Text>
 
+      <EditTripDetails request={request} />
       <TripRequestReadOnly request={request} editableDocs canPrint />
 
       <Text style={styles.sectionTitle}>Assign Drivers per AWB</Text>

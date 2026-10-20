@@ -34,6 +34,7 @@ const { encodeSignatureStrokes, proofsForRequest } = require("./proofs");
 const JSZip = require("jszip");
 const { documentsForRequest, safeName, zipEntryNames } = require("./zipDocs");
 const { mergeToPdf } = require("./mergeDocs");
+const { diffTripDetails, validateTripDetails } = require("./tripEdit");
 const { quoteForRequest, uldCountForLines } = require("./quote");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
 const { estimateRoute, haversineMiles } = require("./routeEstimate");
@@ -1646,6 +1647,81 @@ exports.mergeRequestDocuments = onCall(
       "?alt=media&token=" +
       token;
     return { url, pages: merged.pages, skipped: merged.skipped, documents: docs.length };
+  }
+);
+
+// Admin corrects a submitted trip request's date, pick up time, From or To. The
+// customer is emailed (and notified on their phone) with what changed, and the
+// edit is kept on the request.
+exports.updateTripDetails = onCall(
+  { invoker: "public", secrets: [GMAIL_USER, GMAIL_APP_PASSWORD] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+    await requireAdmin(request.auth.uid);
+    const { requestId } = request.data || {};
+    if (!requestId) throw new HttpsError("invalid-argument", "requestId is required.");
+    const checked = validateTripDetails(request.data);
+    if (!checked.ok) throw new HttpsError("invalid-argument", checked.message);
+
+    const db = admin.firestore();
+    const ref = db.collection("tripRequests").doc(requestId);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const current = snap.data();
+    if (current.status === "cancelled") {
+      throw new HttpsError("failed-precondition", "This trip request was cancelled, so it can't be edited.");
+    }
+    const changes = diffTripDetails(current, checked.values);
+    if (changes.length === 0) return { success: true, changed: false, emailed: false };
+
+    const adminSnap = await db.collection("users").doc(request.auth.uid).get();
+    const adminName = String(adminSnap.data()?.name || request.auth.token.email || "admin");
+    const updated = { ...current, ...checked.values };
+    await ref.update({
+      ...checked.values,
+      updatedAt: Date.now(),
+      adminEdits: admin.firestore.FieldValue.arrayUnion({ at: Date.now(), by: adminName, changes }),
+    });
+
+    let emailed = false;
+    if (current.customerEmail && isNotificationEmail(current.customerEmail)) {
+      try {
+        const list = changes
+          .map(
+            (c) =>
+              "<li><b>" + escapeHtml(c.field) + ":</b> " + escapeHtml(c.from) + " &rarr; <b>" + escapeHtml(c.to) + "</b></li>"
+          )
+          .join("");
+        await buildTransporter().sendMail({
+          from: `"ACK Freight" <${GMAIL_USER.value()}>`,
+          to: current.customerEmail,
+          subject: "ACK Freight — Your trip request was updated",
+          html: buildTripRequestEmailHtml(
+            "Your trip request was updated",
+            "ACK Freight updated your trip request. What changed:</p><ul>" + list + "</ul><p>The full request, as it stands now:",
+            updated
+          ),
+        });
+        emailed = true;
+      } catch (err) {
+        logger.error("Failed to email customer about the trip update:", err);
+      }
+    }
+    try {
+      const customerSnap = current.customerId ? await db.collection("users").doc(current.customerId).get() : null;
+      const token = customerSnap && customerSnap.exists ? customerSnap.data().pushToken : null;
+      if (token) {
+        await sendExpoPush(
+          [token],
+          "Trip request updated",
+          changes.map((c) => c.field + ": " + c.to).join(" · "),
+          { type: "tripProgress", requestId }
+        );
+      }
+    } catch (err) {
+      logger.warn("Push about the trip update failed:", err);
+    }
+    return { success: true, changed: true, emailed };
   }
 );
 

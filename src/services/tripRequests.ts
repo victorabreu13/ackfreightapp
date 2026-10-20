@@ -379,6 +379,20 @@ export async function mergeRequestDocuments(
   return callWithFreshToken(mergeRequestDocumentsFn, { requestId, items });
 }
 
+const updateTripDetailsFn = httpsCallable<
+  { requestId: string; tripDate: string; pickupTime: string; from: string; to: string },
+  { success: boolean; changed: boolean; emailed: boolean }
+>(functions, "updateTripDetails");
+
+// Admin-only: change a submitted request's date, pick up time, From or To. The
+// customer is emailed what changed.
+export async function updateTripDetails(
+  requestId: string,
+  details: { tripDate: string; pickupTime: string; from: string; to: string }
+): Promise<{ changed: boolean; emailed: boolean }> {
+  return callWithFreshToken(updateTripDetailsFn, { requestId, ...details });
+}
+
 const checkAwbInUseFn = httpsCallable<
   { awbNumbers: string[]; excludeRequestId?: string },
   { inUse: string[] }
