@@ -17,9 +17,28 @@ export interface FleetMapRoute {
   label?: string;
 }
 
+/** A saved route: the points a driver was recorded at, in order. */
+export interface FleetMapTrail {
+  id: string;
+  color: string;
+  points: { lat: number; lng: number }[];
+}
+
+/** A fixed, labelled spot (where a trip was started, picked up or completed). */
+export interface FleetMapPin {
+  id: string;
+  lat: number;
+  lng: number;
+  label: string;
+  color: string;
+  detail?: string;
+}
+
 export interface FleetMapProps {
   drivers: FleetMapDriver[];
   routes?: FleetMapRoute[];
+  trails?: FleetMapTrail[];
+  pins?: FleetMapPin[];
   height?: number;
   onPressDriver?: (id: string) => void;
 }

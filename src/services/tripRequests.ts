@@ -290,13 +290,21 @@ export function subscribeToDriverTripRequests(
   );
 }
 
-const startMyAwbLinesFn = httpsCallable<{ requestId: string }, { success: boolean }>(
+// The phone's exact position, sent with start / pick up / complete so the trip keeps
+// a record of where each happened. Optional: without it the server uses the last ping.
+export interface Fix {
+  lat: number;
+  lng: number;
+  accuracy?: number;
+}
+
+const startMyAwbLinesFn = httpsCallable<{ requestId: string; location?: Fix }, { success: boolean }>(
   functions,
   "startMyAwbLines"
 );
 
-export async function startMyAwbLines(requestId: string): Promise<void> {
-  await callWithFreshToken(startMyAwbLinesFn, { requestId });
+export async function startMyAwbLines(requestId: string, location?: Fix): Promise<void> {
+  await callWithFreshToken(startMyAwbLinesFn, { requestId, location });
 }
 
 const removeAwbLineFn = httpsCallable<
@@ -409,16 +417,17 @@ export async function checkAwbInUse(
 }
 
 const completeMyAwbLinesFn = httpsCallable<
-  { requestId: string; tripLogId: string; awbIndexes: number[] },
+  { requestId: string; tripLogId: string; awbIndexes: number[]; location?: Fix },
   { success: boolean }
 >(functions, "completeMyAwbLines");
 
 export async function completeMyAwbLines(
   requestId: string,
   tripLogId: string,
-  awbIndexes: number[]
+  awbIndexes: number[],
+  location?: Fix
 ): Promise<void> {
-  await callWithFreshToken(completeMyAwbLinesFn, { requestId, tripLogId, awbIndexes });
+  await callWithFreshToken(completeMyAwbLinesFn, { requestId, tripLogId, awbIndexes, location });
 }
 
 const updateMyLiveLocationFn = httpsCallable<
@@ -498,12 +507,12 @@ export async function declineAwbLine(requestId: string, awbIndex: number): Promi
 }
 
 const markAwbPickedUpFn = httpsCallable<
-  { requestId: string; awbIndexes: number[] },
+  { requestId: string; awbIndexes: number[]; location?: Fix },
   { success: boolean }
 >(functions, "markAwbPickedUp");
 
-export async function markAwbPickedUp(requestId: string, awbIndexes: number[]): Promise<void> {
-  await callWithFreshToken(markAwbPickedUpFn, { requestId, awbIndexes });
+export async function markAwbPickedUp(requestId: string, awbIndexes: number[], location?: Fix): Promise<void> {
+  await callWithFreshToken(markAwbPickedUpFn, { requestId, awbIndexes, location });
 }
 
 export interface TripProofGroup {

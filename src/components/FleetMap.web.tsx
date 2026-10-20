@@ -15,7 +15,7 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
-export default function FleetMap({ drivers, routes = [], height = 420, onPressDriver }: FleetMapProps) {
+export default function FleetMap({ drivers, routes = [], trails = [], pins = [], height = 420, onPressDriver }: FleetMapProps) {
   const el = useRef<HTMLDivElement | null>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
@@ -52,6 +52,22 @@ export default function FleetMap({ drivers, routes = [], height = 420, onPressDr
       L.circleMarker([r.to.lat, r.to.lng], { radius: 5, color: "#fff", weight: 2, fillColor: r.color, fillOpacity: 1 }).addTo(g);
       pts.push([r.from.lat, r.from.lng], [r.to.lat, r.to.lng]);
     }
+    for (const t of trails) {
+      if (t.points.length === 0) continue;
+      const line = t.points.map((p) => [p.lat, p.lng] as L.LatLngTuple);
+      L.polyline(line, { color: t.color, weight: 4, opacity: 0.85 }).addTo(g);
+      pts.push(...line);
+    }
+    for (const p of pins) {
+      const html = `<div style="background:${p.color};color:#fff;border:2px solid #fff;border-radius:12px;padding:2px 8px;font:800 11px system-ui,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.35);white-space:nowrap;width:max-content">${escapeHtml(p.label)}</div>`;
+      const marker = L.marker([p.lat, p.lng], {
+        icon: L.divIcon({ className: "", html, iconSize: undefined, iconAnchor: [16, 10] }),
+        title: p.label,
+      });
+      if (p.detail) marker.bindTooltip(escapeHtml(p.detail), { direction: "top", offset: [0, -12] });
+      marker.addTo(g);
+      pts.push([p.lat, p.lng]);
+    }
     for (const d of drivers) {
       const bg = d.stale ? "#64748b" : d.color;
       const ring = d.stale ? "outline:2px dashed #dc2626;" : "";
@@ -70,7 +86,7 @@ export default function FleetMap({ drivers, routes = [], height = 420, onPressDr
       m.fitBounds(L.latLngBounds(pts), { padding: [30, 30], maxZoom: 14 });
       fitted.current = true;
     }
-  }, [drivers, routes, onPressDriver]);
+  }, [drivers, routes, trails, pins, onPressDriver]);
 
   return React.createElement("div", {
     ref: el,

@@ -401,6 +401,13 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // Breadcrumb trail of a trip (written only by Cloud Functions). Admins read it
+    // to check where a delivery really went.
+    match /locationTrails/{trailId} {
+      allow read: if isSignedIn() && isAdmin();
+      allow write: if false;
+    }
+
     match /tripRequests/{requestId} {
       allow create: if isSignedIn() && (
         isAdmin() ||

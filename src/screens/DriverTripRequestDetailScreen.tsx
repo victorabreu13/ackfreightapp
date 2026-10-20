@@ -18,6 +18,7 @@ import DateField from "../components/DateField";
 import LiveMap from "../components/LiveMap";
 import SignaturePad, { strokesToSvg, SignatureStrokes } from "../components/SignaturePad";
 import TripRequestReadOnly from "../components/TripRequestReadOnly";
+import { currentFix } from "../utils/currentFix";
 import { uldCountForLines } from "../utils/uld";
 import { ensureAlwaysLocationPermission, promptToAllowAlwaysLocation } from "../utils/locationPermission";
 import { useAuth } from "../context/AuthContext";
@@ -402,7 +403,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
         }
         setStarting(true);
         try {
-          await startMyAwbLines(request.id);
+          await startMyAwbLines(request.id, await currentFix());
           setRequest((prev) => ({
             ...prev,
             awbLines: prev.awbLines.map((l) =>
@@ -429,7 +430,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
       async () => {
         setPickingUp(true);
         try {
-          await markAwbPickedUp(request.id, indexes);
+          await markAwbPickedUp(request.id, indexes, await currentFix());
           setRequest((prev) => ({
             ...prev,
             awbLines: prev.awbLines.map((line, i) =>
@@ -520,7 +521,7 @@ export default function DriverTripRequestDetailScreen({ route, navigation }: any
       });
 
       const completedIndexes = selectedEntries.map(({ index }) => index);
-      await completeMyAwbLines(request.id, tripId, completedIndexes);
+      await completeMyAwbLines(request.id, tripId, completedIndexes, await currentFix());
       setRequest((prev) => ({
         ...prev,
         awbLines: prev.awbLines.map((l, i) =>

@@ -6,8 +6,8 @@ import { DEFAULT_CENTER, FleetMapProps } from "./fleetMapTypes";
 // Native fleet map — same react-native-maps setup LiveMap.tsx already uses
 // (Apple Maps on iPhone, Google Maps on Android with the existing build key).
 // Metro picks FleetMap.web.tsx for the web bundle instead.
-export default function FleetMap({ drivers, routes = [], height = 360, onPressDriver }: FleetMapProps) {
-  const first = drivers[0] ?? null;
+export default function FleetMap({ drivers, routes = [], trails = [], pins = [], height = 360, onPressDriver }: FleetMapProps) {
+  const first = drivers[0] ?? pins[0] ?? trails[0]?.points[0] ?? null;
   return (
     <MapView
       provider={PROVIDER_DEFAULT}
@@ -30,6 +30,21 @@ export default function FleetMap({ drivers, routes = [], height = 360, onPressDr
           strokeWidth={3}
           lineDashPattern={[6, 6]}
         />
+      ))}
+      {trails.map((t) => (
+        <Polyline
+          key={t.id}
+          coordinates={t.points.map((p) => ({ latitude: p.lat, longitude: p.lng }))}
+          strokeColor={t.color}
+          strokeWidth={4}
+        />
+      ))}
+      {pins.map((p) => (
+        <Marker key={p.id} coordinate={{ latitude: p.lat, longitude: p.lng }} title={p.label} description={p.detail}>
+          <View style={[styles.pin, { backgroundColor: p.color }]}>
+            <Text style={styles.pinText}>{p.label}</Text>
+          </View>
+        </Marker>
       ))}
       {drivers.map((d) => (
         <Marker

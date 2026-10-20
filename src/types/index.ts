@@ -106,6 +106,16 @@ export interface RequestFile {
   name: string;
 }
 
+// Where the driver was when an AWB was started / picked up / completed. "device" is
+// the phone's own GPS fix; "last ping" is the last live location the server had.
+export interface LocationStamp {
+  lat: number;
+  lng: number;
+  at: number;
+  source: "device" | "last ping";
+  accuracy?: number;
+}
+
 export interface AwbLine {
   awbNumber: string;
   qtyPieces: number;
@@ -127,6 +137,9 @@ export interface AwbLine {
   startedAt?: number; // stamped when this line flips to in_progress, powers the Drivers Available screen
   acceptedAt?: number;
   pickedUpAt?: number;
+  startedLocation?: LocationStamp;
+  pickedUpLocation?: LocationStamp;
+  completedLocation?: LocationStamp;
   priority: AwbPriority;
 }
 

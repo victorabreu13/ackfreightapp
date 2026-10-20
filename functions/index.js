@@ -35,6 +35,7 @@ const JSZip = require("jszip");
 const { documentsForRequest, safeName, zipEntryNames } = require("./zipDocs");
 const { mergeToPdf } = require("./mergeDocs");
 const { diffTripDetails, validateTripDetails } = require("./tripEdit");
+const { MAX_TRAIL_POINTS, shouldRecordPoint, stampPoint, stampTransitions } = require("./trail");
 const { quoteForRequest, uldCountForLines } = require("./quote");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
 const { estimateRoute, haversineMiles } = require("./routeEstimate");
@@ -1725,7 +1726,45 @@ exports.updateTripDetails = onCall(
   }
 );
 
+// Breadcrumb trail per trip and driver (locationTrails/{requestId}__{uid}), kept
+// after the trip is over so an admin can check the route later. Never allowed to
+// break the action that triggered it.
+async function appendTrailPoint(db, requestId, uid, driverName, point, force) {
+  try {
+    const ref = db.collection("locationTrails").doc(requestId + "__" + uid);
+    const snap = await ref.get();
+    const trail = snap.exists ? snap.data() : null;
+    if (((trail && trail.count) || 0) >= MAX_TRAIL_POINTS) return;
+    if (!force && !shouldRecordPoint(trail && trail.last, point)) return;
+    await ref.set(
+      {
+        requestId,
+        driverId: uid,
+        driverName: driverName || (trail && trail.driverName) || "",
+        last: point,
+        count: admin.firestore.FieldValue.increment(1),
+        points: admin.firestore.FieldValue.arrayUnion(point),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    logger.warn("Couldn't write the location trail:", err);
+  }
+}
+
+async function recordTrailEvent(db, requestId, uid, driverName, stamp) {
+  if (!stamp) return;
+  await appendTrailPoint(db, requestId, uid, driverName, { lat: stamp.lat, lng: stamp.lng, t: stamp.at }, true);
+}
+
+function driverNameOnRequest(lines, uid) {
+  const line = (lines || []).find((l) => l.assignedDriverId === uid);
+  return (line && line.assignedDriverName) || "";
+}
+
 exports.markAwbPickedUp = onCall({ invoker: "public" }, async (request) => {
+  let trailStamp = null;
+  let trailName = "";
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
   const { requestId, awbIndexes } = request.data || {};
   if (!requestId || !Array.isArray(awbIndexes) || awbIndexes.length === 0) {
@@ -1737,7 +1776,11 @@ exports.markAwbPickedUp = onCall({ invoker: "public" }, async (request) => {
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
-    const picked = applyPickup(snap.data().awbLines || [], request.auth.uid, new Set(awbIndexes), Date.now());
+    const nowMs = Date.now();
+    const picked = applyPickup(snap.data().awbLines || [], request.auth.uid, new Set(awbIndexes), nowMs);
+    trailStamp = stampPoint(snap.data(), request.auth.uid, request.data.location, nowMs);
+    trailName = driverNameOnRequest(snap.data().awbLines, request.auth.uid);
+    picked.awbLines = stampTransitions(snap.data().awbLines || [], picked.awbLines, trailStamp);
     if (!picked.changed) {
       throw new HttpsError("failed-precondition", "No in-progress AWB lines to mark picked up.");
     }
@@ -1749,10 +1792,13 @@ exports.markAwbPickedUp = onCall({ invoker: "public" }, async (request) => {
       updatedAt: Date.now(),
     });
   });
+  await recordTrailEvent(db, requestId, request.auth.uid, trailName, trailStamp);
   return { success: true };
 });
 
 exports.startMyAwbLines = onCall({ invoker: "public" }, async (request) => {
+  let trailStamp = null;
+  let trailName = "";
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be signed in.");
   }
@@ -1770,7 +1816,11 @@ exports.startMyAwbLines = onCall({ invoker: "public" }, async (request) => {
       throw new HttpsError("not-found", "Trip request not found.");
     }
     const data = snap.data();
-    const started = applyStart(data.awbLines || [], request.auth.uid, Date.now());
+    const nowMs = Date.now();
+    const started = applyStart(data.awbLines || [], request.auth.uid, nowMs);
+    trailStamp = stampPoint(data, request.auth.uid, request.data.location, nowMs);
+    trailName = driverNameOnRequest(data.awbLines, request.auth.uid);
+    started.awbLines = stampTransitions(data.awbLines || [], started.awbLines, trailStamp);
     if (!started.changed) {
       throw new HttpsError(
         "failed-precondition",
@@ -1785,6 +1835,7 @@ exports.startMyAwbLines = onCall({ invoker: "public" }, async (request) => {
       updatedAt: Date.now(),
     });
   });
+  await recordTrailEvent(admin.firestore(), requestId, request.auth.uid, trailName, trailStamp);
 
   return { success: true };
 });
@@ -1794,6 +1845,8 @@ exports.startMyAwbLines = onCall({ invoker: "public" }, async (request) => {
 // this afternoon) — awbIndexes lets them complete just the subset they
 // actually finished just now, leaving the rest in_progress for later.
 exports.completeMyAwbLines = onCall({ invoker: "public" }, async (request) => {
+  let trailStamp = null;
+  let trailName = "";
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be signed in.");
   }
@@ -1815,7 +1868,11 @@ exports.completeMyAwbLines = onCall({ invoker: "public" }, async (request) => {
       throw new HttpsError("not-found", "Trip request not found.");
     }
     const data = snap.data();
+    const nowMs = Date.now();
     const completed = applyComplete(data.awbLines || [], request.auth.uid, indexSet, tripLogId);
+    trailStamp = stampPoint(data, request.auth.uid, request.data.location, nowMs);
+    trailName = driverNameOnRequest(data.awbLines, request.auth.uid);
+    completed.awbLines = stampTransitions(data.awbLines || [], completed.awbLines, trailStamp);
     if (!completed.changed) {
       throw new HttpsError(
         "failed-precondition",
@@ -1837,6 +1894,7 @@ exports.completeMyAwbLines = onCall({ invoker: "public" }, async (request) => {
     tx.update(ref, updates);
   });
 
+  await recordTrailEvent(db, requestId, request.auth.uid, trailName, trailStamp);
   const finished = await ref.get();
   await lockCompletedPay(db, requestId, [...indexSet], finished.data());
 
@@ -1904,9 +1962,18 @@ exports.updateMyLiveLocation = onCall({ invoker: "public" }, async (request) => 
     );
   }
 
+  const pingAt = Date.now();
   await ref.update({
-    [`driverLocations.${request.auth.uid}`]: { lat, lng, updatedAt: Date.now() },
+    [`driverLocations.${request.auth.uid}`]: { lat, lng, updatedAt: pingAt },
   });
+  await appendTrailPoint(
+    db,
+    requestId,
+    request.auth.uid,
+    driverNameOnRequest(data.awbLines, request.auth.uid),
+    { lat, lng, t: pingAt },
+    false
+  );
 
   return { success: true };
 });
