@@ -1,6 +1,6 @@
 import * as DocumentPicker from "expo-document-picker";
 import React, { useState } from "react";
-import { ActivityIndicator, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Linking, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import SendToCounterModal from "./SendToCounterModal";
 import { mergeRequestDocuments, updateAwbDocument, zipRequestDocuments } from "../services/tripRequests";
 import { uploadTripRequestFile } from "../services/storage";
@@ -45,6 +45,7 @@ export default function TripRequestReadOnly({
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [zipping, setZipping] = useState(false);
   const [counterKeys, setCounterKeys] = useState<string[] | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Every document on the AWBs this viewer can see, keyed by "<index in request>-<slot>".
   const visibleLines = onlyDriverId
@@ -133,6 +134,25 @@ export default function TripRequestReadOnly({
   const awbLines = onlyDriverId
     ? request.awbLines.filter((l) => l.assignedDriverId === onlyDriverId)
     : request.awbLines;
+  const noneSelected = picked.size === 0;
+  const menuActions: { label: string; disabled?: boolean; keepOpen?: boolean; run: () => void }[] = [
+    {
+      label: picked.size === allDocKeys.length ? "Clear selection" : "Select all documents",
+      keepOpen: true,
+      run: () => setPicked(picked.size === allDocKeys.length ? new Set() : new Set(allDocKeys)),
+    },
+    { label: `Download selected (${picked.size})`, disabled: noneSelected, run: () => downloadDocs([...picked]) },
+    { label: `Download all (${allDocKeys.length})`, run: () => downloadDocs(allDocKeys) },
+    ...(canPrint
+      ? [
+          { label: `Print selected (${picked.size})`, disabled: noneSelected, run: () => printDocs([...picked]) },
+          { label: `Print all (${allDocKeys.length})`, run: () => printDocs(allDocKeys) },
+          { label: `Send selected to counter (${picked.size})`, disabled: noneSelected, run: () => setCounterKeys([...picked]) },
+          { label: `Send all to counter (${allDocKeys.length})`, run: () => setCounterKeys(allDocKeys) },
+        ]
+      : []),
+  ];
+
   return (
     <View style={{ marginTop: 10 }}>
       <View style={styles.section}>
@@ -170,54 +190,41 @@ export default function TripRequestReadOnly({
       <Text style={styles.sectionTitle}>AWBs</Text>
       {allDocKeys.length > 0 && (
         <View style={styles.downloadBar}>
-          <TouchableOpacity
-            onPress={() => setPicked(picked.size === allDocKeys.length ? new Set() : new Set(allDocKeys))}
-          >
-            <Text style={styles.docChange}>
-              {picked.size === allDocKeys.length ? "Clear selection" : "Select all"}
-            </Text>
-          </TouchableOpacity>
-          <View style={styles.downloadButtons}>
-            {zipping ? (
-              <ActivityIndicator size="small" color="#1d4ed8" />
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={[styles.downloadButton, picked.size === 0 && styles.downloadButtonOff]}
-                  onPress={() => picked.size > 0 && downloadDocs([...picked])}
-                >
-                  <Text style={styles.downloadButtonText}>Download selected ({picked.size})</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.downloadButton} onPress={() => downloadDocs(allDocKeys)}>
-                  <Text style={styles.downloadButtonText}>Download all ({allDocKeys.length})</Text>
-                </TouchableOpacity>
-                {canPrint && (
-                  <>
-                    <TouchableOpacity
-                      style={[styles.downloadButton, picked.size === 0 && styles.downloadButtonOff]}
-                      onPress={() => picked.size > 0 && printDocs([...picked])}
-                    >
-                      <Text style={styles.downloadButtonText}>🖨 Print selected ({picked.size})</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.downloadButton} onPress={() => printDocs(allDocKeys)}>
-                      <Text style={styles.downloadButtonText}>🖨 Print all ({allDocKeys.length})</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.downloadButton, picked.size === 0 && styles.downloadButtonOff]}
-                      onPress={() => picked.size > 0 && setCounterKeys([...picked])}
-                    >
-                      <Text style={styles.downloadButtonText}>✉ Send selected ({picked.size})</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.downloadButton} onPress={() => setCounterKeys(allDocKeys)}>
-                      <Text style={styles.downloadButtonText}>✉ Send all ({allDocKeys.length})</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </>
-            )}
-          </View>
+          <Text style={styles.selectedCount}>
+            {picked.size > 0 ? `${picked.size} of ${allDocKeys.length} selected` : `${allDocKeys.length} document${allDocKeys.length === 1 ? "" : "s"}`}
+          </Text>
+          {zipping ? (
+            <ActivityIndicator size="small" color="#1d4ed8" />
+          ) : (
+            <TouchableOpacity style={styles.downloadButton} onPress={() => setMenuOpen(true)}>
+              <Text style={styles.downloadButtonText}>More actions ▾</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuOpen(false)}>
+          <View style={styles.menuBox}>
+            <Text style={styles.menuTitle}>Documents</Text>
+            {menuActions.map((a) => (
+              <TouchableOpacity
+                key={a.label}
+                style={styles.menuItem}
+                disabled={a.disabled}
+                onPress={() => {
+                  if (!a.keepOpen) setMenuOpen(false);
+                  a.run();
+                }}
+              >
+                <Text style={[styles.menuItemText, a.disabled && styles.menuItemOff]}>{a.label}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.menuClose} onPress={() => setMenuOpen(false)}>
+              <Text style={styles.menuCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
       {canPrint && (request.counterSends ?? []).length > 0 && (
         <Text style={styles.sentNote}>
           Last sent to {request.counterSends![request.counterSends!.length - 1].email} on{" "}
@@ -375,6 +382,15 @@ const styles = StyleSheet.create({
   docMain: { flex: 1, flexDirection: "row", alignItems: "center" },
   docCheck: { fontSize: 20, color: "#1d4ed8", marginRight: 10 },
   sentNote: { fontSize: 12, color: "#64748b", marginBottom: 8 },
+  selectedCount: { fontSize: 13, color: "#475569", fontWeight: "600" },
+  menuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 20 },
+  menuBox: { backgroundColor: "#fff", borderRadius: 14, paddingVertical: 8, width: "100%", maxWidth: 380 },
+  menuTitle: { fontSize: 13, fontWeight: "700", color: "#64748b", paddingHorizontal: 18, paddingVertical: 8 },
+  menuItem: { paddingVertical: 14, paddingHorizontal: 18, borderTopWidth: 1, borderTopColor: "#f1f5f9" },
+  menuItemText: { fontSize: 15.5, fontWeight: "600", color: "#0f172a" },
+  menuItemOff: { color: "#cbd5e1" },
+  menuClose: { paddingVertical: 14, paddingHorizontal: 18, borderTopWidth: 1, borderTopColor: "#f1f5f9" },
+  menuCloseText: { fontSize: 15.5, fontWeight: "700", color: "#64748b" },
   downloadBar: {
     flexDirection: "row",
     flexWrap: "wrap",
