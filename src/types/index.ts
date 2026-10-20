@@ -26,6 +26,8 @@ export interface UserProfile {
   createdAt: number;
   pushToken?: string;
   payType?: DriverPayType; // driver payroll basis, admin-configured
+  dailyMinPayFrom?: string; // YYYY-MM-DD: first day the daily minimum applies (empty = from the start)
+  dailyMinPayUntil?: string; // YYYY-MM-DD: last day it applies (empty = still applies)
   dailyMinPay?: number; // driver payroll: minimum paid for any day they work, topped up if trips earn less (0 = none)
   payRate?: number; // dollars per trip, per kilogram, or per ULD, depending on payType
   billType?: DriverPayType; // customer billing basis, admin-configured (same shape as driver pay)

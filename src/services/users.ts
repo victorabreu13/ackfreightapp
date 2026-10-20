@@ -74,9 +74,11 @@ export async function setDriverPayRate(
   driverId: string,
   payType: DriverPayType,
   payRate: number,
-  dailyMinPay = 0
+  dailyMinPay = 0,
+  dailyMinPayFrom = "",
+  dailyMinPayUntil = ""
 ): Promise<void> {
-  await updateDoc(doc(db, "users", driverId), { payType, payRate, dailyMinPay });
+  await updateDoc(doc(db, "users", driverId), { payType, payRate, dailyMinPay, dailyMinPayFrom, dailyMinPayUntil });
 }
 
 export function subscribeToCustomers(

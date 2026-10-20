@@ -99,6 +99,14 @@ const PAY_TYPE_LABELS: Record<DriverPayType, string> = {
   perUld: "per ULD",
 };
 
+// " (from 2026-10-19 until 2026-10-23)" for a daily minimum that has dates.
+function minimumWindowText(driver: UserProfile): string {
+  const from = driver.dailyMinPayFrom;
+  const until = driver.dailyMinPayUntil;
+  if (!from && !until) return "";
+  return ` (${from ? "from " + from : ""}${from && until ? " " : ""}${until ? "until " + until : ""})`;
+}
+
 export default function DriverPayrollScreen({ navigation }: any) {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [drivers, setDrivers] = useState<UserProfile[]>([]);
@@ -114,6 +122,8 @@ export default function DriverPayrollScreen({ navigation }: any) {
   const [editPayType, setEditPayType] = useState<DriverPayType>("perTrip");
   const [editPayRate, setEditPayRate] = useState("");
   const [editDailyMin, setEditDailyMin] = useState("");
+  const [editMinFrom, setEditMinFrom] = useState("");
+  const [editMinUntil, setEditMinUntil] = useState("");
   const [savingRate, setSavingRate] = useState(false);
   const [togglingTripId, setTogglingTripId] = useState<string | null>(null);
   const [onlyDuplicates, setOnlyDuplicates] = useState(false);
@@ -221,6 +231,8 @@ export default function DriverPayrollScreen({ navigation }: any) {
     setEditPayType(driver.payType ?? "perTrip");
     setEditPayRate(driver.payRate ? String(driver.payRate) : "");
     setEditDailyMin(driver.dailyMinPay ? String(driver.dailyMinPay) : "");
+    setEditMinFrom(driver.dailyMinPayFrom ?? "");
+    setEditMinUntil(driver.dailyMinPayUntil ?? "");
   };
 
   const saveRate = async (driverId: string) => {
@@ -232,7 +244,20 @@ export default function DriverPayrollScreen({ navigation }: any) {
     setSavingRate(true);
     try {
       const dailyMin = parseFloat(editDailyMin);
-      await setDriverPayRate(driverId, editPayType, rate, dailyMin > 0 ? dailyMin : 0);
+      const dayFormat = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+      const from = editMinFrom.trim();
+      const until = editMinUntil.trim();
+      if ((from && !dayFormat.test(from)) || (until && !dayFormat.test(until))) {
+        notify("Check the dates", "Write the dates as YYYY-MM-DD, for example 2026-10-19, or leave them empty.");
+        setSavingRate(false);
+        return;
+      }
+      if (from && until && from > until) {
+        notify("Check the dates", "The minimum can't end before it starts.");
+        setSavingRate(false);
+        return;
+      }
+      await setDriverPayRate(driverId, editPayType, rate, dailyMin > 0 ? dailyMin : 0, from, until);
       setEditingRateId(null);
     } catch (e: any) {
       notify("Couldn't save rate", e?.message ?? "Something went wrong. Please try again.");
@@ -342,7 +367,8 @@ export default function DriverPayrollScreen({ navigation }: any) {
             driverTrips,
             driver.payType,
             driver.payRate,
-            onlyDuplicates ? 0 : driver.dailyMinPay
+            onlyDuplicates ? 0 : driver.dailyMinPay,
+            { from: driver.dailyMinPayFrom || undefined, until: driver.dailyMinPayUntil || undefined }
           );
           const unpaidAmount = summary.unpaid;
           const paidAmount = summary.paid;
@@ -427,14 +453,34 @@ export default function DriverPayrollScreen({ navigation }: any) {
                       onChangeText={setEditDailyMin}
                     />
                   </View>
+                  <View style={styles.rateInputRow}>
+                    <Text style={styles.dailyMinLabel}>Applies from</Text>
+                    <TextInput
+                      style={styles.rateInput}
+                      placeholder="YYYY-MM-DD (empty = from the start)"
+                      value={editMinFrom}
+                      onChangeText={setEditMinFrom}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  <View style={styles.rateInputRow}>
+                    <Text style={styles.dailyMinLabel}>Applies until</Text>
+                    <TextInput
+                      style={styles.rateInput}
+                      placeholder="YYYY-MM-DD (empty = no end date)"
+                      value={editMinUntil}
+                      onChangeText={setEditMinUntil}
+                      autoCapitalize="none"
+                    />
+                  </View>
                 </View>
               ) : (
                 <TouchableOpacity onPress={() => startEditingRate(driver)}>
                   <Text style={styles.rateText}>
                     {driver.payType && driver.payRate
-                      ? `${money(driver.payRate)} ${PAY_TYPE_LABELS[driver.payType]}${driver.dailyMinPay ? ` · ${money(driver.dailyMinPay)} daily minimum` : ""} · Edit`
+                      ? `${money(driver.payRate)} ${PAY_TYPE_LABELS[driver.payType]}${driver.dailyMinPay ? ` · ${money(driver.dailyMinPay)} daily minimum${minimumWindowText(driver)}` : ""} · Edit`
                       : driver.dailyMinPay
-                      ? `No pay rate set · ${money(driver.dailyMinPay)} daily minimum · Edit`
+                      ? `No pay rate set · ${money(driver.dailyMinPay)} daily minimum${minimumWindowText(driver)} · Edit`
                       : "No pay rate set · Tap to set one"}
                   </Text>
                 </TouchableOpacity>

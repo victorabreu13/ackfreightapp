@@ -12,6 +12,12 @@ export function baseAmount(
   return trips.reduce((sum, t) => sum + (t.kilograms || 0), 0) * payRate;
 }
 
+/** Days the daily minimum applies to: from / until are YYYY-MM-DD, both optional and inclusive. */
+export interface MinimumWindow {
+  from?: string;
+  until?: string;
+}
+
 export interface DailyTopUp {
   date: string;
   earned: number; // what that day's trips came to
@@ -31,7 +37,8 @@ export function payrollSummary(
   trips: PayTrip[],
   payType: DriverPayType | undefined,
   payRate: number | undefined,
-  dailyMinPay: number | undefined
+  dailyMinPay: number | undefined,
+  window: MinimumWindow = {}
 ): { unpaid: number; paid: number; topUps: DailyTopUp[] } {
   let unpaid = baseAmount(trips.filter((t) => !t.paid), payType, payRate);
   let paid = baseAmount(trips.filter((t) => t.paid), payType, payRate);
@@ -43,6 +50,7 @@ export function payrollSummary(
       byDay.get(t.date)!.push(t);
     }
     for (const [date, dayTrips] of [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      if ((window.from && date < window.from) || (window.until && date > window.until)) continue;
       const earned = baseAmount(dayTrips, payType, payRate);
       if (earned >= dailyMinPay) continue;
       const topUp = Math.round((dailyMinPay - earned) * 100) / 100;

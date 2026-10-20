@@ -37,6 +37,16 @@ describe("payrollSummary with a daily minimum", () => {
     assert.equal(r.unpaid, 180);
   });
 
+  it("only tops up days inside the from / until window", () => {
+    const trips = [trip("2026-10-09"), trip("2026-10-12"), trip("2026-10-20")];
+    const ended = payrollSummary(trips, "perTrip", 40, 180, { until: "2026-10-12" });
+    assert.deepEqual(ended.topUps.map((t) => t.date), ["2026-10-09", "2026-10-12"]);
+    assert.equal(ended.unpaid, 180 + 180 + 40); // third day is outside the window: plain pay
+    const started = payrollSummary(trips, "perTrip", 40, 180, { from: "2026-10-20" });
+    assert.deepEqual(started.topUps.map((t) => t.date), ["2026-10-20"]);
+    assert.equal(started.unpaid, 40 + 40 + 180);
+  });
+
   it("is unchanged without a daily minimum", () => {
     const r = payrollSummary([trip("2026-10-14")], "perTrip", 40, undefined);
     assert.equal(r.unpaid, 40);
