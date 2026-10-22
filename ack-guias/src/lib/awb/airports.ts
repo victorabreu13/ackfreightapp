@@ -68,5 +68,6 @@ export function carrierBlock(prefix: string, airline: string | null): { name: st
   if (prefix === "045") {
     return { name: "LATAM AIRLINES GROUP", address: "1801 NW 66 AVENUE\nMIAMI , FLORIDA 33122 UNITED STATES" };
   }
+  if (prefix === "729") return { name: "AVIANCA", address: "" };
   return { name: (airline ?? "ISSUING CARRIER").toUpperCase(), address: "" };
 }

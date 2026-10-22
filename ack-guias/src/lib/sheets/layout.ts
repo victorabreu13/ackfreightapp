@@ -120,6 +120,9 @@ export function airlineTerminal(airline: string, prefix: string): Terminal {
       lines: ["Worldwide Flight Services (WFS)", "4350 NW 36TH ST POD C, MIAMI,", "FL", "33166, UNITED STATES", "Phone: (305) 777-7295"],
     };
   }
+  if (prefix === "729" || upper.includes("AVIANCA")) {
+    return { name: "AVIANCA", lines: [] };
+  }
   if (prefix === "045" || upper.includes("LATAM")) {
     return {
       name: "LATAM AIRLINES GROUP",

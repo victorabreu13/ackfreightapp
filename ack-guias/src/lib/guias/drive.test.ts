@@ -37,7 +37,7 @@ function mockDrive(rootName: string) {
       folders.set(name, id);
       return json({ id, name });
     }
-    if (url.includes("uploadType=media")) return json({ id: "pdf-1" });
+    if (url.includes("uploadType=")) return json({ id: "pdf-1" });
     if (method === "PATCH") return json({ id: "pdf-1" });
     return json({}, 500);
   };
@@ -86,6 +86,7 @@ test("an empty library name keeps client and AWB directly under the root", async
 test("a team upload sends its own mime and can be downloaded or trashed", async () => {
   const seen: string[] = [];
   let media = "";
+  let uploadBody = "";
   const fetchImpl: DriveFetch = async (url, init) => {
     const method = init?.method ?? "GET";
     if (url.includes("oauth2.googleapis.com/token")) return json({ access_token: "tok" });
@@ -93,9 +94,10 @@ test("a team upload sends its own mime and can be downloaded or trashed", async 
     if (method === "GET" && url.includes("/drive/v3/files/") && !url.includes("/files?")) return json({ id: "root", name: "Shared" });
     if (method === "GET" && url.includes("/drive/v3/files?")) return json({ files: [] });
     if (method === "POST" && !url.includes("uploadType")) return json({ id: "folder-1" });
-    if (url.includes("uploadType=media")) {
+    if (url.includes("uploadType=")) {
       seen.push(new Headers(init?.headers).get("content-type") ?? "");
       media = url;
+      uploadBody = init?.body instanceof Uint8Array ? Buffer.from(init.body).toString("utf8") : String(init?.body ?? "");
       return json({ id: "sheet-1" });
     }
     if (method === "PATCH" && String(init?.body).includes("trashed")) return json({ id: "sheet-1" });
@@ -110,17 +112,68 @@ test("a team upload sends its own mime and can be downloaded or trashed", async 
     fetchImpl,
   });
   assert.equal(saved.id, "sheet-1");
-  assert.deepEqual(seen, ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
-  assert.equal(media.includes("uploadType=media"), true);
+  assert.match(seen[0] ?? "", /^multipart\/related; boundary=/);
+  assert.match(uploadBody, /application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/);
+  assert.match(uploadBody, /"parents":\["folder-1"\]/);
+  assert.equal(new URL(media).searchParams.get("supportsAllDrives"), "true");
+  assert.equal(media.includes("uploadType=multipart"), true);
   const bytes = await downloadDriveFile({ fileId: "sheet-1", serviceAccountJson, fetchImpl });
   assert.equal(bytes.toString(), "sheet-bytes");
   await trashDriveFile({ fileId: "sheet-1", serviceAccountJson, fetchImpl });
 
-  const pdfTypes: string[] = [];
+  const pdfBodies: string[] = [];
   const pdfFetch: DriveFetch = async (url, init) => {
-    if (url.includes("uploadType=media")) pdfTypes.push(new Headers(init?.headers).get("content-type") ?? "");
+    if (url.includes("uploadType=")) {
+      pdfBodies.push(init?.body instanceof Uint8Array ? Buffer.from(init.body).toString("utf8") : String(init?.body ?? ""));
+    }
     return fetchImpl(url, init);
   };
   await uploadDrivePdf({ ...upload, fetchImpl: pdfFetch });
-  assert.deepEqual(pdfTypes, ["application/pdf"]);
+  assert.match(pdfBodies[0] ?? "", /Content-Type: application\/pdf/);
+});
+
+test("a missing root id is not configured, and a keyless upload uses the given token", async () => {
+  await assert.rejects(
+    () => uploadDrivePdf({ ...upload, rootId: "  " }),
+    /Drive is not configured/,
+  );
+
+  const drive = mockDrive("Shared drives");
+  let tokenCalls = 0;
+  const saved = await uploadDrivePdf({
+    ...upload,
+    serviceAccountJson: "",
+    libraryName: "ACK Guías",
+    tokenSource: async () => "adc-token",
+    fetchImpl: async (url, init) => {
+      if (url.includes("oauth2.googleapis.com/token")) tokenCalls += 1;
+      const header = new Headers(init?.headers).get("authorization");
+      assert.equal(header, "Bearer adc-token");
+      return drive.fetchImpl(url, init);
+    },
+  });
+  assert.equal(tokenCalls, 0);
+  assert.equal(saved.id, "pdf-1");
+});
+
+test("every Drive call opts into shared drives, and lists include shared-drive items", async () => {
+  const drive = mockDrive("Shared drives");
+  const calls: Array<{ url: string; method: string }> = [];
+  const fetchImpl: DriveFetch = async (url, init) => {
+    calls.push({ url, method: init?.method ?? "GET" });
+    return drive.fetchImpl(url, init);
+  };
+  await uploadDrivePdf({ ...upload, libraryName: "ACK Guías", fetchImpl });
+  await downloadDriveFile({ fileId: "pdf-1", serviceAccountJson, fetchImpl });
+  await trashDriveFile({ fileId: "pdf-1", serviceAccountJson, fetchImpl });
+
+  const driveCalls = calls.filter((call) => !call.url.includes("oauth2.googleapis.com"));
+  assert.ok(driveCalls.length > 0);
+  for (const call of driveCalls) {
+    const parsed = new URL(call.url);
+    assert.equal(parsed.searchParams.get("supportsAllDrives"), "true", call.url);
+    const list = call.method === "GET" && parsed.pathname === "/drive/v3/files";
+    if (list) assert.equal(parsed.searchParams.get("includeItemsFromAllDrives"), "true", call.url);
+  }
+  assert.ok(driveCalls.some((call) => call.url.includes("uploadType=multipart")));
 });

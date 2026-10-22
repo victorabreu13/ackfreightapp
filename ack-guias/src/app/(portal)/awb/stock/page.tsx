@@ -48,7 +48,7 @@ export default async function AwbStockPage({
         <h1 className="mt-2 font-display text-4xl">AWB stock</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           Stock belongs to ACK TEAM LLC. The 8th digit must equal the first 7 digits modulo 7. A 7-digit start gets that
-          check digit added. ACK prefixes in use are 045 and 810.
+          check digit added. Prefixes include 045 LATAM, 729 Avianca, and 810 Amerijet.
         </p>
       </div>
       {one(query, "error") ? <p className="rounded-md bg-[#fde8e8] px-4 py-3 text-sm text-destructive">{one(query, "error")}</p> : null}
@@ -74,7 +74,7 @@ export default async function AwbStockPage({
         </label>
         <label className="space-y-1.5 lg:col-span-2">
           <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Paste a list</span>
-          <Textarea name="pasted" placeholder={"045-22416284\n810,5104380,10"} className="min-h-36 font-mono" />
+          <Textarea name="pasted" placeholder={"045-22416284\n729-95048310\n810,5104380,10"} className="min-h-36 font-mono" />
         </label>
         <label className="space-y-1.5">
           <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Or start number</span>

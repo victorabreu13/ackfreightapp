@@ -82,7 +82,7 @@ pnpm exec tsx scripts/export-ack-from-kope.ts --out "$HOME/ack-export.json"
 unset KOPE_SOURCE_DATABASE_URL
 ```
 
-The script opens the source with `default_transaction_read_only=on`. It reads the live Kope tables (`Client`, `ClientAgreedRate.clientId`, `AwbParty`, and the guía tables) and only uses `GuiaClient` when that table exists. ACK rows are `agentKey = 'ack'`. Clients are the ones those guías and agreed rates reference. The JSON is shaped for this app's `GuiaClient` rows. It writes guías, goods lines, parties, documents, Drive refs, AWB stock prefixes 045 and 810, and AES ITN. It does not copy file bytes, users, tokens, or any other issuer. It prints counts only. Do not paste the source URL into the shell as a visible command.
+The script opens the source with `default_transaction_read_only=on`. It reads the live Kope tables (`Client`, `ClientAgreedRate.clientId`, `AwbParty`, and the guía tables) and only uses `GuiaClient` when that table exists. ACK rows are `agentKey = 'ack'`. Kope marks AWB stock the same way: `AwbStockNumber.agentKey = 'ack'`, for every airline prefix, including 729 Avianca. Clients are the ones those guías and agreed rates reference. The JSON is shaped for this app's `GuiaClient` rows. It writes guías, goods lines, parties, documents, Drive refs, all ACK AWB stock, and AES ITN. It does not copy file bytes, users, tokens, or any other issuer. It prints counts only. Do not paste the source URL into the shell as a visible command.
 
 ### 5. import
 
@@ -91,7 +91,7 @@ cd ack-guias
 bash DEPLOY_GCLOUD.sh import "$HOME/ack-export.json"
 ```
 
-Starts the Cloud SQL proxy, rewrites `DATABASE_URL` to `127.0.0.1` without printing it, and upserts by original id. AWB numbers stay the same. Running it again updates the same rows. Rows that are not ACK TEAM LLC are refused. Stock prefixes other than 045 and 810 are skipped.
+Starts the Cloud SQL proxy, rewrites `DATABASE_URL` to `127.0.0.1` without printing it, and upserts guías by original id. AWB numbers stay the same. Running it again updates those rows. Stock numbers that already exist, by id or by AWB, are skipped, so a second import can add prefixes such as 729 without touching 045 and 810. Rows that are not ACK TEAM LLC are refused.
 
 ## OAuth client in the ack-guias console
 
@@ -104,31 +104,30 @@ Starts the Cloud SQL proxy, rewrites `DATABASE_URL` to `127.0.0.1` without print
 7. Create. Copy the client id and secret into Secret Manager with the `read -s` commands above. Do not commit them.
 8. The app sends `hd=ackfreight.com`. A Google account outside that domain is rejected, including when the hosted-domain claim is missing.
 
-## Optional Drive
+## Drive
 
-Uploads fail with `Drive is not configured` until both of these are set:
+Uploads go to a Shared drive. A service account has no Drive storage quota, so the app creates each file in that Shared drive instead of in My Drive.
 
-- Secret `GOOGLE_DRIVE_SA_JSON`: the service account key JSON. It must contain `client_email` and `private_key`. The app asks Google for the `https://www.googleapis.com/auth/drive` scope.
-- Env `ACK_GUIAS_DRIVE_ROOT_ID`: the Drive folder id (the last path segment of the folder URL). Share that folder with the service account email as an Editor. On a Shared drive, add the service account as a Content manager.
-
-`ACK_GUIAS_DRIVE_FOLDER` is optional. When it is unset, files go in a child folder named `ACK Guías` unless the root folder already has that name. Set it to a blank value before deploy to put files directly in the root folder.
-
-Imported `driveFileId` and `driveUrl` values are the files already stored by Kope. The import does not copy bytes and does not move them into the ACK folder. The ACK service account can open those files only if Kope's folder is shared with it too.
-
-Share a Drive folder with the service account in `GOOGLE_DRIVE_SA_JSON`.
+Drive is configured when `ACK_GUIAS_DRIVE_ROOT_ID` is the Shared drive id. There is no built-in id. Pass it on deploy:
 
 ```bash
-read -s GOOGLE_DRIVE_SA_JSON
-printf '%s' "$GOOGLE_DRIVE_SA_JSON" | gcloud secrets versions add GOOGLE_DRIVE_SA_JSON --project=ack-guias --data-file=-
-unset GOOGLE_DRIVE_SA_JSON
-export ACK_GUIAS_DRIVE_ROOT_ID="<folder id>"
-# optional, default folder name is ACK Guías
-# export ACK_GUIAS_DRIVE_FOLDER="ACK Guías"
+gcloud services enable drive.googleapis.com --project=ack-guias
+export ACK_GUIAS_DRIVE_ROOT_ID="<shared drive id>"
 cd ack-guias
 bash DEPLOY_GCLOUD.sh deploy
 ```
 
-Create the secret the first time with `gcloud secrets create GOOGLE_DRIVE_SA_JSON --project=ack-guias --replication-policy=automatic --data-file=-` and paste the JSON, then Ctrl-D. Do not echo it.
+If `ACK_GUIAS_DRIVE_ROOT_ID` is not exported, deploy reads the value already on the Cloud Run service and writes it back. Export a new id to point at a different Shared drive.
+
+Share that Shared drive with `ack-guias-run@ack-guias.iam.gserviceaccount.com` as Content manager. Deploy runs as that service account, and Drive calls use its Application Default Credentials with the `https://www.googleapis.com/auth/drive` scope.
+
+`GOOGLE_DRIVE_SA_JSON` is optional. `deploy` mounts that secret only when it already exists in Secret Manager. When the secret is absent, uploads still use the Cloud Run service account. A key is not required, including where `iam.disableServiceAccountKeyCreation` is enforced.
+
+`ACK_GUIAS_DRIVE_FOLDER` is optional. When it is unset, files go in a child folder named `ACK Guías` unless the shared-drive root already has that name. Set it to a blank value before deploy to put files directly in the root.
+
+Uploads without `ACK_GUIAS_DRIVE_ROOT_ID` fail with `Drive is not configured`.
+
+Imported `driveFileId` and `driveUrl` values are the files already stored by Kope. The import does not copy bytes and does not move them into the ACK Shared drive. Opening those files works when the Cloud Run service account can see them.
 
 ## Optional QuickBooks Online
 

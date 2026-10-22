@@ -67,14 +67,41 @@ runtime_secrets() {
   printf '%s' "$secrets"
 }
 
+# Shared drive id already stored on the service. Empty when the service or the var is missing.
+# Does not print the value.
+current_drive_root() {
+  if ! gcloud run services describe "$SERVICE" --region="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    return 0
+  fi
+  gcloud run services describe "$SERVICE" \
+    --region="$REGION" \
+    --project="$PROJECT_ID" \
+    --format=json | python3 -c 'import json,sys
+doc=json.load(sys.stdin)
+containers=((doc.get("spec") or {}).get("template") or {}).get("spec",{}).get("containers") or [{}]
+env=(containers[0] or {}).get("env") or []
+for item in env:
+    if item.get("name")=="ACK_GUIAS_DRIVE_ROOT_ID" and item.get("value"):
+        sys.stdout.write(item["value"])
+        break
+'
+}
+
 runtime_env() {
-  local url
+  local url root_id
   url="$(app_url)"
   # ^|^ is gcloud's custom delimiter so the comma inside ADMIN_EMAILS is not a key separator.
   # Always set these. Do not read status.url and do not use --set-env-vars, which would drop them.
   local env="^|^ADMIN_EMAILS=victor.abreu@ackfreight.com,andres.alvarado@ackfreight.com|AUTH_TRUST_HOST=true|APP_URL=${url}|AUTH_URL=${url}|NEXTAUTH_URL=${url}"
-  if [[ -n "${ACK_GUIAS_DRIVE_ROOT_ID:-}" ]]; then
-    env="${env}|ACK_GUIAS_DRIVE_ROOT_ID=${ACK_GUIAS_DRIVE_ROOT_ID}"
+  # No baked-in folder id. An exported value replaces the Shared drive id.
+  # When the variable is not exported, write the current service value back so deploy keeps it.
+  if [[ -n "${ACK_GUIAS_DRIVE_ROOT_ID+x}" ]]; then
+    root_id="${ACK_GUIAS_DRIVE_ROOT_ID}"
+  else
+    root_id="$(current_drive_root)"
+  fi
+  if [[ -n "$root_id" ]]; then
+    env="${env}|ACK_GUIAS_DRIVE_ROOT_ID=${root_id}"
   fi
   if [[ -n "${ACK_GUIAS_DRIVE_FOLDER:-}" ]]; then
     env="${env}|ACK_GUIAS_DRIVE_FOLDER=${ACK_GUIAS_DRIVE_FOLDER}"
@@ -94,6 +121,7 @@ cmd_setup() {
     cloudbuild.googleapis.com \
     iam.googleapis.com \
     compute.googleapis.com \
+    drive.googleapis.com \
     --project="$PROJECT_ID"
 
   if ! gcloud iam service-accounts describe "${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" --project="$PROJECT_ID" >/dev/null 2>&1; then

@@ -5,7 +5,6 @@ import { normalizeBillToName } from "@/lib/guias/guia-client";
 
 export const ACK_AGENT_KEY = "ack";
 export const ACK_LEGAL_NAME = "ACK TEAM LLC";
-export const ACK_STOCK_PREFIXES = ["045", "810"] as const;
 
 /** Columns the live Kope database may have. `agentKey` is optional on Client. */
 export const KOPE_GUIA_COLUMNS = [
@@ -512,7 +511,7 @@ export function shapeAckExport(input: {
       .filter((row) => row.agentKey === ACK_AGENT_KEY && keptClients.has(String(row.guiaClientId)))
       .map((row) => pick(row, RATE_FIELDS)),
     stock: rows(input.stock)
-      .filter((row) => row.agentKey === ACK_AGENT_KEY && ACK_STOCK_PREFIXES.includes(String(row.prefix) as (typeof ACK_STOCK_PREFIXES)[number]))
+      .filter((row) => row.agentKey === ACK_AGENT_KEY)
       .map((row) => pick(row, STOCK_FIELDS)),
     documents: rows(input.documents)
       .filter((row) => ids.has(String(row.guiaId ?? "")) || row.company === ACK_AGENT_KEY)
@@ -538,7 +537,7 @@ export type AckImportPlan = {
   skippedStock: number;
 };
 
-/** Idempotent import plan. AWB numbers and ids are copied. Other issuers and other prefixes are dropped. */
+/** Idempotent import plan. AWB numbers and ids are copied. Other issuers are dropped. Every ACK prefix is kept. */
 export function planAckImport(file: AckExportFile): AckImportPlan {
   const refused = file.guias.filter((row) => row.agentKey !== ACK_AGENT_KEY || row.product !== "guia");
   const shaped = shapeAckExport(file);
@@ -557,9 +556,7 @@ export function planAckImport(file: AckExportFile): AckImportPlan {
     ...row,
     documentId: row.documentId && guiaIds.has(String(row.documentId)) ? row.documentId : null,
   }));
-  const skippedStock = file.stock.filter(
-    (row) => row.agentKey !== ACK_AGENT_KEY || !ACK_STOCK_PREFIXES.includes(String(row.prefix) as (typeof ACK_STOCK_PREFIXES)[number]),
-  ).length;
+  const skippedStock = file.stock.filter((row) => row.agentKey !== ACK_AGENT_KEY).length;
   return {
     guias: shaped.guias,
     lines: shaped.lines,
@@ -571,6 +568,34 @@ export function planAckImport(file: AckExportFile): AckImportPlan {
     refusedGuias: refused.length,
     skippedStock,
   };
+}
+
+/** Numbers already stored by id or AWB are left as they are. A taken document link is cleared so the new number can still be inserted. */
+export function stockToInsert(
+  stock: Array<Record<string, unknown>>,
+  existing: { ids?: Iterable<string>; awbs?: Iterable<string>; documentIds?: Iterable<string> },
+): { insert: Array<Record<string, unknown>>; skippedExisting: number } {
+  const ids = new Set(existing.ids ?? []);
+  const awbs = new Set(existing.awbs ?? []);
+  const documentIds = new Set([...(existing.documentIds ?? [])].filter((id) => id.length > 0));
+  const insert: Array<Record<string, unknown>> = [];
+  let skippedExisting = 0;
+  for (const row of stock) {
+    const id = String(row.id ?? "");
+    const awb = String(row.awb ?? "");
+    if ((id && ids.has(id)) || (awb && awbs.has(awb))) {
+      skippedExisting += 1;
+      continue;
+    }
+    const next = { ...row };
+    const documentId = next.documentId ? String(next.documentId) : "";
+    if (documentId && documentIds.has(documentId)) next.documentId = null;
+    else if (documentId) documentIds.add(documentId);
+    if (id) ids.add(id);
+    if (awb) awbs.add(awb);
+    insert.push(next);
+  }
+  return { insert, skippedExisting };
 }
 
 export function exportCounts(file: AckExportFile) {

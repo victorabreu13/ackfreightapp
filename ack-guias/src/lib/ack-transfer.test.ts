@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { adaptKopeSource, columnsToSelect, exportCounts, KOPE_CLIENT_COLUMNS, planAckImport, redactDatabaseUrl, shapeAckExport, type AckExportFile } from "./ack-transfer";
+import { adaptKopeSource, columnsToSelect, exportCounts, KOPE_CLIENT_COLUMNS, planAckImport, redactDatabaseUrl, shapeAckExport, stockToInsert, type AckExportFile } from "./ack-transfer";
 
 const sample: AckExportFile = {
   version: 1,
@@ -36,6 +36,7 @@ const sample: AckExportFile = {
     { id: "stock-045", prefix: "045", serial: "53981966", awb: "045-53981966", agentKey: "ack", status: "used", documentId: "guia-ack" },
     { id: "stock-810", prefix: "810", serial: "51043801", awb: "810-51043801", agentKey: "ack", status: "available", documentId: null },
     { id: "stock-369", prefix: "369", serial: "11441102", awb: "369-11441102", agentKey: "ack", status: "available", documentId: null },
+    { id: "stock-729", prefix: "729", serial: "95048310", awb: "729-95048310", agentKey: "ack", status: "available", documentId: null },
     { id: "stock-kope", prefix: "045", serial: "11111115", awb: "045-11111115", agentKey: "kope", status: "available", documentId: null },
   ],
   documents: [
@@ -48,14 +49,14 @@ const sample: AckExportFile = {
   ],
 };
 
-test("export keeps ACK guías, their clients, AES ITN, 045/810 stock, and upload metadata", () => {
+test("export keeps ACK guías, their clients, AES ITN, every ACK stock prefix, and upload metadata", () => {
   const file = shapeAckExport(sample);
   assert.deepEqual(exportCounts(file), {
     guias: 1,
     lines: 1,
     clients: 1,
     rates: 1,
-    stock: 2,
+    stock: 4,
     documents: 1,
     driveFiles: 1,
     parties: 0,
@@ -68,7 +69,7 @@ test("export keeps ACK guías, their clients, AES ITN, 045/810 stock, and upload
   assert.equal(file.clients[0]?.agentKey, "ack");
   assert.deepEqual(
     file.stock.map((row) => row.awb),
-    ["045-53981966", "810-51043801"],
+    ["045-53981966", "810-51043801", "369-11441102", "729-95048310"],
   );
 });
 
@@ -76,7 +77,11 @@ test("import is idempotent on ids and preserves AWB numbers", () => {
   const once = planAckImport(sample);
   const twice = planAckImport({ ...sample, guias: once.guias, lines: once.lines, clients: once.clients, rates: once.rates, stock: once.stock, documents: once.documents, driveFiles: once.driveFiles });
   assert.equal(once.refusedGuias, 1);
-  assert.equal(once.skippedStock, 2);
+  assert.equal(once.skippedStock, 1);
+  const again = stockToInsert(once.stock, { ids: ["stock-045"], awbs: ["729-95048310"] });
+  assert.equal(again.skippedExisting, 2);
+  assert.equal(again.insert.some((row) => row.awb === "729-95048310" || row.id === "stock-045"), false);
+  assert.equal(again.insert.some((row) => row.awb === "810-51043801"), true);
   assert.equal(once.guias[0]?.id, "guia-ack");
   assert.equal(once.guias[0]?.awb, "045-53981966");
   assert.equal(once.stock.find((row) => row.id === "stock-045")?.documentId, "guia-ack");

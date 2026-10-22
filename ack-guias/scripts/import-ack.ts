@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../src/lib/db";
-import { planAckImport, type AckExportFile } from "../src/lib/ack-transfer";
+import { planAckImport, stockToInsert, type AckExportFile } from "../src/lib/ack-transfer";
 
 const DATE_FIELDS = new Set([
   "createdAt",
@@ -78,17 +78,39 @@ async function main() {
     });
   }
   const guiaIds = new Set(plan.guias.map((row) => String(row.id)));
-  for (const row of plan.stock) {
-    const id = String(row.id);
-    const data = dated(row);
-    if (data.documentId && !guiaIds.has(String(data.documentId))) data.documentId = null;
-    data.agentKey = "ack";
-    await prisma.awbStockNumber.upsert({
-      where: { id },
-      create: { id, ...data } as Prisma.AwbStockNumberUncheckedCreateInput,
-      update: data as Prisma.AwbStockNumberUncheckedUpdateInput,
+  const stockIds = plan.stock.map((row) => String(row.id ?? "")).filter((id) => id.length > 0);
+  const stockAwbs = plan.stock.map((row) => String(row.awb ?? "")).filter((awb) => awb.length > 0);
+  const stockDocs = plan.stock.map((row) => (row.documentId ? String(row.documentId) : "")).filter((id) => id.length > 0);
+  const stockWhere: Prisma.AwbStockNumberWhereInput[] = [];
+  if (stockIds.length) stockWhere.push({ id: { in: stockIds } });
+  if (stockAwbs.length) stockWhere.push({ awb: { in: stockAwbs } });
+  if (stockDocs.length) stockWhere.push({ documentId: { in: stockDocs } });
+  const existingStock = stockWhere.length
+    ? await prisma.awbStockNumber.findMany({
+        where: { OR: stockWhere },
+        select: { id: true, awb: true, documentId: true },
+      })
+    : [];
+  const prepared = stockToInsert(plan.stock, {
+    ids: existingStock.map((row) => row.id),
+    awbs: existingStock.map((row) => row.awb),
+    documentIds: existingStock.flatMap((row) => (row.documentId ? [row.documentId] : [])),
+  });
+  let insertedStock = 0;
+  if (prepared.insert.length) {
+    const created = await prisma.awbStockNumber.createMany({
+      data: prepared.insert.map((row) => {
+        const id = String(row.id);
+        const data = dated(row);
+        if (data.documentId && !guiaIds.has(String(data.documentId))) data.documentId = null;
+        data.agentKey = "ack";
+        return { id, ...data } as Prisma.AwbStockNumberCreateManyInput;
+      }),
+      skipDuplicates: true,
     });
+    insertedStock = created.count;
   }
+  const skippedExistingStock = plan.stock.length - insertedStock;
   for (const row of plan.documents) {
     const id = String(row.id);
     const data = dated(row);
@@ -116,12 +138,13 @@ async function main() {
       lines: plan.lines.length,
       clients: plan.clients.length,
       rates: plan.rates.length,
-      stock: plan.stock.length,
+      stock: insertedStock,
       documents: plan.documents.length,
       driveFiles: plan.driveFiles.length,
       parties: parsed.parties?.length ?? 0,
       refusedGuias: plan.refusedGuias,
       skippedStock: plan.skippedStock,
+      skippedExistingStock,
     }),
   );
 }

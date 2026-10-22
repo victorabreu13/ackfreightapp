@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { carrierBlock } from "./airports";
 import { settleCharges, settleLine, volumeWeight } from "./calc";
 import { prefillFromShipment, secondLegFlightDate, type AgentRecord } from "./document";
 import { checkDigit, expandCount, isValidSerial, parseAwb, parseStockText, serialFromBase } from "./number";
+import { airlineTerminal } from "@/lib/sheets/layout";
 
 const agent: AgentRecord = {
   key: "kope",
@@ -16,6 +18,15 @@ const agent: AgentRecord = {
   conditions: "en",
   copyLabel: null,
 };
+
+test("prefix 729 generates an Avianca AWB", () => {
+  assert.deepEqual(parseAwb("729-95048310"), { prefix: "729", serial: "95048310" });
+  assert.equal(isValidSerial("95048310"), true);
+  assert.equal(expandCount("729", "9504831", 1).ok[0]?.awb, "729-95048310");
+  assert.equal(carrierBlock("729", null).name, "AVIANCA");
+  assert.equal(carrierBlock("729", "Avianca").name, "AVIANCA");
+  assert.equal(airlineTerminal("", "729").name, "AVIANCA");
+});
 
 test("mod-7 check digit is the first 7 digits modulo 7", () => {
   assert.equal(checkDigit("1144110"), 2);

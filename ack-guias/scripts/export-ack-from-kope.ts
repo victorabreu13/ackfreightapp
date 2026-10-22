@@ -7,7 +7,6 @@
 import { writeFileSync } from "node:fs";
 import { Client } from "pg";
 import {
-  ACK_STOCK_PREFIXES,
   KOPE_CLIENT_COLUMNS,
   KOPE_DOCUMENT_COLUMNS,
   KOPE_DRIVE_COLUMNS,
@@ -118,10 +117,10 @@ async function main() {
     selectWhere(
       "AwbStockNumber",
       KOPE_STOCK_COLUMNS,
-      (columns.get("AwbStockNumber") ?? []).includes("agentKey")
-        ? `"agentKey" = 'ack' AND prefix = ANY($1::text[])`
-        : `"documentId" = ANY($2::text[]) AND prefix = ANY($1::text[])`,
-      (columns.get("AwbStockNumber") ?? []).includes("agentKey") ? [ACK_STOCK_PREFIXES] : [ACK_STOCK_PREFIXES, guiaIds],
+      (columns.get("AwbStockNumber") ?? []).includes("agentKey") ? `"agentKey" = 'ack'` : `"documentId" = ANY($1::text[])`,
+      (columns.get("AwbStockNumber") ?? []).includes("agentKey") ? [] : [guiaIds],
+    ).then((rows) =>
+      (columns.get("AwbStockNumber") ?? []).includes("agentKey") ? rows : rows.map((row) => ({ ...row, agentKey: "ack" })),
     ),
     selectWhere(
       "GuiaDocument",
