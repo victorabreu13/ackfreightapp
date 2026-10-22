@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import bwipjs from "bwip-js/node";
 import PDFDocument from "pdfkit";
 import { tsaIacFor, type CompanyView } from "@/lib/guias/company-profile";
@@ -417,23 +419,87 @@ function securityParts(document: GuiaRecord, company: CompanyView, options: Guia
   };
 }
 
-/** CCSSSF certificate of tender, the Magaya CCSF letter (045-55174943 / suite 130). */
-export function renderMagayaCcsf(document: GuiaRecord, company: CompanyView, options: GuiaPrintOptions): Promise<Buffer> {
-  const parts = securityParts(document, company, options);
-  return securityLetter({
-    title: "CCSSSF CERTIFICATE OF TENDER TO A CARGO CARRIER",
-    fileTitle: `${parts.awb || "DRAFT"}_CCSF`,
-    awb: parts.awb,
-    date: parts.date,
-    signer: parts.signer,
-    trucker: parts.trucker,
-    driver: parts.driver,
-    seal: parts.seal,
-    footer: parts.footer,
-    paragraphs: [
-      `${parts.name} is in compliance with its TSA-approved security program and all appropriate security directive(s). Our number assigned by the TSA is ${parts.tsa}. All cargo tendered in conjunction with this certificate was either: 1) accepted from a Known Shipper or an Unkown Shipper in accordance with TSA requirements specified in the Indirect Air Carrier Standard Security Program, or 2) accepted under transfer from another direct or indirect air carrier operating under a TSA approved or accepted security program. This IAC is also a TSA-certified cargo screening facility (CCSSSF) and is in compliance with the TSA-approved certified cargo screening standard security program (CCSSSF). Our CCSSSF number assigned by TSA is ${parts.ccsf}, which is applicable only to this facility, located at ${parts.facility}.`,
-      `All cargo has been screened and transported in accordance with the CCSSSF requirements. A chain of custody method has been applied, and the cargo is being tendered with the chain of custody method intact. The individual whose name appears below certifies that he or she is an employee or authorized representative of ${parts.name} and understand that any fradulent or false statement made in connection with this certification may subject ${parts.name} and the individual to both (1) civil penalties under 49 CFR 1540.103(b) and (2) fines and/or imprisonment of not more than five years under 18 U.S.C. 1001. The cargo associated with this Master Air Waybill was screened at 100 percent.`,
-    ],
+/** Kope logo as printed on the CCSF reference, black on white. */
+const CCSF_LOGO_PNG = readFileSync(join(process.cwd(), "src/lib/guias/assets/kope-logo-ccsf.png"));
+
+const CCSF_SIZE = 10.18;
+const CCSF_LEFT = 19.3;
+const CCSF_STEP = 11.65;
+const CCSF_RIGHT = 610.3;
+
+function ccsfLines(doc: Doc, text: string): string[] {
+  doc.font("Helvetica").fontSize(CCSF_SIZE);
+  const rows: string[] = [];
+  let row = "";
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = row ? `${row} ${word}` : word;
+    if (row && doc.widthOfString(next) > CCSF_RIGHT - CCSF_LEFT) {
+      rows.push(row);
+      row = word;
+    } else {
+      row = next;
+    }
+  }
+  if (row) rows.push(row);
+  return rows;
+}
+
+/**
+ * CCSSSF certificate of tender. It is always Kope's certificate, whichever company issues the guía:
+ * Kope's name, TSA number, CCSSSF number and facility, with the Kope logo. Positions are the baselines
+ * measured from the Kope CCSF reference PDF (CCSF 045-53981454), converted to top-of-page points.
+ */
+export function renderMagayaCcsf(document: GuiaRecord, _company: CompanyView, options: GuiaPrintOptions): Promise<Buffer> {
+  const awb = plain(document.awb);
+  const date = kopeDate(options.now ?? new Date()).replace(/\/0(\d)\//, "/$1/");
+  const signer = signerName(options.name, options.email);
+  const trucker = plain(options.trucker ?? document.truckerName);
+  const driver = plain(options.driver ?? document.driverName);
+  const seal = plain(options.seal ?? document.seal);
+  const name = KOPE.legalName;
+  const top = (baseline: number) => 792 - baseline;
+  const bar = (count: number) => "_".repeat(count);
+  const first = `${name} is in compliance with its TSA-approved security program and all appropriate security directive(s). Our number assigned by the TSA is ${KOPE.tsaIac}. All cargo tendered in conjunction with this certificate was either: 1) accepted from a Known Shipper or an Unkown Shipper in accordance with TSA requirements specified in the Indirect Air Carrier Standard Security Program, or 2) accepted under transfer from another direct or indirect air carrier operating under a TSA approved or accepted security program. This IAC is also a TSA-certified cargo screening facility (CCSSSF) and is in compliance with the TSA-approved certified cargo screening standard security program (CCSSSF). Our CCSSSF number assigned by TSA is ${KOPE.ccsfId}, which is applicable only to this facility, located at ${KOPE.ccsfFacility}.`;
+  const second = `All cargo has been screened and transported in accordance with the CCSSSF requirements. A chain of custody method has been applied, and the cargo is being tendered with the chain of custody method intact. The individual whose name appears below certifies that he or she is an employee or authorized representative of ${name} and understand that any fradulent or false statement made in connection with this certification may subject ${name} and the individual to both (1) civil penalties under 49 CFR 1540.103(b) and (2) fines and/or imprisonment of not more than five years under 18 U.S.C. 1001. The cargo associated with this Master Air Waybill was screened at 100 percent.`;
+  const accepting =
+    "Print name of the accepting entity's employee or authorized representative who is verifying that the seal number written above matches the seal number on the conveyance OR is verifying the government issued identification of the escort and ensuring the name matches the name written above OR is verifying that the cargo arrived in a locked conveyance. Accepting Employee or Authorized Representative:";
+
+  return pdfBuffer("LETTER", (doc) => {
+    doc.info.Title = `${awb || "DRAFT"}_CCSF`;
+    const text = (value: string, x: number, baseline: number, font = "Helvetica", size = CCSF_SIZE) => at(doc, value, x, top(baseline), size, font);
+    const paragraph = (value: string, firstBaseline: number) =>
+      ccsfLines(doc, value).forEach((row, index) => text(row, CCSF_LEFT, firstBaseline - index * CCSF_STEP));
+
+    text("CCSSSF CERTIFICATE OF TENDER TO A CARGO CARRIER", 163.4, 670.8, "Helvetica-Bold");
+    text(`Date:${bar(16)}.`, 20.6, 640);
+    text(date, 67.2, 642.2);
+    text("Air waybill, bill of lading, company inventory, or other internal shipping document number:", 20.4, 618.1);
+    text(`${bar(25)}.`, 20.4, 594.8);
+    text(awb, 61.8, 597.7);
+    paragraph(first, 575.8);
+    paragraph(second, 482.8);
+    text("Check the applicable box below:", 19.8, 385.1);
+    text("( ) Locked vehicle", 19.3, 362);
+    text("X", 21.5, 360.2, "Helvetica", 14.14);
+    text("( ) Tamper evident number seal. If used, write the number of the seal associated with this cargo shipment below:", 19.3, 341.6);
+    if (seal) text("X", 21.2, 340.4, "Helvetica", 14.14);
+    text(`SEAL #${bar(42)}.`, 19.8, 320.6);
+    text(seal, 58.7, 323.4);
+    text("If an escort is used, write the name of the escort associated with this cargo shipment below:", 20.6, 296.2);
+    text(`${bar(48)}.`, 20.6, 272.9);
+    text("Name and signature of employee or authorized representative attesting to the above certification:", 19.8, 250.8);
+    text(`${bar(48)}.`, 19.8, 227.5);
+    text(signer, 24.4, 229.8);
+    text("Name of company and name of driver delivering the cargo shipment:", 19.8, 211.6);
+    text(`${bar(43)} | ${bar(45)}.`, 19.8, 188.3);
+    text(trucker, 24.4, 191.8);
+    text(driver, 277, 191.8);
+    ccsfLines(doc, accepting).forEach((row, index) => text(row, CCSF_LEFT, 168.1 - index * CCSF_STEP));
+    text(`${bar(49)}.`, 19.3, 110);
+    doc.image(CCSF_LOGO_PNG, 318.5, top(113.8), { width: 153.6, height: 71.3 });
+    doc.font("Helvetica").fontSize(CCSF_SIZE);
+    const footer = `${name} | ${KOPE.ccsfFooter}`;
+    text(footer, 89.5, 34.8);
   });
 }
 
