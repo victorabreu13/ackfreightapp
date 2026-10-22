@@ -30,6 +30,8 @@ export type GuiaValues = {
   flightDate: string;
   pieces: string;
   chargeableKg: string;
+  /** Rate printed on the AWB. Not the rate billed to the client. */
+  rate: string;
   grossKg: string;
   goods: string;
   handling: string;
@@ -60,6 +62,7 @@ const EMPTY: GuiaValues = {
   flightDate: "",
   pieces: "",
   chargeableKg: "",
+  rate: "",
   grossKg: "",
   goods: "",
   handling: "",

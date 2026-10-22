@@ -47,6 +47,7 @@ function valuesFromForm(formData: FormData): GuiaValues {
     flightDate: text(formData.get("flightDate")),
     pieces: text(formData.get("pieces")),
     chargeableKg: text(formData.get("chargeableKg")),
+    rate: text(formData.get("rate")),
     grossKg: text(formData.get("grossKg")),
     goods: text(formData.get("goods")),
     handling: text(formData.get("handling")),
@@ -82,6 +83,7 @@ function lineData(values: GuiaValues) {
   return {
     pieces: pieces == null ? null : Math.round(pieces),
     chargeableWeight: numberOrNull(values.chargeableKg),
+    rate: numberOrNull(values.rate),
     grossWeight: numberOrNull(values.grossKg),
     nature: blank(values.goods),
     kgLb: "K",

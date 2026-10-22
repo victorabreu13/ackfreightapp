@@ -16,6 +16,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const { id } = await context.params;
   const params = new URL(request.url).searchParams;
   const kind = params.get("kind") ?? "";
+  const draft = params.get("draft") === "1" && (kind === "awb" || kind === "labels");
+  const labelAwb = (params.get("awb") ?? "").replace(/[^0-9-]/g, "");
   const document = await prisma.airWaybillDocument.findFirst({
     where: { id, ...guiaWhere(user) },
     include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true },
@@ -37,6 +39,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     seal: params.get("seal") ?? document.seal,
     driver: params.get("driver") ?? document.driverName,
     masterLabel,
+    draft,
+    labelAwb,
   });
   if (kind === "all") {
     const packed = await packGuia(document, company, printOptions, master, user.email);
@@ -55,8 +59,10 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     const masterLabel = params.get("master") === "1";
     const pdf = await renderGuiaPdf(kind as GuiaFileKind, document, company, printOptions(masterLabel));
-    const fileName = guiaFileName(kind as GuiaFileKind, document.awb, master, { masterLabel });
-    await recordPdf(document, kind, fileName, pdf, user.email);
+    const base = guiaFileName(kind as GuiaFileKind, kind === "labels" && document.status !== "issued" ? labelAwb : document.awb, master, { masterLabel });
+    const fileName = draft ? `DRAFT ${base}` : base;
+    // A draft print is not a final document, so it is not saved to Documentos or Drive.
+    if (!draft) await recordPdf(document, kind, fileName, pdf, user.email);
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
         "Content-Type": "application/pdf",

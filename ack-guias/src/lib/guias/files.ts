@@ -4,6 +4,7 @@ import { companyLogo, renderCorteAwb, renderCorteDo, renderCorteTsa, renderLithi
 import { renderMagayaCcsf, renderMagayaCcsp, renderMagayaLabels, renderMagayaPickup } from "@/lib/guias/magaya-docs";
 import { deliveryOrder, type DocumentOptions } from "@/lib/sheets/documents";
 import { tsaUnknownLetter, type ExtraLetter } from "@/lib/sheets/extra-letters";
+import { formatAwb, isValidSerial, parseAwb } from "@/lib/awb/number";
 import { guiaBillToName } from "@/lib/guias/guia-client";
 import { identityFor, kopeIdentity, normalizeTrucker, signerName } from "@/lib/sheets/layout";
 
@@ -21,6 +22,10 @@ export type GuiaPrintOptions = {
   now?: Date;
   /** Master labels use the shipment AWB, master carrier, and destination MIA. */
   masterLabel?: boolean;
+  /** One draft copy of the AWB face, marked DRAFT. Works before the guía is issued. */
+  draft?: boolean;
+  /** AWB number the labels carry while the guía is not issued yet. */
+  labelAwb?: string | null;
 };
 
 export const GUIA_FILE_KINDS = ["awb", "delivery", "pickup", "tsa", "tsa-unknown", "ccsp", "ccsf-alternate", "lithium", "labels"] as const;
@@ -196,8 +201,16 @@ function extraFromGuia(document: GuiaRecord, company: CompanyView, options: Guia
 }
 
 export async function renderGuiaPdf(kind: GuiaFileKind, document: GuiaRecord, company: CompanyView, options: GuiaPrintOptions): Promise<Buffer> {
-  if (document.status !== "issued" && (kind === "awb" || kind === "labels")) {
+  if (document.status !== "issued" && (kind === "awb" || kind === "labels") && !options.draft) {
     throw Object.assign(new Error("Issue the guía before printing the AWB or labels."), { status: 409 });
+  }
+  if (kind === "labels" && document.status !== "issued") {
+    const parsed = parseAwb(options.labelAwb ?? "");
+    if (!parsed) throw Object.assign(new Error("Enter the AWB number the labels will carry, like 123-12345675."), { status: 400 });
+    if (!isValidSerial(parsed.serial)) {
+      throw Object.assign(new Error(`${formatAwb(parsed.prefix, parsed.serial)} fails the mod-7 check digit.`), { status: 400 });
+    }
+    document = { ...document, awb: formatAwb(parsed.prefix, parsed.serial), prefix: parsed.prefix, serial: parsed.serial };
   }
   const opts = sheetOptions(document, options);
   if ((kind === "delivery" || kind === "pickup") && !opts.trucker) {

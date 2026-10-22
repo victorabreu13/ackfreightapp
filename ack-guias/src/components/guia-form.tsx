@@ -21,6 +21,11 @@ const FIELDS: Array<{ key: keyof GuiaValues; label: string; area?: boolean; hint
   { key: "flightDate", label: "Flight date" },
   { key: "pieces", label: "Pieces" },
   { key: "chargeableKg", label: "Chargeable kg" },
+  {
+    key: "rate",
+    label: "Rate printed on the AWB (per kg, optional)",
+    hint: "Prints in the Rate / Charge column and the total is rate x chargeable kg. It is not the rate billed to the client; that one is set under Clientes y tarifas.",
+  },
   { key: "grossKg", label: "Gross kg (optional, not billed)" },
   { key: "goods", label: "Goods description", area: true },
   { key: "handling", label: "Special handling", area: true },

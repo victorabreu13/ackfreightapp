@@ -19,6 +19,7 @@ const blank: GuiaValues = {
   flightDate: "",
   pieces: "",
   chargeableKg: "",
+  rate: "",
   grossKg: "",
   goods: "",
   handling: "",

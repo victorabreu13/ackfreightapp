@@ -33,6 +33,8 @@ const COPY_LABELS = [
   "COPY 6 (EXTRA COPY)",
 ] as const;
 
+const DRAFT_LABEL = "DRAFT - NOT A VALID AIR WAYBILL";
+
 const AGREEMENT = [
   "It is agreed that the goods described herein are accepted in apparent good order and condition",
   "(except as noted) for carriage SUBJECT TO THE CONDITIONS OF CONTRACT ON THE",
@@ -330,7 +332,7 @@ function drawLogo(doc: Doc, logo: Buffer, x: number, y: number, width: number, h
 
 export async function renderCorteAwb(document: GuiaRecord, company: CompanyView, options: GuiaPrintOptions): Promise<Buffer> {
   const digits = `${document.prefix}${document.serial}`.replace(/\D/g, "") || document.awb.replace(/\D/g, "");
-  const barcode = await bwipjs.toBuffer({ bcid: "code128", text: digits || "0", scale: 2, height: 10, includetext: false });
+  const barcode = digits ? await bwipjs.toBuffer({ bcid: "code128", text: digits, scale: 2, height: 10, includetext: false }) : null;
   const name = headName(company);
   const address = headerAddress(company.address);
   const phone = plain(company.phone);
@@ -367,7 +369,10 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
   return pdf("LETTER", (doc) => {
     doc.info.Title = `AWB ${document.awb || "DRAFT"}`;
     doc.info.Author = name || "Kope Guías";
-    COPY_LABELS.forEach((label, index) => {
+    // A draft is one marked copy of the face, with no conditions page.
+    const draft = Boolean(options.draft);
+    const copies: readonly string[] = draft ? [DRAFT_LABEL] : COPY_LABELS;
+    copies.forEach((label, index) => {
       if (index > 0) doc.addPage({ size: "LETTER", margin: 0 });
       drawAwbFace(doc, {
         barcode,
@@ -408,7 +413,10 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
         place,
         label,
         page: index * 2 + 1,
+        pages: draft ? 1 : 12,
+        draft,
       });
+      if (draft) return;
       doc.addPage({ size: "LETTER", margin: 0 });
       doc.image(CONDITIONS_PNG, 0, 0, { width: 612, height: 792 });
       doc.save().fillColor("#ffffff").rect(536, 779, 76, 13).fill().restore();
@@ -418,7 +426,7 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
 }
 
 type Face = {
-  barcode: Buffer;
+  barcode: Buffer | null;
   prefix: string;
   serial: string;
   origin: string;
@@ -456,6 +464,8 @@ type Face = {
   place: string;
   label: string;
   page: number;
+  pages: number;
+  draft: boolean;
 };
 
 function drawAwbFace(doc: Doc, face: Face) {
@@ -468,7 +478,7 @@ function drawAwbFace(doc: Doc, face: Face) {
   t(doc, 64, 26, face.origin, 11);
   rule(doc, 90, 14, 90, 30);
   t(doc, 96, 26, face.serial, 11);
-  doc.image(face.barcode, 250, 12, { height: 20 });
+  if (face.barcode) doc.image(face.barcode, 250, 12, { height: 20 });
   t(doc, 450, 26, face.prefix, 11);
   t(doc, 480, 26, face.serial, 11);
 
@@ -629,7 +639,14 @@ function drawAwbFace(doc: Doc, face: Face) {
   tc(doc, 207, 785, "CC Charges in Dest. Currency", 5);
   t(doc, 300, 787, face.label, 8, "Helvetica-Bold");
   t(doc, 452, 787, `${face.prefix} ${face.serial}`, 8);
-  tr(doc, 582, 788, `Page ${face.page} of 12`, 7);
+  tr(doc, 582, 788, `Page ${face.page} of ${face.pages}`, 7);
+  if (face.draft) {
+    doc.save();
+    doc.fillColor("#6b7280").fillOpacity(0.16).font("Helvetica-Bold").fontSize(120);
+    doc.rotate(-38, { origin: [306, 396] });
+    doc.text("DRAFT", 120, 330, { lineBreak: false });
+    doc.restore();
+  }
 }
 
 export async function renderCorteDo(document: GuiaRecord, company: CompanyView, options: GuiaPrintOptions): Promise<Buffer> {

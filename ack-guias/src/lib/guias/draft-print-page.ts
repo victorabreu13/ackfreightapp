@@ -15,7 +15,7 @@ export function draftPrintPage(guiaId: string): string {
 </head>
 <body>
   <h1>Emite la guía primero</h1>
-  <p>La guía aérea y las etiquetas se imprimen después de emitir el número. Los demás documentos se pueden generar en borrador.</p>
+  <p>La guía aérea final y las etiquetas finales se imprimen después de emitir el número. Antes de emitir puedes usar <strong>Imprimir sin emitir</strong> en la guía: labels con el número de AWB que escribas y un borrador de la guía de 1 copia.</p>
   <p><a href="${back}">Volver a la guía</a></p>
 </body>
 </html>

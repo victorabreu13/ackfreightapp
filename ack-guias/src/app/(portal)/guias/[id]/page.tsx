@@ -40,7 +40,7 @@ function valuesOf(document: {
   aesItn: string | null;
   hawb: string | null;
   agentKey: string;
-  lines: Array<{ pieces: number | null; chargeableWeight: number | null; grossWeight: number | null; nature: string | null }>;
+  lines: Array<{ pieces: number | null; chargeableWeight: number | null; grossWeight: number | null; rate: number | null; nature: string | null }>;
 }): GuiaValues {
   const line = document.lines[0];
   return {
@@ -57,6 +57,7 @@ function valuesOf(document: {
     flightDate: document.flightDate || "",
     pieces: line?.pieces ? String(line.pieces) : "",
     chargeableKg: line?.chargeableWeight ? String(line.chargeableWeight) : "",
+    rate: line?.rate != null ? String(line.rate) : "",
     grossKg: line?.grossWeight ? String(line.grossWeight) : "",
     goods: line?.nature || "",
     handling: document.handling || "",
@@ -275,6 +276,35 @@ export default async function GuiaDetailPage({
           </>
         )}
       </section>
+
+      {document.status !== "issued" ? (
+        <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <div>
+            <h2 className="font-display text-2xl">Imprimir sin emitir</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Labels y borrador de la guía. No usan stock ni emiten el número, y no se guardan en Documentos ni en Drive.
+            </p>
+          </div>
+          <div className="flex flex-col gap-4 md:flex-row md:items-end">
+            <form action={fileBase} method="get" target="_blank" className="flex flex-col gap-3 md:flex-row md:items-end">
+              <input type="hidden" name="kind" value="labels" />
+              <input type="hidden" name="draft" value="1" />
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">AWB number on the labels</span>
+                <input name="awb" required className="block h-10 rounded-md border border-input bg-background px-3 font-mono" placeholder="123-12345675" />
+              </label>
+              <Button type="submit" variant="outline" size="lg">
+                Imprimir labels
+              </Button>
+            </form>
+            <Button asChild variant="outline" size="lg">
+              <a href={`${fileBase}?kind=awb&draft=1`} target="_blank" rel="noreferrer">
+                Imprimir borrador de la guía (1 copia)
+              </a>
+            </Button>
+          </div>
+        </section>
+      ) : null}
 
       <GuiaForm
         mode="edit"
