@@ -237,10 +237,10 @@ test("Guías sheet documents match the original functions", async () => {
     const ccsfText = pdfText(ccsfGuia);
     assert.match(ccsfText, /CCSSSF CERTIFICATE OF TENDER TO A CARGO CARRIER/);
     // The CCSF is always Kope's certificate, even for an ACK guía.
-    assert.match(ccsfText, /KOPE LOGISTICS INC\./);
+    assert.match(ccsfText, /KOPE LOGISTICS INC/);
     assert.doesNotMatch(ccsfText, /ACK TEAM LLC/);
-    assert.match(ccsfText, /Unkown Shipper/);
-    assert.match(ccsfText, /fradulent/);
+    assert.match(ccsfText, /Unknown Shipper/);
+    assert.match(ccsfText, /fraudulent/);
     assert.match(ccsfText, /SEAL #/);
     assert.match(ccsfText, /A61652/);
     assert.match(ccsfText, /KAY AIR DELIVERY MIA LLC/);
@@ -248,9 +248,8 @@ test("Guías sheet documents match the original functions", async () => {
     assert.match(ccsfText, /045-55219415/);
     assert.match(ccsfText, /SE1701005/);
     assert.doesNotMatch(ccsfText, /SE2508006/);
-    assert.match(ccsfText, /6450 NW 97TH/);
+    assert.match(ccsfText, /6450 NW 97TH AVE, SUITE 130 Doral, FL 33178/);
     assert.match(ccsfText, /MIA\.C\.05\.20\.2025\.582/);
-    assert.match(ccsfText, /PH\. 786-719-0590/);
     assert.doesNotMatch(ccsfText, /NOT SET/);
     assert.match(pageInfo(ccsfGuia), /612 x 792/);
     assert.match(pdfText(ccsfSheet), /KOPE LOGISTICS INC\./);

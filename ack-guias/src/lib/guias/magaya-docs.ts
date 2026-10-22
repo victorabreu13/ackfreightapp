@@ -431,87 +431,181 @@ function securityParts(document: GuiaRecord, company: CompanyView, options: Guia
   };
 }
 
-/** Kope logo as printed on the CCSF reference, black on white. */
-const CCSF_LOGO_PNG = readFileSync(join(process.cwd(), "src/lib/guias/assets/kope-logo-ccsf.png"));
+const ASSETS = join(process.cwd(), "src/lib/guias/assets");
+const CCSF_REGULAR_FILE = readFileSync(join(ASSETS, "Carlito-Regular.woff"));
+const CCSF_BOLD_FILE = readFileSync(join(ASSETS, "Carlito-Bold.woff"));
+/** Kope logo in color, cropped to the artwork. */
+const CCSF_LOGO_PNG = readFileSync(join(ASSETS, "kope-logo-color.png"));
 
-const CCSF_SIZE = 10.18;
-const CCSF_LEFT = 19.3;
-const CCSF_STEP = 11.65;
-const CCSF_RIGHT = 610.3;
+const CCSF_REGULAR = "Carlito";
+const CCSF_BOLD = "Carlito-Bold";
+const CCSF_SIZE = 9;
+const CCSF_PARAGRAPH_WIDTH = 466;
+/** Facility as printed on the Kope CCSF reference (new address). KOPE_CCSF_FACILITY still overrides it. */
+const CCSF_FACILITY = process.env.KOPE_CCSF_FACILITY?.trim() || "6450 NW 97TH AVE, SUITE 130 Doral, FL 33178";
 
-function ccsfLines(doc: Doc, text: string): string[] {
-  doc.font("Helvetica").fontSize(CCSF_SIZE);
-  const rows: string[] = [];
-  let row = "";
-  for (const word of text.split(/\s+/).filter(Boolean)) {
-    const next = row ? `${row} ${word}` : word;
-    if (row && doc.widthOfString(next) > CCSF_RIGHT - CCSF_LEFT) {
-      rows.push(row);
-      row = word;
-    } else {
-      row = next;
+type CcsfSeg = { text: string; bold?: boolean };
+
+/** Splits runs into words. Runs that touch with no space between them stay in one word. */
+function ccsfWords(runs: CcsfSeg[]): CcsfSeg[][] {
+  const words: CcsfSeg[][] = [];
+  let open = false;
+  for (const run of runs) {
+    for (const part of run.text.match(/\s+|\S+/g) ?? []) {
+      if (/^\s/.test(part)) {
+        open = false;
+        if (part.includes("\n")) words.push([{ text: "\n" }]);
+        continue;
+      }
+      if (open) words[words.length - 1].push({ text: part, bold: run.bold });
+      else words.push([{ text: part, bold: run.bold }]);
+      open = true;
     }
   }
-  if (row) rows.push(row);
-  return rows;
+  return words;
+}
+
+function ccsfSegWidth(doc: Doc, seg: CcsfSeg): number {
+  return doc.font(seg.bold ? CCSF_BOLD : CCSF_REGULAR).fontSize(CCSF_SIZE).widthOfString(seg.text);
+}
+
+function ccsfWordWidth(doc: Doc, word: CcsfSeg[]): number {
+  return word.reduce((sum, seg) => sum + ccsfSegWidth(doc, seg), 0);
+}
+
+function ccsfWrap(doc: Doc, runs: CcsfSeg[], width: number, firstIndent = 0): CcsfSeg[][][] {
+  const space = doc.font(CCSF_REGULAR).fontSize(CCSF_SIZE).widthOfString(" ");
+  const lines: CcsfSeg[][][] = [];
+  let line: CcsfSeg[][] = [];
+  let used = firstIndent;
+  for (const word of ccsfWords(runs)) {
+    if (word.length === 1 && word[0].text === "\n") {
+      lines.push(line);
+      line = [];
+      used = 0;
+      continue;
+    }
+    const w = ccsfWordWidth(doc, word);
+    if (line.length && used + space + w > width) {
+      lines.push(line);
+      line = [];
+      used = 0;
+    }
+    used += (line.length ? space : 0) + w;
+    line.push(word);
+  }
+  if (line.length) lines.push(line);
+  return lines.filter((row) => row.length > 0);
+}
+
+/** Draws one line of words. Bold words are underlined, and the space between two bold words is underlined too. */
+function ccsfDrawLine(doc: Doc, words: CcsfSeg[][], x: number, baseline: number) {
+  const space = doc.font(CCSF_REGULAR).fontSize(CCSF_SIZE).widthOfString(" ");
+  const underline = (from: number, to: number) =>
+    doc.save().moveTo(from, baseline + 1.4).lineTo(to, baseline + 1.4).lineWidth(0.5).strokeColor("#000000").stroke().restore();
+  let cursor = x;
+  words.forEach((word, index) => {
+    for (const seg of word) {
+      doc.font(seg.bold ? CCSF_BOLD : CCSF_REGULAR).fontSize(CCSF_SIZE).fillColor("#000000");
+      doc.text(seg.text, cursor, baseline, { lineBreak: false, baseline: "alphabetic" });
+      const width = ccsfSegWidth(doc, seg);
+      if (seg.bold) underline(cursor, cursor + width);
+      cursor += width;
+    }
+    const next = words[index + 1];
+    if (word[word.length - 1].bold && next?.[0].bold) underline(cursor, cursor + space);
+    cursor += space;
+  });
+}
+
+function ccsfDate(value: Date): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "2-digit", day: "2-digit", year: "numeric" }).format(value);
 }
 
 /**
  * CCSSSF certificate of tender. It is always Kope's certificate, whichever company issues the guía:
- * Kope's name, TSA number, CCSSSF number and facility, with the Kope logo. Positions are the baselines
- * measured from the Kope CCSF reference PDF (CCSF 045-53981454), converted to top-of-page points.
+ * Kope's name, TSA number, CCSSSF number and facility, with the color Kope logo. Layout follows the Kope
+ * reference "CCSF LETTER - NEW ADDRESS": Calibri-style 9 pt text from a 71 pt margin, bold underlined
+ * identifiers, and only the facility address at the foot. Baselines are measured from that PDF.
  */
 export function renderMagayaCcsf(document: GuiaRecord, _company: CompanyView, options: GuiaPrintOptions): Promise<Buffer> {
   const awb = plain(document.awb);
-  const date = kopeDate(options.now ?? new Date()).replace(/\/0(\d)\//, "/$1/");
+  const date = ccsfDate(options.now ?? new Date());
   const signer = signerName(options.name, options.email);
   const trucker = plain(options.trucker ?? document.truckerName);
   const driver = plain(options.driver ?? document.driverName);
   const seal = plain(options.seal ?? document.seal);
-  const name = KOPE.legalName;
-  const top = (baseline: number) => 792 - baseline;
-  const bar = (count: number) => "_".repeat(count);
-  const first = `${name} is in compliance with its TSA-approved security program and all appropriate security directive(s). Our number assigned by the TSA is ${KOPE.tsaIac}. All cargo tendered in conjunction with this certificate was either: 1) accepted from a Known Shipper or an Unkown Shipper in accordance with TSA requirements specified in the Indirect Air Carrier Standard Security Program, or 2) accepted under transfer from another direct or indirect air carrier operating under a TSA approved or accepted security program. This IAC is also a TSA-certified cargo screening facility (CCSSSF) and is in compliance with the TSA-approved certified cargo screening standard security program (CCSSSF). Our CCSSSF number assigned by TSA is ${KOPE.ccsfId}, which is applicable only to this facility, located at ${KOPE.ccsfFacility}.`;
-  const second = `All cargo has been screened and transported in accordance with the CCSSSF requirements. A chain of custody method has been applied, and the cargo is being tendered with the chain of custody method intact. The individual whose name appears below certifies that he or she is an employee or authorized representative of ${name} and understand that any fradulent or false statement made in connection with this certification may subject ${name} and the individual to both (1) civil penalties under 49 CFR 1540.103(b) and (2) fines and/or imprisonment of not more than five years under 18 U.S.C. 1001. The cargo associated with this Master Air Waybill was screened at 100 percent.`;
+  const name = "KOPE LOGISTICS";
+  const legal = KOPE.legalName.replace(/\.$/, "");
+
+  const first: CcsfSeg[] = [
+    { text: `${name} is in compliance with its TSA-approved security program and all appropriate security directive(s). Our number
+assigned by the TSA is ` },
+    { text: KOPE.tsaIac, bold: true },
+    { text: `. All cargo tendered in conjunction with this certificate was either: 1) accepted from a Known
+Shipper or an Unknown Shipper in accordance with TSA requirements specified in the Indirect Air Carrier Standard Security
+Program, or 2) accepted under transfer from another direct or indirect air carrier operating under a TSA approved or accepted
+security program. This IAC is also a TSA-certified cargo screening facility (CCSSSF) and is in compliance with the TSA-approved
+certified cargo screening standard security program (CCSSSF). Our CCSSSF number assigned by TSA is ` },
+    { text: KOPE.ccsfId, bold: true },
+    { text: `,
+which is applicable only to this facility, located at ${CCSF_FACILITY}.` },
+  ];
+  const second: CcsfSeg[] = [
+    { text: `All cargo has been screened and transported in accordance with the CCSSSF requirements. A chain of custody method has been
+applied, and the cargo is being tendered with the chain of custody method intact. The individual whose name appears below
+certifies that he or she is an employee or authorized representative of ` },
+    { text: legal, bold: true },
+    { text: ` and understands that any
+fraudulent or false statement made in connection with this certification may subject ` },
+    { text: legal, bold: true },
+    { text: ` and the individual to
+both (1) civil penalties under 49 CFR 1540.103(b) and (2) fines and/or imprisonment of not more than five years under 18
+U.S.C. 1001. The cargo associated with this Master Air Waybill was screened at 100 percent.` },
+  ];
   const accepting =
-    "Print name of the accepting entity's employee or authorized representative who is verifying that the seal number written above matches the seal number on the conveyance OR is verifying the government issued identification of the escort and ensuring the name matches the name written above OR is verifying that the cargo arrived in a locked conveyance. Accepting Employee or Authorized Representative:";
+    `Print name of the accepting entity's employee or authorized representative who is verifying that the seal number written
+above matches the seal number on the conveyance OR is verifying the government issued identification of the escort and
+ensuring the name matches the name written above OR is verifying that the cargo arrived in a locked conveyance. Accepting
+Employee or Authorized Representative`;
 
   return pdfBuffer("LETTER", (doc) => {
+    doc.registerFont(CCSF_REGULAR, CCSF_REGULAR_FILE);
+    doc.registerFont(CCSF_BOLD, CCSF_BOLD_FILE);
     doc.info.Title = `${awb || "DRAFT"}_CCSF`;
-    const text = (value: string, x: number, baseline: number, font = "Helvetica", size = CCSF_SIZE) => at(doc, value, x, top(baseline), size, font);
-    const paragraph = (value: string, firstBaseline: number) =>
-      ccsfLines(doc, value).forEach((row, index) => text(row, CCSF_LEFT, firstBaseline - index * CCSF_STEP));
+    const text = (value: string, x: number, baseline: number) => ccsfDrawLine(doc, ccsfWords([{ text: value }]), x, baseline);
+    const bar = (count: number) => "_".repeat(count);
+    const paragraph = (runs: CcsfSeg[], x: number, baselines: number[], firstIndent = 0) =>
+      ccsfWrap(doc, runs, CCSF_PARAGRAPH_WIDTH, firstIndent).forEach((row, index) => ccsfDrawLine(doc, row, index === 0 ? x + firstIndent : x, baselines[index]));
 
-    text("CCSSSF CERTIFICATE OF TENDER TO A CARGO CARRIER", 163.4, 670.8, "Helvetica-Bold");
-    text(`Date:${bar(16)}.`, 20.6, 640);
-    text(date, 67.2, 642.2);
-    text("Air waybill, bill of lading, company inventory, or other internal shipping document number:", 20.4, 618.1);
-    text(`${bar(25)}.`, 20.4, 594.8);
-    text(awb, 61.8, 597.7);
-    paragraph(first, 575.8);
-    paragraph(second, 482.8);
-    text("Check the applicable box below:", 19.8, 385.1);
-    text("( ) Locked vehicle", 19.3, 362);
-    text("X", 21.5, 360.2, "Helvetica", 14.14);
-    text("( ) Tamper evident number seal. If used, write the number of the seal associated with this cargo shipment below:", 19.3, 341.6);
-    if (seal) text("X", 21.2, 340.4, "Helvetica", 14.14);
-    text(`SEAL #${bar(42)}.`, 19.8, 320.6);
-    text(seal, 58.7, 323.4);
-    text("If an escort is used, write the name of the escort associated with this cargo shipment below:", 20.6, 296.2);
-    text(`${bar(48)}.`, 20.6, 272.9);
-    text("Name and signature of employee or authorized representative attesting to the above certification:", 19.8, 250.8);
-    text(`${bar(48)}.`, 19.8, 227.5);
-    text(signer, 24.4, 229.8);
-    text("Name of company and name of driver delivering the cargo shipment:", 19.8, 211.6);
-    text(`${bar(43)} | ${bar(45)}.`, 19.8, 188.3);
-    text(trucker, 24.4, 191.8);
-    text(driver, 277, 191.8);
-    ccsfLines(doc, accepting).forEach((row, index) => text(row, CCSF_LEFT, 168.1 - index * CCSF_STEP));
-    text(`${bar(49)}.`, 19.3, 110);
-    doc.image(CCSF_LOGO_PNG, 318.5, top(113.8), { width: 153.6, height: 71.3 });
-    doc.font("Helvetica").fontSize(CCSF_SIZE);
-    const footer = `${name} | ${KOPE.ccsfFooter}`;
-    text(footer, 89.5, 34.8);
+    doc.image(CCSF_LOGO_PNG, 68.6, 20.3, { width: 102.9 });
+    text("CCSSSF CERTIFICATE OF TENDER TO A CARGO CARRIER", 71.3, 80.6);
+    text("Date:", 71.3, 101.3);
+    text(date, 97, 101.3);
+    text("Air waybill, bill of lading, company inventory, or other internal shipping document number:", 71.3, 124.6);
+    text(awb, 73.3, 144.3);
+    paragraph(first, 71.3, [164, 174.8, 185.6, 196.4, 207.2, 218, 228.8], 2);
+    paragraph(second, 72.2, [250, 262.3, 274.6, 286.9, 299.2, 311.5]);
+    text("Check the applicable box below:", 71.3, 332);
+    text(seal ? "Locked vehicle" : "( X ) Locked vehicle", 71.8, 352.8);
+    text(`${seal ? "( X ) " : ""}Tamper evident number seal. If used, write the number of the seal associated with this cargo shipment`, 71.3, 373.8);
+    text(`below: SEAL # ${seal}`, 71.3, 385.9);
+    text("If an escort is used, write the name of the escort associated with this cargo shipment below", 71.3, 411.9);
+    text(bar(31), 71.3, 432.6);
+    text("Name and signature of employee or authorized representative attesting to the above certification:", 71.3, 453.4);
+    text(`${name}  ${signer}${bar(17)}`, 79.4, 480.6);
+    text("Name of company and name of driver delivering the cargo shipment:", 71.3, 502.6);
+    const truckerLine = `${trucker}__ `;
+    text(`${truckerLine}${bar(20)}`, 71.3, 523.3);
+    if (driver) {
+      doc.font(CCSF_REGULAR).fontSize(CCSF_SIZE);
+      text(driver, 71.3 + doc.widthOfString(truckerLine) + 2, 521.3);
+    }
+    ccsfWrap(doc, [{ text: accepting }], CCSF_PARAGRAPH_WIDTH).forEach((row, index) => ccsfDrawLine(doc, row, 71.3, 536.5 + index * 13.2));
+    text(bar(34), 71.3, 596.6);
+    const footer = CCSF_FACILITY;
+    doc.font(CCSF_REGULAR).fontSize(CCSF_SIZE);
+    text(`${footer}.`, 300.95 - doc.widthOfString(`${footer}.`) / 2, 638);
   });
 }
 
