@@ -46,3 +46,13 @@ test("template downloads are named by what they print", () => {
   assert.equal(templateFileName("awb"), "TEMPLATE-awb.pdf");
   assert.equal(templateFileName("tsa-unknown"), "TEMPLATE-tsa-unknown.pdf");
 });
+
+test("the CCSF and the CCSP print three copies, one page each", async () => {
+  const pages = (pdf: Buffer) => (pdf.toString("latin1").match(/\/Type \/Page\b(?!s)/g) ?? []).length;
+  for (const kind of ["ccsp", "ccsf-alternate"] as const) {
+    const pdf = await renderGuiaPdf(kind, sampleGuia(), company, samplePrintOptions("team@ackfreight.com", "Team"));
+    assert.equal(pages(pdf), 3, kind);
+  }
+  const single = await renderGuiaPdf("tsa", sampleGuia(), company, samplePrintOptions("team@ackfreight.com", "Team"));
+  assert.equal(pages(single), 1);
+});

@@ -51,6 +51,18 @@ function pdfBuffer(size: "LETTER" | [number, number], draw: (doc: Doc) => Promis
   });
 }
 
+/** The CCSF and the CCSP are handed over in three copies, so the PDF repeats the same page three times. */
+export const SECURITY_LETTER_COPIES = 3;
+
+function pdfCopies(draw: (doc: Doc) => void): Promise<Buffer> {
+  return pdfBuffer("LETTER", (doc) => {
+    for (let copy = 0; copy < SECURITY_LETTER_COPIES; copy += 1) {
+      if (copy > 0) doc.addPage({ size: "LETTER", margin: 0 });
+      draw(doc);
+    }
+  });
+}
+
 function put(doc: Doc, text: string, x: number, y: number, size: number, font = "Helvetica", color = "#000000", width?: number) {
   const value = plain(text);
   if (!value) return;
@@ -352,7 +364,7 @@ type SecurityLetter = {
 };
 
 function securityLetter(letter: SecurityLetter): Promise<Buffer> {
-  return pdfBuffer("LETTER", (doc) => {
+  return pdfCopies((doc) => {
     doc.info.Title = letter.fileTitle;
     const X = 50;
     const W = 512;
@@ -569,7 +581,7 @@ above matches the seal number on the conveyance OR is verifying the government i
 ensuring the name matches the name written above OR is verifying that the cargo arrived in a locked conveyance. Accepting
 Employee or Authorized Representative`;
 
-  return pdfBuffer("LETTER", (doc) => {
+  return pdfCopies((doc) => {
     doc.registerFont(CCSF_REGULAR, CCSF_REGULAR_FILE);
     doc.registerFont(CCSF_BOLD, CCSF_BOLD_FILE);
     doc.info.Title = `${awb || "DRAFT"}_CCSF`;

@@ -41,12 +41,12 @@ const INFO: Record<GuiaFileKind, { purpose: string; format: string; needs: strin
   },
   ccsp: {
     purpose: "CCSSSF certificate of tender to a cargo carrier. Always issued by Kope Logistics Inc., with Kope's TSA and CCSSSF numbers and logo.",
-    format: "Letter",
+    format: "Letter, 3 copies (3 pages)",
     needs: "Nothing extra. A seal number is optional.",
   },
   "ccsf-alternate": {
     purpose: "Indirect air carrier certification for CCSF cargo (CCSP).",
-    format: "Letter",
+    format: "Letter, 3 copies (3 pages)",
     needs: "Nothing extra. A seal number is optional.",
   },
   lithium: {
