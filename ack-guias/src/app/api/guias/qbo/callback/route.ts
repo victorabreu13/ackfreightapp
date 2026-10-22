@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { realmTakenByOther, saveConnection } from "@/lib/guias/qbo-connection";
+import { resolveAppUrl } from "@/lib/app-url";
 import { exchangeQboCode, qboCredentials, qboRedirectUri, qboTokenKey, readOAuthState } from "@/lib/guias/qbo";
 
 function settingsError(message: string) {
-  return NextResponse.redirect(new URL(`/guias/settings?error=${encodeURIComponent(message)}`, process.env.AUTH_URL || "http://127.0.0.1:43127"));
+  return NextResponse.redirect(new URL(`/guias/settings?error=${encodeURIComponent(message)}`, resolveAppUrl()));
 }
 
 export async function GET(request: Request) {
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
     });
   }
   const params = new URL(request.url).searchParams;
-  const authUrl = process.env.AUTH_URL?.trim() || "";
+  const authUrl = resolveAppUrl();
   const state = readOAuthState(params.get("state") ?? "", qboTokenKey(), Date.now());
   if (!state || state.userId !== user.id || state.agentKey !== "ack") {
     return settingsError("La conexión de QuickBooks venció. Inténtalo de nuevo.");

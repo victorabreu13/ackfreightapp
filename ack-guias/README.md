@@ -58,7 +58,7 @@ cd ack-guias
 bash DEPLOY_GCLOUD.sh deploy
 ```
 
-`deploy` updates the service, then runs database migrations, then prints the service URL. Sign-in redirect is `{service url}/api/auth/callback/google`.
+`deploy` updates the service, then runs database migrations, then prints the public URL. That URL is `https://ack-guias-711303341686.us-east1.run.app` unless `APP_URL` is set. Sign-in redirect is `{public URL}/api/auth/callback/google`. Do not use the `*.a.run.app` host from `gcloud run services describe`.
 
 ### 3. migrate
 
@@ -82,7 +82,7 @@ pnpm exec tsx scripts/export-ack-from-kope.ts --out "$HOME/ack-export.json"
 unset KOPE_SOURCE_DATABASE_URL
 ```
 
-The script opens the source with `default_transaction_read_only=on`. It writes JSON for guías whose issuer is ACK TEAM LLC, their bill-to clients and agreed rates, AWB stock prefixes 045 and 810, upload and Drive metadata, and AES ITN. It does not copy file bytes, users, tokens, or any other issuer. It prints counts only. Do not paste the source URL into the shell as a visible command.
+The script opens the source with `default_transaction_read_only=on`. It reads the live Kope tables (`Client`, `ClientAgreedRate.clientId`, `AwbParty`, and the guía tables) and only uses `GuiaClient` when that table exists. ACK rows are `agentKey = 'ack'`. Clients are the ones those guías and agreed rates reference. The JSON is shaped for this app's `GuiaClient` rows. It writes guías, goods lines, parties, documents, Drive refs, AWB stock prefixes 045 and 810, and AES ITN. It does not copy file bytes, users, tokens, or any other issuer. It prints counts only. Do not paste the source URL into the shell as a visible command.
 
 ### 5. import
 

@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isLegacyCloudRunHost, resolveAppUrl } from "@/lib/app-url";
 import { isGuiasAllowed } from "@/lib/app-mode";
 
 export function proxy(request: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    const host = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "").split(",")[0]?.trim() ?? "";
+    if (isLegacyCloudRunHost(`https://${host}`)) {
+      const canonical = new URL(resolveAppUrl());
+      const dest = request.nextUrl.clone();
+      dest.protocol = canonical.protocol;
+      dest.host = canonical.host;
+      return NextResponse.redirect(dest);
+    }
+  }
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
   requestHeaders.set("x-search", request.nextUrl.search);

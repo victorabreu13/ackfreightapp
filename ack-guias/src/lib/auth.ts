@@ -5,8 +5,11 @@ import Google from "next-auth/providers/google";
 import type { SessionUser } from "@/lib/access";
 import { ACK_AGENT_KEY } from "@/lib/access";
 import { emailDomainAllowed, hostedDomainAllowed } from "@/lib/auth-domains";
+import { applyCanonicalAuthEnv } from "@/lib/app-url";
 import { adminEmailSet, devLoginAllowed, roleOnGoogleSignIn } from "@/lib/auth-role";
 import { prisma } from "@/lib/db";
+
+applyCanonicalAuthEnv();
 
 const ROLE_CACHE_MS = 60_000;
 const googleUserCache = new Map<string, { at: number; id: string; email: string; role: Role; name: string | null }>();

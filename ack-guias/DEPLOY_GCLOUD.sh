@@ -13,6 +13,17 @@ DB_USER="ack_guias"
 RUNTIME_SA="ack-guias-run"
 JOB="ack-guias-migrate"
 INSTANCE_CONNECTION="${PROJECT_ID}:${REGION}:${INSTANCE}"
+# Deterministic Cloud Run URL. `status.url` is the legacy *.a.run.app host.
+CANONICAL_APP_URL="https://${SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+
+app_url() {
+  local url="${APP_URL:-$CANONICAL_APP_URL}"
+  url="${url%/}"
+  case "$url" in
+    *.a.run.app) url="$CANONICAL_APP_URL" ;;
+  esac
+  printf '%s' "$url"
+}
 
 if [[ "$PROJECT_ID" != "ack-guias" ]]; then
   echo "PROJECT_ID must be ack-guias."
@@ -58,9 +69,10 @@ runtime_secrets() {
 
 runtime_env() {
   local url
-  url="$(gcloud run services describe "$SERVICE" --region="$REGION" --project="$PROJECT_ID" --format='value(status.url)')"
+  url="$(app_url)"
   # ^|^ is gcloud's custom delimiter so the comma inside ADMIN_EMAILS is not a key separator.
-  local env="^|^ADMIN_EMAILS=victor.abreu@ackfreight.com,andres.alvarado@ackfreight.com|AUTH_TRUST_HOST=true|AUTH_URL=${url}"
+  # Always set these. Do not read status.url and do not use --set-env-vars, which would drop them.
+  local env="^|^ADMIN_EMAILS=victor.abreu@ackfreight.com,andres.alvarado@ackfreight.com|AUTH_TRUST_HOST=true|APP_URL=${url}|AUTH_URL=${url}|NEXTAUTH_URL=${url}"
   if [[ -n "${ACK_GUIAS_DRIVE_ROOT_ID:-}" ]]; then
     env="${env}|ACK_GUIAS_DRIVE_ROOT_ID=${ACK_GUIAS_DRIVE_ROOT_ID}"
   fi
@@ -203,6 +215,7 @@ PY
 cmd_deploy() {
   local secrets env
   secrets="$(runtime_secrets)"
+  env="$(runtime_env)"
   gcloud run deploy "$SERVICE" \
     --project="$PROJECT_ID" \
     --region="$REGION" \
@@ -210,6 +223,7 @@ cmd_deploy() {
     --service-account="${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
     --add-cloudsql-instances="$INSTANCE_CONNECTION" \
     --set-secrets="$secrets" \
+    --update-env-vars="$env" \
     --allow-unauthenticated \
     --memory=1Gi \
     --cpu=1 \
@@ -217,7 +231,7 @@ cmd_deploy() {
     --max-instances=4 \
     --port=8080 \
     --quiet
-  env="$(runtime_env)"
+  # Second write so a later flag cannot leave AUTH_URL pointing at status.url.
   gcloud run services update "$SERVICE" \
     --project="$PROJECT_ID" \
     --region="$REGION" \
@@ -225,7 +239,7 @@ cmd_deploy() {
     --quiet
   echo "Applying database migrations."
   cmd_migrate
-  gcloud run services describe "$SERVICE" --region="$REGION" --project="$PROJECT_ID" --format='value(status.url)'
+  echo "Public URL: $(app_url)"
 }
 
 cmd_migrate() {

@@ -28,11 +28,17 @@ export function Shell({ user, children }: { user: SessionUser; children: ReactNo
                 return (Boolean(link.team) && operations) || (Boolean(link.accounting) && accounting) || (Boolean(link.viewer) && viewer);
               }
               return true;
-            }).map((link) => (
-              <Link key={link.href} href={link.href} className="rounded-md px-3 py-1.5 hover:bg-white/10">
-                {link.label}
-              </Link>
-            ))}
+            }).map((link) =>
+              link.href === "/guias/users" ? (
+                <a key={link.href} href={link.href} className="rounded-md px-3 py-1.5 hover:bg-white/10">
+                  {link.label}
+                </a>
+              ) : (
+                <Link key={link.href} href={link.href} className="rounded-md px-3 py-1.5 hover:bg-white/10">
+                  {link.label}
+                </Link>
+              ),
+            )}
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm">
             <div className="text-right">

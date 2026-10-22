@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { resolveAppUrl } from "@/lib/app-url";
 import { companyKeyOrNull, qboAuthorizeUrl, qboCredentials, qboRedirectUri, qboTokenKey, signOAuthState } from "@/lib/guias/qbo";
 
 function settingsError(message: string) {
-  return NextResponse.redirect(new URL(`/guias/settings?error=${encodeURIComponent(message)}`, process.env.AUTH_URL || "http://127.0.0.1:43127"));
+  return NextResponse.redirect(new URL(`/guias/settings?error=${encodeURIComponent(message)}`, resolveAppUrl()));
 }
 
 export async function GET(request: Request) {
@@ -19,8 +20,7 @@ export async function GET(request: Request) {
   if (agentKey !== "ack") return settingsError("ACK TEAM LLC es la única empresa.");
   const creds = qboCredentials(agentKey);
   if (!creds) return settingsError("Faltan los secretos QBO_CLIENT_ID y QBO_CLIENT_SECRET.");
-  const authUrl = process.env.AUTH_URL?.trim();
-  if (!authUrl) return settingsError("AUTH_URL no está configurado.");
+  const authUrl = resolveAppUrl();
   const state = signOAuthState({ agentKey, userId: user.id, exp: Date.now() + 10 * 60 * 1000 }, qboTokenKey());
   return NextResponse.redirect(qboAuthorizeUrl({ clientId: creds.clientId, redirectUri: qboRedirectUri(authUrl), state }));
 }

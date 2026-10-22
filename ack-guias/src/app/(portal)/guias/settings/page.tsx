@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isAdmin } from "@/lib/access";
+import { resolveAppUrl } from "@/lib/app-url";
 import { getSessionUser } from "@/lib/auth";
 import { loadCompany } from "@/lib/guias/company";
 import { missingProfileMessages, profileGap } from "@/lib/guias/company-profile";
@@ -50,7 +51,7 @@ export default async function GuiaSettingsPage({
   const connections = await prisma.quickBooksConnection.findMany({
     select: { agentKey: true, realmId: true, connectedBy: true, connectedAt: true },
   });
-  const redirectUri = qboRedirectUri(process.env.AUTH_URL || "");
+  const redirectUri = qboRedirectUri(resolveAppUrl());
 
   return (
     <div className="space-y-6">

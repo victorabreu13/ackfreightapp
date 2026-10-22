@@ -8,7 +8,14 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
 RUN NODE_ENV=development pnpm install --frozen-lockfile
 COPY . .
-RUN pnpm exec prisma generate && pnpm build
-ENV PORT=8080
+# Cloud Build can inherit the service's AUTH_URL. That value is the legacy
+# *.a.run.app host from `status.url`, and next build will inline it.
+RUN env -u AUTH_URL -u NEXTAUTH_URL -u APP_URL -u AUTH_TRUST_HOST \
+  sh -c 'pnpm exec prisma generate && pnpm build'
+ENV PORT=8080 \
+    APP_URL=https://ack-guias-711303341686.us-east1.run.app \
+    AUTH_URL=https://ack-guias-711303341686.us-east1.run.app \
+    NEXTAUTH_URL=https://ack-guias-711303341686.us-east1.run.app \
+    AUTH_TRUST_HOST=true
 EXPOSE 8080
 CMD ["pnpm", "start"]

@@ -119,6 +119,7 @@ async function main() {
       stock: plan.stock.length,
       documents: plan.documents.length,
       driveFiles: plan.driveFiles.length,
+      parties: parsed.parties?.length ?? 0,
       refusedGuias: plan.refusedGuias,
       skippedStock: plan.skippedStock,
     }),

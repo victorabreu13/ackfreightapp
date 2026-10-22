@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { exportCounts, planAckImport, redactDatabaseUrl, shapeAckExport, type AckExportFile } from "./ack-transfer";
+import { adaptKopeSource, columnsToSelect, exportCounts, KOPE_CLIENT_COLUMNS, planAckImport, redactDatabaseUrl, shapeAckExport, type AckExportFile } from "./ack-transfer";
 
 const sample: AckExportFile = {
   version: 1,
@@ -58,6 +58,7 @@ test("export keeps ACK guías, their clients, AES ITN, 045/810 stock, and upload
     stock: 2,
     documents: 1,
     driveFiles: 1,
+    parties: 0,
     withAesItn: 1,
   });
   assert.equal(file.guias[0]?.awb, "045-53981966");
@@ -87,6 +88,87 @@ test("import is idempotent on ids and preserves AWB numbers", () => {
     twice.stock.map((row) => row.id),
     once.stock.map((row) => row.id),
   );
+});
+
+test("live Kope Client rows map onto ACK bill-to clients without selecting agentKey", () => {
+  const liveClientColumns = [
+    "id",
+    "slug",
+    "code",
+    "name",
+    "active",
+    "repUserId",
+    "charges",
+    "handlingCost",
+    "airfreightCost",
+    "carriers",
+    "dests",
+    "otherCosts",
+    "rateUpdatedBy",
+    "rateUpdatedAt",
+    "createdAt",
+    "notifyEnabled",
+    "notifyLanguage",
+  ];
+  const selected = columnsToSelect(liveClientColumns, KOPE_CLIENT_COLUMNS);
+  assert.equal(selected.includes("agentKey"), false);
+  assert.deepEqual(selected, ["id", "slug", "code", "name", "active", "repUserId", "createdAt", "notifyEnabled", "notifyLanguage"]);
+
+  const file = shapeAckExport(
+    adaptKopeSource({
+      guias: [
+        {
+          id: "guia-1",
+          agentKey: "ack",
+          product: "guia",
+          awb: "045-53981966",
+          prefix: "045",
+          serial: "53981966",
+          clientId: "client-pinto",
+          clientLabel: "PINTO",
+          shipperName: "",
+        },
+        { id: "guia-kope", agentKey: "kope", product: "guia", awb: "369-1", prefix: "369", serial: "1", clientId: "client-other" },
+      ],
+      lines: [{ id: "line-1", documentId: "guia-1", pieces: 1, sortOrder: 0 }],
+      clients: [
+        {
+          id: "client-pinto",
+          slug: "pinto",
+          code: "PIN",
+          name: "PINTO, LLC",
+          active: true,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          notifyEnabled: false,
+          notifyLanguage: "en",
+        },
+      ],
+      rates: [{ id: "rate-1", agentKey: "ack", clientId: "client-pinto", ratePerKg: 1.75, currency: "USD" }],
+      stock: [{ id: "stock-1", prefix: "045", serial: "53981966", awb: "045-53981966", agentKey: "ack", status: "used", documentId: "guia-1" }],
+      documents: [{ id: "doc-1", guiaId: "guia-1", client: "PINTO, LLC", awb: "045-53981966", company: "ack", kind: "awb", fileName: "awb.pdf", source: "generated" }],
+      driveFiles: [{ id: "drive-1", documentId: "guia-1", kind: "awb", fileName: "awb.pdf" }],
+      parties: [
+        { id: "party-1", clientId: "client-pinto", role: "shipper", name: "PINTO SHIPPER", address: "1 MAIN" },
+        { id: "party-other", clientId: "client-other", role: "shipper", name: "NO" },
+      ],
+    }),
+  );
+  assert.equal(file.guias.length, 1);
+  assert.equal(file.guias[0]?.guiaClientId, "client-pinto");
+  assert.equal("clientId" in (file.guias[0] ?? {}), false);
+  assert.equal(file.clients[0]?.agentKey, "ack");
+  assert.equal(file.clients[0]?.normalizedName, "PINTO LLC");
+  assert.equal("slug" in (file.clients[0] ?? {}), false);
+  assert.equal(file.rates[0]?.guiaClientId, "client-pinto");
+  assert.equal("clientId" in (file.rates[0] ?? {}), false);
+  assert.equal(file.lines.length, 1);
+  assert.equal(file.documents.length, 1);
+  assert.equal(file.driveFiles.length, 1);
+  assert.equal(file.parties?.length, 1);
+  const imported = planAckImport(file);
+  assert.equal(imported.guias[0]?.shipperName, "PINTO SHIPPER");
+  assert.equal(imported.guias[0]?.shipperAddress, "1 MAIN");
+  assert.equal(imported.refusedGuias, 0);
 });
 
 test("database URLs are redacted from errors", () => {
