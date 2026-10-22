@@ -5,6 +5,7 @@ import { renderMagayaCcsf, renderMagayaCcsp, renderMagayaLabels, renderMagayaPic
 import { deliveryOrder, type DocumentOptions } from "@/lib/sheets/documents";
 import { tsaUnknownLetter, type ExtraLetter } from "@/lib/sheets/extra-letters";
 import { formatAwb, isValidSerial, parseAwb } from "@/lib/awb/number";
+import { renderChecklist } from "@/lib/guias/checklist";
 import { guiaBillToName } from "@/lib/guias/guia-client";
 import { identityFor, kopeIdentity, normalizeTrucker, signerName } from "@/lib/sheets/layout";
 
@@ -28,7 +29,7 @@ export type GuiaPrintOptions = {
   labelAwb?: string | null;
 };
 
-export const GUIA_FILE_KINDS = ["awb", "delivery", "pickup", "tsa", "tsa-unknown", "ccsp", "ccsf-alternate", "lithium", "labels"] as const;
+export const GUIA_FILE_KINDS = ["checklist", "awb", "delivery", "pickup", "tsa", "tsa-unknown", "ccsp", "ccsf-alternate", "lithium", "labels"] as const;
 export type GuiaFileKind = (typeof GUIA_FILE_KINDS)[number];
 
 type SheetLoaded = Parameters<typeof deliveryOrder>[0];
@@ -38,6 +39,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 export function guiaFileName(kind: GuiaFileKind, awb = "", master = "", extras?: { masterLabel?: boolean }): string {
   const number = awb.trim() || "DRAFT";
   const masterNumber = master.trim() || number;
+  if (kind === "checklist") return `CHECKLIST ${number}.pdf`;
   if (kind === "awb") return `${number} - GUIA MADRE.pdf`;
   if (kind === "delivery") return `DO-${number}.pdf`;
   if (kind === "pickup") return `PICKUP ORDER ${masterNumber}.pdf`;
@@ -217,6 +219,7 @@ export async function renderGuiaPdf(kind: GuiaFileKind, document: GuiaRecord, co
   if ((kind === "delivery" || kind === "pickup") && !opts.trucker) {
     throw Object.assign(new Error("Enter a trucker before this document."), { status: 400 });
   }
+  if (kind === "checklist") return renderChecklist(document, company, options);
   if (kind === "awb") return renderCorteAwb(document, company, options);
   if (kind === "delivery") return renderCorteDo(document, company, options);
   if (kind === "tsa") return renderCorteTsa(document, company, options);

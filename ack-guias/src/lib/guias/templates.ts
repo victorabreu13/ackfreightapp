@@ -14,6 +14,11 @@ export type GuiaTemplate = {
 };
 
 const INFO: Record<GuiaFileKind, { purpose: string; format: string; needs: string }> = {
+  checklist: {
+    purpose: "Every document the shipment needs. A BUP adds the CCSF and the CCSP, and dangerous goods add the DGD and the DG labels.",
+    format: "Letter",
+    needs: "Nothing extra. The BUP and DG boxes on the guía change the list.",
+  },
   awb: {
     purpose: "Master air waybill with the 12-copy set and the conditions of contract.",
     format: "12 pages",

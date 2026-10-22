@@ -4,6 +4,7 @@ import { UPLOAD_KIND } from "@/lib/guias/upload-rules";
 export { UPLOAD_KIND };
 
 export const GUIA_FILE_LABELS: Record<GuiaFileKind, string> = {
+  checklist: "Shipment checklist",
   awb: "AWB (12 pages)",
   delivery: "Delivery order",
   pickup: "Pickup order",
