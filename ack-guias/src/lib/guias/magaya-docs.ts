@@ -347,6 +347,8 @@ type SecurityLetter = {
   driver: string;
   seal: string;
   footer: string;
+  /** Company logo drawn above the title. The text moves down to make room for it. */
+  logo?: Buffer | null;
 };
 
 function securityLetter(letter: SecurityLetter): Promise<Buffer> {
@@ -354,43 +356,53 @@ function securityLetter(letter: SecurityLetter): Promise<Buffer> {
     doc.info.Title = letter.fileTitle;
     const X = 50;
     const W = 512;
-    doc.font("Helvetica-Bold").fontSize(11).fillColor("#000000").text(letter.title, X, 36, { width: W, align: "center" });
+    const dy = letter.logo?.length ? 68 : 0;
+    /** With the logo the sections are spaced out a little so the page does not end with a blank block. */
+    const k = dy ? 1.3 : 1;
+    if (letter.logo?.length) {
+      try {
+        doc.image(letter.logo, 236, 28, { fit: [140, 60], align: "center" });
+      } catch {
+        /* A missing logo does not drop the certification. */
+      }
+    }
+    doc.font("Helvetica-Bold").fontSize(11).fillColor("#000000").text(letter.title, X, 36 + dy, { width: W, align: "center" });
     const filled = (value: string, x: number, y: number, width: number) => {
       if (value) doc.font("Helvetica").fontSize(9.5).fillColor("#000000").text(value, x + 6, y - 12, { width, lineBreak: false });
       rule(doc, x, y, x + width);
     };
-    doc.font("Helvetica").fontSize(9).text("Date:", X, 78, { lineBreak: false });
-    filled(letter.date, X + 26, 88, 110);
-    doc.text("Air waybill, bill of lading, company inventory, or other internal shipping document number:", X, 104, { width: W });
-    filled(letter.awb, X, 132, 160);
+    doc.font("Helvetica").fontSize(9).text("Date:", X, 78 + dy, { lineBreak: false });
+    filled(letter.date, X + 26, 88 + dy, 110);
+    doc.text("Air waybill, bill of lading, company inventory, or other internal shipping document number:", X, 104 + dy, { width: W });
+    filled(letter.awb, X, 132 + dy, 160);
     const paragraph = (text: string) => {
       doc.font("Helvetica").fontSize(8.6).fillColor("#000000").text(text, X, doc.y + 10, { width: W, align: "justify" });
     };
-    doc.y = 140;
+    doc.y = 140 + dy;
     for (const text of letter.paragraphs) paragraph(text);
-    let y = Math.max(doc.y + 22, 430);
+    let y = Math.max(doc.y + 26, dy ? 0 : 430);
     doc.font("Helvetica").fontSize(9).text("Check the applicable box below:", X, y, { lineBreak: false });
-    y += 20;
+    y += 20 * k;
     doc.text("(X) Locked vehicle", X, y, { lineBreak: false });
-    y += 18;
+    y += 18 * k;
     doc.text(`(${letter.seal ? "X" : "  "}) Tamper evident number seal. If used, write the number of the seal associated with this cargo shipment below:`, X, y, { width: W });
-    y = doc.y + 16;
+    y = doc.y + 16 * k;
     doc.text("SEAL #", X, y, { lineBreak: false });
     filled(letter.seal, X + 42, y + 9, 230);
-    y += 26;
+    y += 26 * k;
     doc.text("If an escort is used, write the name of the escort associated with this cargo shipment below:", X, y, { lineBreak: false });
-    y += 22;
+    y += 22 * k;
     rule(doc, X, y, X + 260);
-    y += 14;
+    y += 14 * k;
     doc.text("Name and signature of employee or authorized representative attesting to the above certification:", X, y, { width: W });
-    y += 22;
+    y += 22 * k;
     filled(letter.signer, X, y, 280);
-    y += 12;
+    y += 12 * k;
     doc.text("Name of company and name of driver delivering the cargo shipment:", X, y, { width: W });
-    y += 22;
+    y += 22 * k;
     filled(letter.trucker, X, y, 240);
     filled(letter.driver, X + 260, y, 230);
-    y += 14;
+    y += 14 * k;
     doc.font("Helvetica").fontSize(8.6).text("Print name of the accepting entity's employee or authorized representative who is verifying that the seal number written above matches the seal number on the conveyance OR is verifying the government issued identification of the escort and ensuring the name matches the name written above OR is verifying that the cargo arrived in a locked conveyance. Accepting Employee or Authorized Representative:", X, y, { width: W });
     rule(doc, X, doc.y + 22, X + 280);
     doc.font("Helvetica").fontSize(8).fillColor("#000000").text(letter.footer, X, 748, { width: W, align: "center", lineBreak: false });
@@ -516,6 +528,7 @@ export function renderMagayaCcsp(document: GuiaRecord, company: CompanyView, opt
     driver: parts.driver,
     seal: parts.seal,
     footer: parts.footer,
+    logo: companyLogo(company),
     paragraphs: [
       `${parts.name} is in compliance with its TSA-approved security program and all applicable security directives. Our number assigned by TSA is: ${parts.tsa}. All cargo tendered in conjuction with this certification was either 1) accepted from a known shipper or an unknown shipper in accordance with TSA requirements specified in the IACSSP or 2) accepted under transfer from another aircraft foreign operator, air carrier, or IAC operating under a TSA approved or accepted security. All Cargo has been screened and transported in accordance with the CCSP requirements. A chain of custody method has been applied, and the cargo is being tendered with the chain of custody method intact. The individual whose name appears below certified that he or she is an employee or authorized of ${parts.name} and understands that any fraudulent or false statement made in connection with this certification may subject this and ${parts.name} to both 1) Civil penalties under 49 CFR 1540.103 (b) and fines and/or imprisonment of not more than 5 years under 18 USC 1001.`,
     ],
