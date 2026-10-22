@@ -59,15 +59,16 @@ runtime_secrets() {
 runtime_env() {
   local url
   url="$(gcloud run services describe "$SERVICE" --region="$REGION" --project="$PROJECT_ID" --format='value(status.url)')"
-  local env="ADMIN_EMAILS=victor.abreu@ackfreight.com,andres.alvarado@ackfreight.com,AUTH_TRUST_HOST=true,AUTH_URL=${url}"
+  # ^|^ is gcloud's custom delimiter so the comma inside ADMIN_EMAILS is not a key separator.
+  local env="^|^ADMIN_EMAILS=victor.abreu@ackfreight.com,andres.alvarado@ackfreight.com|AUTH_TRUST_HOST=true|AUTH_URL=${url}"
   if [[ -n "${ACK_GUIAS_DRIVE_ROOT_ID:-}" ]]; then
-    env="${env},ACK_GUIAS_DRIVE_ROOT_ID=${ACK_GUIAS_DRIVE_ROOT_ID}"
+    env="${env}|ACK_GUIAS_DRIVE_ROOT_ID=${ACK_GUIAS_DRIVE_ROOT_ID}"
   fi
   if [[ -n "${ACK_GUIAS_DRIVE_FOLDER:-}" ]]; then
-    env="${env},ACK_GUIAS_DRIVE_FOLDER=${ACK_GUIAS_DRIVE_FOLDER}"
+    env="${env}|ACK_GUIAS_DRIVE_FOLDER=${ACK_GUIAS_DRIVE_FOLDER}"
   fi
   if [[ -n "${QBO_ENVIRONMENT:-}" ]]; then
-    env="${env},QBO_ENVIRONMENT=${QBO_ENVIRONMENT}"
+    env="${env}|QBO_ENVIRONMENT=${QBO_ENVIRONMENT}"
   fi
   printf '%s' "$env"
 }
