@@ -1,0 +1,213 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import type { GuiaValues } from "@/lib/guias/extract";
+import { saveGuia, saveNewGuia } from "@/server/guia-actions";
+
+const FIELDS: Array<{ key: keyof GuiaValues; label: string; area?: boolean; hint?: string }> = [
+  { key: "client", label: "Client" },
+  { key: "shipper", label: "Shipper" },
+  { key: "shipperAddress", label: "Shipper address", area: true },
+  { key: "consignee", label: "Consignee" },
+  { key: "consigneeAddress", label: "Consignee address", area: true },
+  { key: "notify", label: "Notify" },
+  { key: "notifyAddress", label: "Notify address", area: true },
+  { key: "origin", label: "Origin" },
+  { key: "destination", label: "Destination" },
+  { key: "flightNumber", label: "Flight" },
+  { key: "flightDate", label: "Flight date" },
+  { key: "pieces", label: "Pieces" },
+  { key: "chargeableKg", label: "Chargeable kg" },
+  { key: "grossKg", label: "Gross kg (optional, not billed)" },
+  { key: "goods", label: "Goods description", area: true },
+  { key: "handling", label: "Special handling", area: true },
+  {
+    key: "aesItn",
+    label: "AES ITN (optional)",
+    hint: "Prints in Handling Information as AES ITN: …. Leave it blank to print NO EEI REQ 30.37(a). Goods and special handling are printed as entered.",
+  },
+  { key: "hawb", label: "HAWB (optional, on labels)" },
+];
+
+export function GuiaForm({
+  mode,
+  id,
+  values,
+  review,
+  snippets,
+  note,
+  truckerName = "",
+  truckerPhone = "",
+  driverName = "",
+  seal = "",
+}: {
+  mode: "new" | "edit";
+  id?: string;
+  values: GuiaValues;
+  review: string[];
+  snippets: Partial<Record<string, string>>;
+  note?: string;
+  truckerName?: string;
+  truckerPhone?: string;
+  driverName?: string;
+  seal?: string;
+}) {
+  const [paste, setPaste] = useState("");
+  const [draft, setDraft] = useState(values);
+  const [flags, setFlags] = useState<string[]>(review);
+  const [sources, setSources] = useState(snippets);
+  const [banner, setBanner] = useState(note ?? "");
+  const [busy, setBusy] = useState(false);
+  const [extractError, setExtractError] = useState("");
+
+  const reviewSet = useMemo(() => new Set(flags), [flags]);
+
+  function update(key: keyof GuiaValues, value: string) {
+    setDraft((current) => ({ ...current, [key]: value }));
+    if (value.trim()) setFlags((current) => current.filter((field) => field !== key));
+  }
+
+  function clearFlag(key: string) {
+    setFlags((current) => current.filter((field) => field !== key));
+  }
+
+  async function extract() {
+    setBusy(true);
+    setExtractError("");
+    try {
+      const response = await fetch("/api/guias/extract", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: paste }),
+      });
+      const body = (await response.json()) as {
+        error?: string;
+        values?: GuiaValues;
+        review?: string[];
+        snippets?: Partial<Record<string, string>>;
+        note?: string;
+      };
+      if (!response.ok || !body.values) {
+        setExtractError(body.error || "Extract failed.");
+        return;
+      }
+      setDraft(body.values);
+      setFlags(body.review ?? []);
+      setSources(body.snippets ?? {});
+      setBanner(body.note || "Check every highlighted field. Nothing uncertain was kept.");
+    } catch {
+      setExtractError("Extract failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form action={mode === "new" ? saveNewGuia : saveGuia} className="space-y-6">
+      {id ? <input type="hidden" name="id" value={id} /> : null}
+      <input type="hidden" name="review" value={flags.join(",")} />
+      <input type="hidden" name="snippetJson" value={JSON.stringify(sources)} />
+      <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+        <div>
+          <h2 className="font-display text-2xl">Client instructions</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Paste the email or the instructions. Extract leaves unsure fields empty and marks them for review.
+          </p>
+        </div>
+        <textarea
+          value={paste}
+          onChange={(event) => setPaste(event.target.value)}
+          rows={8}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          placeholder="From: client@example.com"
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="button" onClick={extract} disabled={busy || !paste.trim()}>
+            {busy ? "Extracting" : "Extract"}
+          </Button>
+          {extractError ? <p className="text-sm text-stuck">{extractError}</p> : null}
+        </div>
+        {banner ? <p className="text-sm text-muted-foreground">{banner}</p> : null}
+      </section>
+      {flags.length ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+          <p className="text-sm text-amber-900">Hay campos en revisión. No impiden emitir.</p>
+          <Button type="button" variant="outline" onClick={() => setFlags([])}>
+            Confirmar todo
+          </Button>
+        </div>
+      ) : null}
+      <section className="grid gap-4 md:grid-cols-2">
+        {FIELDS.map((field) => {
+          const flagged = reviewSet.has(field.key);
+          return (
+            <div key={field.key} className={field.area ? "md:col-span-2 space-y-1.5" : "space-y-1.5"}>
+              <Label htmlFor={field.key}>{field.label}</Label>
+              {field.area ? (
+                <textarea
+                  id={field.key}
+                  name={field.key}
+                  rows={3}
+                  value={draft[field.key]}
+                  onChange={(event) => update(field.key, event.target.value)}
+                  className={`w-full rounded-md border bg-background px-3 py-2 text-sm ${flagged ? "border-amber-500 bg-amber-50" : "border-input"}`}
+                />
+              ) : (
+                <Input
+                  id={field.key}
+                  name={field.key}
+                  value={draft[field.key]}
+                  onChange={(event) => update(field.key, event.target.value)}
+                  className={flagged ? "border-amber-500 bg-amber-50" : ""}
+                />
+              )}
+              {flagged ? (
+                <label className="flex items-center gap-2 text-xs text-amber-800">
+                  <input
+                    type="checkbox"
+                    checked
+                    onChange={(event) => {
+                      if (!event.target.checked) clearFlag(field.key);
+                    }}
+                  />
+                  Needs review
+                </label>
+              ) : null}
+              {field.hint ? <p className="text-xs text-muted-foreground">{field.hint}</p> : null}
+              {sources[field.key] ? <p className="text-xs text-muted-foreground">Source: {sources[field.key]}</p> : null}
+            </div>
+          );
+        })}
+        <div className="space-y-1.5">
+          <Label htmlFor="issuingCompany">Issuing company</Label>
+          <input type="hidden" name="issuingCompany" value="ack" />
+          <p id="issuingCompany" className="flex h-9 items-center rounded-md border border-input bg-muted px-3 text-sm">
+            ACK TEAM LLC
+          </p>
+        </div>
+      </section>
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="truckerName">Trucker</Label>
+          <Input id="truckerName" name="truckerName" defaultValue={truckerName} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="truckerPhone">Trucker phone</Label>
+          <Input id="truckerPhone" name="truckerPhone" defaultValue={truckerPhone} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="driverName">Driver name</Label>
+          <Input id="driverName" name="driverName" defaultValue={driverName} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="seal">Seal (optional)</Label>
+          <Input id="seal" name="seal" defaultValue={seal} />
+        </div>
+      </section>
+      <Button type="submit">{mode === "new" ? "Save draft" : "Save guía"}</Button>
+    </form>
+  );
+}
