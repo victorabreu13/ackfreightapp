@@ -106,6 +106,8 @@ model AirWaybillDocument {
   unNumbers        String?
   /// Moves as a BUP (unit load device). The shipment checklist then lists the CCSF and the CCSP.
   bup              Boolean      @default(false)
+  /// Packing instruction (965 to 970) of lithium batteries shipped under Section II. No DGD, and the AWB names the PI.
+  lithiumPi        String?
   otherChargesText String?      @db.Text
   accountingInfo   String?      @db.Text
   weightCharge     Float?

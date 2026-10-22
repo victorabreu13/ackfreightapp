@@ -13,7 +13,7 @@ import { loadCompany } from "@/lib/guias/company";
 import { guiaAwbFolder, publishRenderedPdf, saveDocumentLog } from "@/lib/guias/document-log";
 import { ensureGuiaClient, guiaBillToName } from "@/lib/guias/guia-client";
 import { type GuiaValues, type ReviewField } from "@/lib/guias/extract";
-import { formatUnNumbers } from "@/lib/guias/dg";
+import { formatUnNumbers, isLithiumPi } from "@/lib/guias/dg";
 import { rememberGuiaParties } from "@/lib/guias/parties";
 import { reviewFieldsToSave } from "@/lib/guias/review";
 import { GUIA_FILE_KINDS, guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
@@ -58,6 +58,7 @@ function valuesFromForm(formData: FormData): GuiaValues {
     dg: text(formData.get("dg")) === "1" ? "1" : "",
     unNumbers: text(formData.get("dg")) === "1" ? formatUnNumbers(text(formData.get("unNumbers"))) : "",
     bup: text(formData.get("bup")) === "1" ? "1" : "",
+    lithiumPi: isLithiumPi(text(formData.get("lithiumPi"))) ? text(formData.get("lithiumPi")) : "",
     issuingCompany: company === "ack" || company === "" ? "ack" : "",
   };
 }
@@ -117,6 +118,7 @@ function documentData(values: GuiaValues, review: ReviewField[], snippets: Recor
     dgDeclarable: values.dg === "1",
     unNumbers: blank(values.unNumbers),
     bup: values.bup === "1",
+    lithiumPi: blank(values.lithiumPi),
     reviewJson: JSON.stringify(review),
     snippetJson: JSON.stringify(snippets),
   };

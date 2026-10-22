@@ -22,3 +22,33 @@ export function formatUnNumbers(value: string | null | undefined): string {
 export function hasLithiumUn(value: string | null | undefined): boolean {
   return parseUnNumbers(value).some((un) => ["3090", "3091", "3480", "3481"].includes(un));
 }
+
+/** True when every UN number in the text is a lithium battery entry. */
+export function onlyLithiumUn(value: string | null | undefined): boolean {
+  const numbers = parseUnNumbers(value);
+  return numbers.length > 0 && numbers.every((un) => ["3090", "3091", "3480", "3481"].includes(un));
+}
+
+/**
+ * Lithium batteries prepared under Section II of the packing instructions are not shipped with a Shipper's
+ * Declaration, so they do not carry the DGD line. The air waybill names the packing instruction instead.
+ */
+export const LITHIUM_SECTION_II = [
+  { pi: "965", ion: true, label: "UN3480 lithium ion batteries (PI 965)" },
+  { pi: "966", ion: true, label: "UN3481 lithium ion batteries packed with equipment (PI 966)" },
+  { pi: "967", ion: true, label: "UN3481 lithium ion batteries contained in equipment (PI 967)" },
+  { pi: "968", ion: false, label: "UN3090 lithium metal batteries (PI 968)" },
+  { pi: "969", ion: false, label: "UN3091 lithium metal batteries packed with equipment (PI 969)" },
+  { pi: "970", ion: false, label: "UN3091 lithium metal batteries contained in equipment (PI 970)" },
+] as const;
+
+export function isLithiumPi(value: string | null | undefined): boolean {
+  return LITHIUM_SECTION_II.some((entry) => entry.pi === value);
+}
+
+/** The air waybill statement for a Section II lithium battery shipment, or "" when there is none. */
+export function lithiumSectionIIStatement(pi: string | null | undefined): string {
+  const entry = LITHIUM_SECTION_II.find((item) => item.pi === pi);
+  if (!entry) return "";
+  return `Lithium ${entry.ion ? "ion" : "metal"} batteries in compliance with Section II of PI${entry.pi}`;
+}

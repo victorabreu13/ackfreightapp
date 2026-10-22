@@ -28,3 +28,11 @@ test("the checklist is one of the guía documents and has its own file name", ()
   assert.equal(guiaFileName("checklist", "045-55219415"), "CHECKLIST 045-55219415.pdf");
   assert.equal(guiaFileName("checklist", ""), "CHECKLIST DRAFT.pdf");
 });
+
+test("Section II lithium adds the lithium rows and never the DGD", () => {
+  const rows = titles({ ...base, lithiumPi: "967", goods: "LAPTOPS" });
+  assert.ok(rows.includes("Lithium battery letter"));
+  assert.ok(rows.some((title) => title.startsWith("Lithium battery mark")));
+  assert.ok(rows.some((title) => title.includes("Section II of PI967")));
+  assert.ok(!rows.some((title) => /DGD|DG hazard/.test(title)));
+});

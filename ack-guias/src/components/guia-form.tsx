@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { GuiaLookupInput, type LookupType } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LITHIUM_SECTION_II, onlyLithiumUn } from "@/lib/guias/dg";
 import type { GuiaValues } from "@/lib/guias/extract";
 import { saveGuia, saveNewGuia } from "@/server/guia-actions";
 
@@ -222,8 +223,35 @@ export function GuiaForm({
               <p className="text-xs text-muted-foreground">
                 Prints in Handling Information: Dangerous Goods as per associated DGD. The DGD comes from the shipper. Several UN numbers can go in the same field.
               </p>
+              {onlyLithiumUn(draft.unNumbers) ? (
+                <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  Lithium batteries under Section II do not ship with a DGD. If these are Section II, uncheck DG and use the lithium Section II option below. Keep DG only for Section IA or IB.
+                </p>
+              ) : null}
             </div>
           ) : null}
+          <div className="space-y-1.5">
+            <Label htmlFor="lithiumPi">Baterías de litio Sección II (sin DGD)</Label>
+            <select
+              id="lithiumPi"
+              name="lithiumPi"
+              value={draft.lithiumPi}
+              onChange={(event) => update("lithiumPi", event.target.value)}
+              className="block h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">No</option>
+              {LITHIUM_SECTION_II.map((entry) => (
+                <option key={entry.pi} value={entry.pi}>
+                  {entry.label}
+                </option>
+              ))}
+            </select>
+            {draft.lithiumPi ? (
+              <p className="text-xs text-muted-foreground">
+                No DGD. Prints in Handling Information: Lithium {LITHIUM_SECTION_II.find((entry) => entry.pi === draft.lithiumPi)?.ion ? "ion" : "metal"} batteries in compliance with Section II of PI{draft.lithiumPi}.
+              </p>
+            ) : null}
+          </div>
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" name="bup" value="1" checked={draft.bup === "1"} onChange={(event) => update("bup", event.target.checked ? "1" : "")} />
             BUP (unit load device)

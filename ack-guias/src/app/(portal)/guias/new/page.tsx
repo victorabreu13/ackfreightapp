@@ -28,6 +28,7 @@ const blank: GuiaValues = {
   dg: "",
   unNumbers: "",
   bup: "",
+  lithiumPi: "",
   issuingCompany: "ack",
 };
 

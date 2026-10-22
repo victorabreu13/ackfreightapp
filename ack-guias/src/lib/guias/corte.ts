@@ -4,7 +4,7 @@ import bwipjs from "bwip-js/node";
 import PDFDocument from "pdfkit";
 import { cityForAirport, codeForPlace, countryForAirport } from "@/lib/awb/airports";
 import { tsaIacFor, type CompanyView } from "@/lib/guias/company-profile";
-import { DG_HANDLING_LINE } from "@/lib/guias/dg";
+import { DG_HANDLING_LINE, lithiumSectionIIStatement } from "@/lib/guias/dg";
 import type { GuiaPrintOptions, GuiaRecord } from "@/lib/guias/files";
 import { formatFlightDate, sheetDate, signerName } from "@/lib/sheets/layout";
 import { KOPE_LOGO_PNG } from "@/lib/sheets/kope-logo";
@@ -175,12 +175,15 @@ export function handlingForPrint(
   entered: string | null | undefined,
   aesItn: string | null | undefined,
   dangerousGoods = false,
+  lithiumPi: string | null | undefined = null,
 ): string {
   const user = plain(entered);
   const base = user || EXPORT_LINES.join("\n");
   const token = aesItnToken(aesItn);
   const dg = dangerousGoods && !base.toLowerCase().includes(DG_HANDLING_LINE.toLowerCase()) ? `\n${DG_HANDLING_LINE}` : "";
-  return `${base}${dg}\n${token ? `AES ITN: ${token}` : NO_EEI_LINE}`;
+  const statement = lithiumSectionIIStatement(lithiumPi);
+  const lithium = statement && !base.toLowerCase().includes(statement.toLowerCase()) ? `\n${statement}` : "";
+  return `${base}${dg}${lithium}\n${token ? `AES ITN: ${token}` : NO_EEI_LINE}`;
 }
 
 export function goodsForPrint(lines: Array<{ nature?: string | null; sortOrder?: number }>): string {
@@ -368,7 +371,7 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
   const lineTotal = first?.total ?? (rate != null && chargeable != null ? rate * chargeable : null);
   const prepaid = (document.chgsCode || "PP").toUpperCase().startsWith("C") ? "" : money(document.weightCharge ?? lineTotal);
   const natureText = goodsForPrint(goods);
-  const handlingText = handlingForPrint(document.handling, document.aesItn, document.dgDeclarable);
+  const handlingText = handlingForPrint(document.handling, document.aesItn, document.dgDeclarable, document.lithiumPi);
   const accounting = plain(document.accountingInfo) || ((document.chgsCode || "PP").toUpperCase().startsWith("C") ? "FREIGHT COLLECT" : "FREIGHT PREPAID");
   const tel = [phone ? `TEL: ${phone}` : "", email].filter(Boolean).join("   ");
   const countryLine = address.find((line) => /UNITED STATES/i.test(line)) ?? "";

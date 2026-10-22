@@ -42,6 +42,8 @@ export type GuiaValues = {
   unNumbers: string;
   /** "1" when the shipment moves as a BUP. */
   bup: string;
+  /** Packing instruction of Section II lithium batteries, "965" to "970". Empty when there are none. */
+  lithiumPi: string;
   issuingCompany: "" | "kope" | "ack";
 };
 
@@ -76,6 +78,7 @@ const EMPTY: GuiaValues = {
   dg: "",
   unNumbers: "",
   bup: "",
+  lithiumPi: "",
   issuingCompany: "",
 };
 

@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import type { CompanyView } from "@/lib/guias/company-profile";
 import { companyLogo, plain } from "@/lib/guias/corte";
-import { hasLithiumUn } from "@/lib/guias/dg";
+import { hasLithiumUn, isLithiumPi, lithiumSectionIIStatement } from "@/lib/guias/dg";
 import type { GuiaPrintOptions, GuiaRecord } from "@/lib/guias/files";
 import { SECURITY_LETTER_COPIES } from "@/lib/guias/magaya-docs";
 import { formatFlightDate } from "@/lib/sheets/layout";
@@ -18,6 +18,8 @@ export type ChecklistInput = {
   bup: boolean;
   dangerousGoods: boolean;
   unNumbers: string;
+  /** Packing instruction of Section II lithium batteries. No DGD for these. */
+  lithiumPi?: string | null;
   goods: string;
   hasTrucker: boolean;
 };
@@ -27,7 +29,8 @@ export type ChecklistInput = {
  * when the guía declares dangerous goods.
  */
 export function checklistRows(input: ChecklistInput): ChecklistRow[] {
-  const lithium = hasLithiumUn(input.unNumbers) || /lithium|litio/i.test(input.goods);
+  const sectionII = isLithiumPi(input.lithiumPi);
+  const lithium = sectionII || hasLithiumUn(input.unNumbers) || /lithium|litio/i.test(input.goods);
   const rows: ChecklistRow[] = [
     { source: "auto", title: "Air Waybill (12 pages)", note: input.awb ? `Number ${input.awb}` : "Issue the guía to get the number" },
     { source: "auto", title: "Cargo labels, one per piece", note: input.awb ? "Carry the AWB number" : "Issue the guía first, or print them from a draft" },
@@ -43,6 +46,12 @@ export function checklistRows(input: ChecklistInput): ChecklistRow[] {
     );
   }
   if (lithium) rows.push({ source: "auto", title: "Lithium battery letter", note: "Lithium batteries in the shipment" });
+  if (sectionII) {
+    rows.push(
+      { source: "paper", title: "Lithium battery mark on each package (Section II)", note: "No DGD and no hazard label for Section II" },
+      { source: "auto", title: `AWB Handling Information: ${lithiumSectionIIStatement(input.lithiumPi)}`, note: "Printed on the AWB automatically" },
+    );
+  }
   if (input.dangerousGoods) {
     rows.push(
       {
@@ -74,6 +83,7 @@ export function renderChecklist(document: GuiaRecord, company: CompanyView, opti
     bup: document.bup,
     dangerousGoods: document.dgDeclarable,
     unNumbers,
+    lithiumPi: document.lithiumPi,
     goods: goodsText(document),
     hasTrucker: Boolean(plain(options.trucker ?? document.truckerName)),
   });
