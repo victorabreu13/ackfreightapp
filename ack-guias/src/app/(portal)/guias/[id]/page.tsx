@@ -290,19 +290,21 @@ export default async function GuiaDetailPage({
           <div>
             <h2 className="font-display text-2xl">Imprimir sin emitir</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Labels y borrador de la guía. No usan stock ni emiten el número, y no se guardan en Documentos ni en Drive.
+              Labels, Folder Label y borrador de la guía. No usan stock ni emiten el número, y no se guardan en Documentos ni en Drive.
             </p>
           </div>
           <div className="flex flex-col gap-4 md:flex-row md:items-end">
             <form action={fileBase} method="get" target="_blank" className="flex flex-col gap-3 md:flex-row md:items-end">
-              <input type="hidden" name="kind" value="labels" />
               <input type="hidden" name="draft" value="1" />
               <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">AWB number on the labels</span>
+                <span className="text-muted-foreground">AWB number for the labels and the folder label</span>
                 <input name="awb" required defaultValue={document.awb} className="block h-10 rounded-md border border-input bg-background px-3 font-mono" placeholder="123-12345675" />
               </label>
-              <Button type="submit" variant="outline" size="lg">
+              <Button type="submit" name="kind" value="labels" variant="outline" size="lg">
                 Imprimir labels
+              </Button>
+              <Button type="submit" name="kind" value="folder-label" variant="outline" size="lg">
+                Imprimir Folder Label
               </Button>
             </form>
             <Button asChild variant="outline" size="lg">
@@ -352,11 +354,11 @@ export default async function GuiaDetailPage({
             const masterAwb = "";
             const needsIssue = ((kind === "awb" || kind === "labels") && document.status !== "issued") || (kind === "folder-label" && !document.awb);
             const needsTrucker = (kind === "delivery" || kind === "pickup") && !document.truckerName?.trim();
-            const note = needsIssue ? "Emite la guía primero" : needsTrucker ? "Enter a trucker and save" : saved ? "On Drive" : "Ready";
+            const note = needsIssue ? "Emite la guía o usa Imprimir sin emitir" : needsTrucker ? "Enter a trucker and save" : saved ? "On Drive" : "Ready";
             return (
               <div key={kind} className="flex flex-col gap-1">
                 {needsIssue ? (
-                  <span title="Emite la guía primero" className="inline-flex w-full cursor-not-allowed">
+                  <span title="Emite la guía o usa Imprimir sin emitir" className="inline-flex w-full cursor-not-allowed">
                     <Button type="button" disabled variant="outline" className="h-auto w-full justify-between px-3 py-3">
                       <span>{GUIA_FILE_LABELS[kind]}</span>
                       <span className="text-xs font-normal text-muted-foreground">{note}</span>
@@ -373,7 +375,7 @@ export default async function GuiaDetailPage({
                 <span className="px-1 text-xs text-muted-foreground">{guiaFileName(kind, document.awb, masterAwb)}</span>
                 {kind === "labels" && masterAwb ? (
                   needsIssue ? (
-                    <span title="Emite la guía primero" className="inline-flex cursor-not-allowed">
+                    <span title="Emite la guía o usa Imprimir sin emitir" className="inline-flex cursor-not-allowed">
                       <Button type="button" disabled variant="outline" size="sm">
                         Master labels (MIA)
                       </Button>

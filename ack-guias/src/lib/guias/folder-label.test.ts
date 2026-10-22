@@ -32,20 +32,27 @@ test("the route is the departure and the destination airport", () => {
   assert.equal(folderRoute({ departure: "MIA", destination: "" }), "MIA");
 });
 
-test("the folder label is a 4 x 6 in portrait page and needs the AWB number", async () => {
+test("the folder label is a 4 x 6 in portrait page, and before issuing it takes a typed AWB number", async () => {
   const options = samplePrintOptions("team@ackfreight.com", "Team");
   const pdf = await renderGuiaPdf("folder-label", { ...sampleGuia(), awb: "045-54058362", destination: "EZE" } as GuiaRecord, company, options);
   const text = pdf.toString("latin1");
   assert.equal(text.slice(0, 5), "%PDF-");
   assert.match(text, /\/MediaBox \[0 0 288 432\]/);
   assert.equal((text.match(/\/Type \/Page\b(?!s)/g) ?? []).length, 1);
-  let status: number | undefined;
-  try {
-    await renderGuiaPdf("folder-label", { ...sampleGuia(), status: "draft", awb: "" } as GuiaRecord, company, options);
-  } catch (error) {
-    status = (error as { status?: number }).status;
-  }
-  assert.equal(status, 409);
+  const failure = async (record: GuiaRecord, extra: { labelAwb?: string } = {}) => {
+    try {
+      await renderGuiaPdf("folder-label", record, company, { ...options, ...extra });
+    } catch (error) {
+      return (error as { status?: number }).status;
+    }
+    return undefined;
+  };
+  const draft = { ...sampleGuia(), status: "draft", awb: "", prefix: "", serial: "" } as GuiaRecord;
+  assert.equal(await failure(draft), 400);
+  assert.equal(await failure(draft, { labelAwb: "045-55219416" }), 400);
+  // Before issuing, the AWB number can be typed.
+  const typed = await renderGuiaPdf("folder-label", draft, company, { ...options, draft: true, labelAwb: "045-55219415" });
+  assert.equal(typed.subarray(0, 5).toString("latin1"), "%PDF-");
 });
 
 test("the labels are printed on their own, not with the document pack", () => {
