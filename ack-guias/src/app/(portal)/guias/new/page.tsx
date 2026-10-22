@@ -25,6 +25,9 @@ const blank: GuiaValues = {
   handling: "",
   aesItn: "",
   hawb: "",
+  dg: "",
+  unNumbers: "",
+  bup: "",
   issuingCompany: "ack",
 };
 

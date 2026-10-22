@@ -37,6 +37,11 @@ export type GuiaValues = {
   handling: string;
   aesItn: string;
   hawb: string;
+  /** "1" when the guía carries declarable dangerous goods. */
+  dg: string;
+  unNumbers: string;
+  /** "1" when the shipment moves as a BUP. */
+  bup: string;
   issuingCompany: "" | "kope" | "ack";
 };
 
@@ -68,6 +73,9 @@ const EMPTY: GuiaValues = {
   handling: "",
   aesItn: "",
   hawb: "",
+  dg: "",
+  unNumbers: "",
+  bup: "",
   issuingCompany: "",
 };
 

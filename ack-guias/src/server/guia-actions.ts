@@ -13,6 +13,7 @@ import { loadCompany } from "@/lib/guias/company";
 import { guiaAwbFolder, publishRenderedPdf, saveDocumentLog } from "@/lib/guias/document-log";
 import { ensureGuiaClient, guiaBillToName } from "@/lib/guias/guia-client";
 import { type GuiaValues, type ReviewField } from "@/lib/guias/extract";
+import { formatUnNumbers } from "@/lib/guias/dg";
 import { rememberGuiaParties } from "@/lib/guias/parties";
 import { reviewFieldsToSave } from "@/lib/guias/review";
 import { GUIA_FILE_KINDS, guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
@@ -54,6 +55,9 @@ function valuesFromForm(formData: FormData): GuiaValues {
     handling: text(formData.get("handling")),
     aesItn: text(formData.get("aesItn")).replace(/^AES\s*ITN\s*:\s*/i, "").trim(),
     hawb: text(formData.get("hawb")),
+    dg: text(formData.get("dg")) === "1" ? "1" : "",
+    unNumbers: text(formData.get("dg")) === "1" ? formatUnNumbers(text(formData.get("unNumbers"))) : "",
+    bup: text(formData.get("bup")) === "1" ? "1" : "",
     issuingCompany: company === "ack" || company === "" ? "ack" : "",
   };
 }
@@ -110,6 +114,9 @@ function documentData(values: GuiaValues, review: ReviewField[], snippets: Recor
     handling: blank(values.handling),
     aesItn: blank(values.aesItn),
     hawb: blank(values.hawb),
+    dgDeclarable: values.dg === "1",
+    unNumbers: blank(values.unNumbers),
+    bup: values.bup === "1",
     reviewJson: JSON.stringify(review),
     snippetJson: JSON.stringify(snippets),
   };

@@ -39,6 +39,9 @@ function valuesOf(document: {
   handling: string | null;
   aesItn: string | null;
   hawb: string | null;
+  dgDeclarable: boolean;
+  unNumbers: string | null;
+  bup: boolean;
   agentKey: string;
   lines: Array<{ pieces: number | null; chargeableWeight: number | null; grossWeight: number | null; rate: number | null; nature: string | null }>;
 }): GuiaValues {
@@ -63,6 +66,9 @@ function valuesOf(document: {
     handling: document.handling || "",
     aesItn: document.aesItn || "",
     hawb: document.hawb || "",
+    dg: document.dgDeclarable ? "1" : "",
+    unNumbers: document.unNumbers || "",
+    bup: document.bup ? "1" : "",
     issuingCompany: "ack",
   };
 }

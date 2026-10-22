@@ -210,6 +210,26 @@ export function GuiaForm({
             </div>
           );
         })}
+        <div className="space-y-3 rounded-md border border-border p-3 md:col-span-2">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" name="dg" value="1" checked={draft.dg === "1"} onChange={(event) => update("dg", event.target.checked ? "1" : "")} />
+            Lleva mercancía peligrosa declarable (DG)
+          </label>
+          {draft.dg === "1" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="unNumbers">UN</Label>
+              <Input id="unNumbers" name="unNumbers" required value={draft.unNumbers} onChange={(event) => update("unNumbers", event.target.value)} placeholder="UN3481, UN1950" />
+              <p className="text-xs text-muted-foreground">
+                Prints in Handling Information: Dangerous Goods as per associated DGD. The DGD comes from the shipper. Several UN numbers can go in the same field.
+              </p>
+            </div>
+          ) : null}
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" name="bup" value="1" checked={draft.bup === "1"} onChange={(event) => update("bup", event.target.checked ? "1" : "")} />
+            BUP (unit load device)
+          </label>
+          {draft.bup === "1" ? <p className="text-xs text-muted-foreground">The shipment checklist will list the CCSF and the CCSP.</p> : null}
+        </div>
         <div className="space-y-1.5">
           <Label htmlFor="issuingCompany">Issuing company</Label>
           <input type="hidden" name="issuingCompany" value="ack" />

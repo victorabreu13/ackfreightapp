@@ -100,6 +100,12 @@ model AirWaybillDocument {
   sci              String?
   destCountry      String?
   hawb             String?
+  /// Carries declarable dangerous goods. Adds the DGD line to Handling Information.
+  dgDeclarable     Boolean      @default(false)
+  /// UN numbers of the dangerous goods, like "UN3481, UN1950".
+  unNumbers        String?
+  /// Moves as a BUP (unit load device). The shipment checklist then lists the CCSF and the CCSP.
+  bup              Boolean      @default(false)
   otherChargesText String?      @db.Text
   accountingInfo   String?      @db.Text
   weightCharge     Float?
