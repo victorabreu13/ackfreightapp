@@ -78,3 +78,59 @@ export function filterLoggedDocuments(
     })
     .sort((left, right) => right.generatedAt.getTime() - left.generatedAt.getTime());
 }
+
+export type GuiaFolder = {
+  key: string;
+  awb: string;
+  guiaId: string | null;
+  documents: LoggedDocument[];
+};
+
+export type ClientFolder = {
+  client: string;
+  count: number;
+  guias: GuiaFolder[];
+};
+
+function clientKey(client: string): string {
+  return client.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function kindRank(kind: string): number {
+  const index = (GUIA_FILE_KINDS as readonly string[]).indexOf(kind);
+  return index < 0 ? GUIA_FILE_KINDS.length : index;
+}
+
+/** Client folders A to Z. Inside each, one subfolder per guía (newest first) holding that guía's documents in print order. */
+export function groupDocumentsByClient(rows: LoggedDocument[]): ClientFolder[] {
+  const clients = new Map<string, { client: string; guias: Map<string, GuiaFolder> }>();
+  for (const row of rows) {
+    const key = clientKey(row.client) || "no client";
+    let folder = clients.get(key);
+    if (!folder) {
+      folder = { client: row.client.replace(/\s+/g, " ").trim() || "No client", guias: new Map() };
+      clients.set(key, folder);
+    }
+    const guiaKey = row.guiaId ?? `awb:${row.awb.trim().toLowerCase()}`;
+    let guia = folder.guias.get(guiaKey);
+    if (!guia) {
+      guia = { key: guiaKey, awb: row.awb, guiaId: row.guiaId, documents: [] };
+      folder.guias.set(guiaKey, guia);
+    }
+    guia.documents.push(row);
+  }
+  const latest = (guia: GuiaFolder) => Math.max(...guia.documents.map((row) => row.generatedAt.getTime()));
+  return [...clients.values()]
+    .map((folder) => {
+      const guias = [...folder.guias.values()]
+        .map((guia) => ({
+          ...guia,
+          documents: [...guia.documents].sort(
+            (left, right) => kindRank(left.kind) - kindRank(right.kind) || right.generatedAt.getTime() - left.generatedAt.getTime(),
+          ),
+        }))
+        .sort((left, right) => latest(right) - latest(left));
+      return { client: folder.client, count: guias.reduce((sum, guia) => sum + guia.documents.length, 0), guias };
+    })
+    .sort((left, right) => left.client.localeCompare(right.client, "en", { sensitivity: "base" }));
+}

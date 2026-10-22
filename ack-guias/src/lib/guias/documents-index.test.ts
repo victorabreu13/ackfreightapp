@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterLoggedDocuments, nyDay, type LoggedDocument } from "./documents-index";
+import { filterLoggedDocuments, groupDocumentsByClient, nyDay, type LoggedDocument } from "./documents-index";
 
 const generated = new Date("2026-10-15T18:30:00.000Z");
 
@@ -61,4 +61,37 @@ test("uploaded files stay searchable by type Archivo and by file name", () => {
   assert.equal(filterLoggedDocuments(rows, { kind: "UPLOAD" })[0]?.fileName, "packing-list.xlsx");
   assert.equal(filterLoggedDocuments(rows, { awb: "packing-list" }).length, 1);
   assert.equal(filterLoggedDocuments(rows, {}).length, 2);
+});
+
+test("documents group by client A to Z, then one subfolder per guía", () => {
+  const doc = (overrides: Partial<LoggedDocument>): LoggedDocument => ({
+    id: "x",
+    guiaId: null,
+    client: "PACIFIKO, LLC",
+    awb: "045-56631341",
+    company: "ack",
+    kind: "awb",
+    fileName: "f.pdf",
+    driveUrl: null,
+    status: "FAILED",
+    error: null,
+    generatedAt: new Date("2026-10-21T20:44:00.000Z"),
+    generatedBy: "a@ackfreight.com",
+    source: "generated",
+    ...overrides,
+  });
+  const folders = groupDocumentsByClient([
+    doc({ id: "1", guiaId: "g1", kind: "labels" }),
+    doc({ id: "2", guiaId: "g1", kind: "awb" }),
+    doc({ id: "3", guiaId: "g2", awb: "045-11111111", kind: "tsa", generatedAt: new Date("2026-10-22T10:00:00.000Z") }),
+    doc({ id: "4", guiaId: "g3", client: "acme  cargo", awb: "810-22222222" }),
+    doc({ id: "5", guiaId: "g3", client: "ACME CARGO", awb: "810-22222222", kind: "delivery" }),
+  ]);
+  assert.deepEqual(folders.map((folder) => folder.client), ["acme cargo", "PACIFIKO, LLC"]);
+  assert.equal(folders[0].count, 2);
+  assert.equal(folders[0].guias.length, 1);
+  const pacifiko = folders[1];
+  assert.equal(pacifiko.count, 3);
+  assert.deepEqual(pacifiko.guias.map((guia) => guia.awb), ["045-11111111", "045-56631341"]);
+  assert.deepEqual(pacifiko.guias[1].documents.map((row) => row.kind), ["awb", "labels"]);
 });

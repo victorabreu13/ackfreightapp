@@ -6,14 +6,14 @@ import { MigrationPending } from "@/components/migration-pending";
 import { canManageGuias, canReadGuias, isAdmin, isCompanyAccounting } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { companyLabel } from "@/lib/guias/document-log";
-import { filterLoggedDocuments, formatNy, GUIA_FILE_LABELS, UPLOAD_KIND, UPLOAD_LABEL, type LoggedDocument } from "@/lib/guias/documents-index";
+import { filterLoggedDocuments, formatNy, GUIA_FILE_LABELS, groupDocumentsByClient, UPLOAD_KIND, UPLOAD_LABEL, type LoggedDocument } from "@/lib/guias/documents-index";
 import { GUIA_FILE_KINDS } from "@/lib/guias/files";
 import { canDeleteGuiaUpload } from "@/lib/guias/upload-rules";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
 import { importGuiaDocument, retryGuiaDocument } from "@/server/guia-document-actions";
 
-const PAGE_SIZE = 25;
+/** Client folders per page. */
+const PAGE_SIZE = 10;
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
   const value = params[key];
@@ -89,9 +89,11 @@ export default async function GuiaDocumentsPage({
     return <MigrationPending />;
   }
 
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const folders = groupDocumentsByClient(rows);
+  const pages = Math.max(1, Math.ceil(folders.length / PAGE_SIZE));
   const page = Math.min(requestedPage, pages);
-  const visible = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const visible = folders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const guiaFiltered = Boolean(filters.awb?.trim());
 
   return (
     <div className="space-y-6">
@@ -199,108 +201,123 @@ export default async function GuiaDocumentsPage({
           No documents yet. Open a file on a guía, issue it, or import a PDF.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full min-w-[1100px] text-left text-sm">
-            <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">AWB</th>
-                <th className="px-3 py-2">Client</th>
-                <th className="px-3 py-2">Company</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">File</th>
-                <th className="px-3 py-2">Generated</th>
-                <th className="px-3 py-2">By</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Drive</th>
-                <th className="px-3 py-2">File</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((row) => {
-                const label = row.kind === UPLOAD_KIND ? UPLOAD_LABEL : (GUIA_FILE_LABELS[row.kind as keyof typeof GUIA_FILE_LABELS] ?? row.kind);
-                return (
-                  <tr key={row.id} className="border-b border-border last:border-0 align-top">
-                    <td className="px-3 py-2">
-                      {row.guiaId ? (
-                        <Link href={`/guias/${row.guiaId}`} className="font-medium underline-offset-2 hover:underline">
-                          {row.awb}
+        <div className="space-y-4">
+          {visible.map((folder) => (
+            <details key={folder.client} open className="rounded-lg border border-border bg-card">
+              <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 px-4 py-3">
+                <span className="font-display text-2xl">{folder.client}</span>
+                <span className="text-sm text-muted-foreground">
+                  {folder.guias.length} {folder.guias.length === 1 ? "guía" : "guías"} · {folder.count} {folder.count === 1 ? "documento" : "documentos"}
+                </span>
+              </summary>
+              <div className="space-y-2 border-t border-border px-3 py-3">
+                {folder.guias.map((guia) => (
+                  <details key={guia.key} open={guiaFiltered || folder.guias.length === 1} className="rounded-md border border-border bg-background">
+                    <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 px-3 py-2">
+                      <span className="font-medium">{guia.awb}</span>
+                      {guia.guiaId ? (
+                        <Link href={`/guias/${guia.guiaId}`} className="text-sm underline-offset-2 hover:underline">
+                          Abrir guía
                         </Link>
-                      ) : (
-                        row.awb
-                      )}
-                    </td>
-                    <td className="px-3 py-2">{row.client}</td>
-                    <td className="px-3 py-2">{companyLabel(row.company)}</td>
-                    <td className="px-3 py-2">{label}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{row.fileName}</td>
-                    <td className="px-3 py-2">{formatNy(row.generatedAt)}</td>
-                    <td className="px-3 py-2">{row.generatedBy}</td>
-                    <td className="px-3 py-2">
-                      <span className={row.status === "FAILED" ? "text-stuck" : undefined}>{row.status}</span>
-                      {row.status === "FAILED" && row.error ? <span className="mt-1 block text-xs text-stuck">{row.error}</span> : null}
-                    </td>
-                    <td className="px-3 py-2">
-                      {row.driveUrl ? (
-                        <a className="underline-offset-2 hover:underline" href={row.driveUrl} target="_blank" rel="noreferrer">
-                          Open in Drive
-                        </a>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {row.source === "upload" ? (
-                        <div className="flex flex-col items-start gap-1">
-                          {row.driveFileId ? (
-                            <a className="underline-offset-2 hover:underline" href={`/api/guias/uploads/${row.id}`}>
-                              Descargar
-                            </a>
-                          ) : (
-                            <span className="text-muted-foreground">Sin archivo</span>
-                          )}
-                          {canDeleteGuiaUpload(user, row.generatedBy) ? (
-                            <DeleteUploadButton id={row.id} fileName={row.fileName} returnTo={pageHref(filters, page)} />
-                          ) : null}
-                        </div>
-                      ) : row.guiaId && row.source === "generated" ? (
-                        <>
-                          <a className="underline-offset-2 hover:underline" href={`/api/guias/${row.guiaId}/file?kind=${row.kind}`} target="_blank" rel="noreferrer">
-                            Open
-                          </a>
-                          <span className="text-muted-foreground"> · </span>
-                          <a className="underline-offset-2 hover:underline" href={`/api/guias/${row.guiaId}/file?kind=${row.kind}&download=1`}>
-                            Download
-                          </a>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">Imported file</span>
-                      )}
-                      {row.status === "FAILED" && row.guiaId && row.source === "generated" && canManageGuias(user) ? (
-                        <form action={retryGuiaDocument} className="mt-2">
-                          <input type="hidden" name="id" value={row.id} />
-                          <button type="submit" className="underline-offset-2 hover:underline">
-                            Retry
-                          </button>
-                        </form>
                       ) : null}
-                      {row.status === "FAILED" && admin && row.source === "import" ? (
-                        <form action={importGuiaDocument} className="mt-2 space-y-1">
-                          <input type="hidden" name="client" value={row.client} />
-                          <input type="hidden" name="awb" value={row.awb} />
-                          <input type="hidden" name="kind" value={row.kind} />
-                          <input type="hidden" name="company" value={row.company} />
-                          <input name="file" type="file" accept="application/pdf,.pdf" required className="block max-w-48 text-xs" />
-                          <button type="submit" className="underline-offset-2 hover:underline">
-                            Retry
-                          </button>
-                        </form>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <span className="text-sm text-muted-foreground">
+                        {guia.documents.length} {guia.documents.length === 1 ? "documento" : "documentos"}
+                      </span>
+                    </summary>
+                    <div className="overflow-x-auto border-t border-border">
+                      <table className="w-full min-w-[900px] text-left text-sm">
+                        <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                          <tr>
+                            <th className="px-3 py-2">Type</th>
+                            <th className="px-3 py-2">File</th>
+                            <th className="px-3 py-2">Generated</th>
+                            <th className="px-3 py-2">By</th>
+                            <th className="px-3 py-2">Status</th>
+                            <th className="px-3 py-2">Drive</th>
+                            <th className="px-3 py-2">File</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {guia.documents.map((row) => {
+                            const label = row.kind === UPLOAD_KIND ? UPLOAD_LABEL : (GUIA_FILE_LABELS[row.kind as keyof typeof GUIA_FILE_LABELS] ?? row.kind);
+                            return (
+                              <tr key={row.id} className="border-b border-border last:border-0 align-top">
+                                <td className="px-3 py-2">{label}</td>
+                                <td className="px-3 py-2 font-mono text-xs">{row.fileName}</td>
+                                <td className="px-3 py-2">{formatNy(row.generatedAt)}</td>
+                                <td className="px-3 py-2">{row.generatedBy}</td>
+                                <td className="px-3 py-2">
+                                  <span className={row.status === "FAILED" ? "text-stuck" : undefined}>{row.status}</span>
+                                  {row.status === "FAILED" && row.error ? <span className="mt-1 block text-xs text-stuck">{row.error}</span> : null}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {row.driveUrl ? (
+                                    <a className="underline-offset-2 hover:underline" href={row.driveUrl} target="_blank" rel="noreferrer">
+                                      Open in Drive
+                                    </a>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {row.source === "upload" ? (
+                                    <div className="flex flex-col items-start gap-1">
+                                      {row.driveFileId ? (
+                                        <a className="underline-offset-2 hover:underline" href={`/api/guias/uploads/${row.id}`}>
+                                          Descargar
+                                        </a>
+                                      ) : (
+                                        <span className="text-muted-foreground">Sin archivo</span>
+                                      )}
+                                      {canDeleteGuiaUpload(user, row.generatedBy) ? (
+                                        <DeleteUploadButton id={row.id} fileName={row.fileName} returnTo={pageHref(filters, page)} />
+                                      ) : null}
+                                    </div>
+                                  ) : row.guiaId && row.source === "generated" ? (
+                                    <>
+                                      <a className="underline-offset-2 hover:underline" href={`/api/guias/${row.guiaId}/file?kind=${row.kind}`} target="_blank" rel="noreferrer">
+                                        Open
+                                      </a>
+                                      <span className="text-muted-foreground"> · </span>
+                                      <a className="underline-offset-2 hover:underline" href={`/api/guias/${row.guiaId}/file?kind=${row.kind}&download=1`}>
+                                        Download
+                                      </a>
+                                    </>
+                                  ) : (
+                                    <span className="text-muted-foreground">Imported file</span>
+                                  )}
+                                  {row.status === "FAILED" && row.guiaId && row.source === "generated" && canManageGuias(user) ? (
+                                    <form action={retryGuiaDocument} className="mt-2">
+                                      <input type="hidden" name="id" value={row.id} />
+                                      <button type="submit" className="underline-offset-2 hover:underline">
+                                        Retry
+                                      </button>
+                                    </form>
+                                  ) : null}
+                                  {row.status === "FAILED" && admin && row.source === "import" ? (
+                                    <form action={importGuiaDocument} className="mt-2 space-y-1">
+                                      <input type="hidden" name="client" value={row.client} />
+                                      <input type="hidden" name="awb" value={row.awb} />
+                                      <input type="hidden" name="kind" value={row.kind} />
+                                      <input type="hidden" name="company" value={row.company} />
+                                      <input name="file" type="file" accept="application/pdf,.pdf" required className="block max-w-48 text-xs" />
+                                      <button type="submit" className="underline-offset-2 hover:underline">
+                                        Retry
+                                      </button>
+                                    </form>
+                                  ) : null}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </details>
+          ))}
         </div>
       )}
       {pages > 1 ? (
