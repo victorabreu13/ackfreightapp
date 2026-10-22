@@ -16,7 +16,7 @@ import { canDeleteGuiaUpload, UPLOAD_KIND } from "@/lib/guias/upload-rules";
 import type { GuiaValues } from "@/lib/guias/extract";
 import { GUIA_FILE_KINDS, guiaFileName } from "@/lib/guias/files";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
-import { issueGuia, saveGuiaToDrive } from "@/server/guia-actions";
+import { assignGuiaAwb, issueGuia, releaseGuiaAwb, saveGuiaToDrive } from "@/server/guia-actions";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
   const value = params[key];
@@ -177,6 +177,8 @@ export default async function GuiaDetailPage({
     );
   }
   const prefixes = await prisma.airlinePrefix.findMany({ orderBy: { prefix: "asc" }, take: 200 });
+  const assignedStock = document.awb.trim() ? await prisma.awbStockNumber.findFirst({ where: { documentId: document.id } }) : null;
+  const assigned = document.status !== "issued" && assignedStock != null;
   const stock = await prisma.awbStockNumber.groupBy({
     by: ["prefix", "agentKey"],
     where: { status: "available", agentKey: document.agentKey },
@@ -229,6 +231,8 @@ export default async function GuiaDetailPage({
       </div>
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
       {one(query, "saved") ? <p className="text-sm text-muted-foreground">Saved.</p> : null}
+      {one(query, "assigned") ? <p className="text-sm text-muted-foreground">AWB asignado. El borrador y los labels ya salen con ese número.</p> : null}
+      {one(query, "released") ? <p className="text-sm text-muted-foreground">AWB devuelto al stock.</p> : null}
       {one(query, "issued") ? <p className="text-sm text-muted-foreground">Issued. The PDF download does not depend on Drive.</p> : null}
       {drive && drive !== "ok" ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">Drive: {drive}</p> : null}
       {drive === "ok" ? <p className="text-sm text-muted-foreground">Saved to Drive.</p> : null}
@@ -238,18 +242,23 @@ export default async function GuiaDetailPage({
 
       <GuiaBilling {...billing} />
 
-      <section className="space-y-3 rounded-lg border-2 border-primary bg-card p-4">
-        <h2 className="font-display text-2xl">Emitir</h2>
-        {document.status === "issued" ? (
-          <p className="text-sm text-muted-foreground">This guía is already issued as {document.awb}.</p>
-        ) : (
-          <>
-            {review.length ? (
-              <p className="text-sm text-amber-800">Hay campos en revisión. No impiden emitir.</p>
-            ) : null}
-            <form action={issueGuia} className="flex flex-col gap-3 md:flex-row md:items-end">
+      {document.status !== "issued" ? (
+        <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <h2 className="font-display text-2xl">AWB asignado</h2>
+          {assigned ? (
+            <div className="flex flex-wrap items-center gap-4">
+              <p className="font-mono text-xl font-semibold">{document.awb}</p>
+              <p className="text-sm text-muted-foreground">Reservado para esta guía. El borrador, los labels y el Folder Label salen con este número.</p>
+              <form action={releaseGuiaAwb}>
+                <input type="hidden" name="id" value={document.id} />
+                <Button type="submit" variant="outline" size="sm">
+                  Devolver al stock
+                </Button>
+              </form>
+            </div>
+          ) : (
+            <form action={assignGuiaAwb} className="flex flex-col gap-3 md:flex-row md:items-end">
               <input type="hidden" name="id" value={document.id} />
-              <input type="hidden" name="agentKey" value={document.agentKey} />
               <label className="space-y-1 text-sm">
                 <span className="text-muted-foreground">Airline prefix stock</span>
                 <select name="prefix" className="block h-10 rounded-md border border-input bg-background px-3">
@@ -266,8 +275,54 @@ export default async function GuiaDetailPage({
               </label>
               <label className="space-y-1 text-sm">
                 <span className="text-muted-foreground">Or an in-stock number</span>
-                <input name="manualAwb" className="block h-10 rounded-md border border-input bg-background px-3" placeholder="123-12345675" />
+                <input name="manualAwb" className="block h-10 rounded-md border border-input bg-background px-3 font-mono" placeholder="123-12345675" />
               </label>
+              <Button type="submit" variant="outline" size="lg">
+                Asignar AWB
+              </Button>
+            </form>
+          )}
+        </section>
+      ) : null}
+
+      <section className="space-y-3 rounded-lg border-2 border-primary bg-card p-4">
+        <h2 className="font-display text-2xl">Emitir</h2>
+        {document.status === "issued" ? (
+          <p className="text-sm text-muted-foreground">This guía is already issued as {document.awb}.</p>
+        ) : (
+          <>
+            {review.length ? (
+              <p className="text-sm text-amber-800">Hay campos en revisión. No impiden emitir.</p>
+            ) : null}
+            <form action={issueGuia} className="flex flex-col gap-3 md:flex-row md:items-end">
+              <input type="hidden" name="id" value={document.id} />
+              <input type="hidden" name="agentKey" value={document.agentKey} />
+              {assigned ? (
+                <p className="text-sm">
+                  Se emite con el AWB asignado <span className="font-mono font-semibold">{document.awb}</span>.
+                </p>
+              ) : (
+                <>
+                  <label className="space-y-1 text-sm">
+                    <span className="text-muted-foreground">Airline prefix stock</span>
+                    <select name="prefix" className="block h-10 rounded-md border border-input bg-background px-3">
+                      <option value="">Choose</option>
+                      {prefixes.map((row) => {
+                        const count = stock.find((item) => item.prefix === row.prefix)?._count ?? 0;
+                        return (
+                          <option key={row.prefix} value={row.prefix}>
+                            {row.prefix} {row.airline} ({count} left)
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </label>
+                  <label className="space-y-1 text-sm">
+                    <span className="text-muted-foreground">Or an in-stock number</span>
+                    <input name="manualAwb" className="block h-10 rounded-md border border-input bg-background px-3" placeholder="123-12345675" />
+                  </label>
+                </>
+              )}
               <label className="space-y-1 text-sm">
                 <span className="text-muted-foreground">AES ITN (optional)</span>
                 <input

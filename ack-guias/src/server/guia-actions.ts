@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { carrierBlock } from "@/lib/awb/airports";
 import { miamiDate, signatureFor } from "@/lib/awb/document";
 import { destinationCountry, routingTo } from "@/lib/guias/awb-face";
-import { issueErrorInSpanish, issueWaybillAtomic } from "@/lib/awb/issue";
+import { assignDraftAwb, issueErrorInSpanish, issueWaybillAtomic, releaseDraftAwb } from "@/lib/awb/issue";
 import { canManageGuias, isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -161,6 +161,18 @@ export async function saveNewGuia(formData: FormData) {
     },
   });
   await rememberParties(billTo?.id ?? null, values);
+  const wantedAwb = text(formData.get("assignAwb"));
+  const wantedPrefix = text(formData.get("assignPrefix"));
+  if (wantedAwb || wantedPrefix) {
+    try {
+      await assignAwbTo(created.id, wantedAwb, wantedPrefix);
+    } catch (error) {
+      revalidatePath("/guias");
+      redirect(`/guias/${created.id}?error=${encodeURIComponent(`La guía se guardó, pero no se asignó el AWB. ${issueErrorInSpanish(error)}`)}`);
+    }
+    revalidatePath("/guias");
+    redirect(`/guias/${created.id}?assigned=1`);
+  }
   revalidatePath("/guias");
   redirect(`/guias/${created.id}`);
 }
@@ -256,6 +268,60 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
   return firstError;
 }
 
+/** The carrier block and routing that come from the airline prefix. Used when the number is assigned and again at issue. */
+async function carrierData(agent: { accountNo: string | null }, destination: string | null, awbPrefix: string) {
+  const airline = /^\d{3}$/.test(awbPrefix) ? await prisma.airlinePrefix.findUnique({ where: { prefix: awbPrefix } }) : null;
+  const carrier = carrierBlock(/^\d{3}$/.test(awbPrefix) ? awbPrefix : "000", airline?.airline ?? null);
+  return {
+    carrierName: carrier.name,
+    carrierAddress: carrier.address,
+    to1: routingTo(destination) || null,
+    by1: carrier.name,
+    destCountry: destinationCountry(destination) || null,
+    accountNo: agent.accountNo,
+  };
+}
+
+async function assignAwbTo(id: string, manualAwb: string, prefix: string) {
+  const existing = await prisma.airWaybillDocument.findUnique({ where: { id } });
+  const agent = await prisma.issuingAgent.findUnique({ where: { key: "ack" } });
+  if (!existing || existing.product !== "guia" || !agent) throw new Error("Waybill not found");
+  const awbPrefix = manualAwb.replace(/\D/g, "").slice(0, 3) || prefix.replace(/\D/g, "");
+  await assignDraftAwb({
+    documentId: id,
+    agentKey: agent.key,
+    manualAwb: manualAwb || null,
+    prefix,
+    data: await carrierData(agent, existing.destination, awbPrefix),
+  });
+}
+
+/** Reserves an AWB number for a draft now, so its drafts and labels already carry it. */
+export async function assignGuiaAwb(formData: FormData) {
+  await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  try {
+    await assignAwbTo(id, text(formData.get("manualAwb")), text(formData.get("prefix")));
+  } catch (error) {
+    redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorInSpanish(error))}`);
+  }
+  revalidatePath(`/guias/${id}`);
+  redirect(`/guias/${id}?assigned=1`);
+}
+
+/** Gives the number back to stock. Only a draft can do it. */
+export async function releaseGuiaAwb(formData: FormData) {
+  await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  try {
+    await releaseDraftAwb(id, "ack");
+  } catch (error) {
+    redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorInSpanish(error))}`);
+  }
+  revalidatePath(`/guias/${id}`);
+  redirect(`/guias/${id}?released=1`);
+}
+
 export async function issueGuia(formData: FormData) {
   const user = await requireGuiaTeam();
   const id = text(formData.get("id"));
@@ -264,8 +330,9 @@ export async function issueGuia(formData: FormData) {
   if (existing.agentKey !== "ack") redirect(`/guias/${id}?error=ACK%20TEAM%20LLC%20is%20the%20only%20issuer`);
   const agent = await prisma.issuingAgent.findUnique({ where: { key: "ack" } });
   if (!agent) redirect(`/guias/${id}?error=ACK%20TEAM%20LLC%20is%20the%20only%20issuer`);
-  const manual = text(formData.get("manualAwb"));
-  const prefix = text(formData.get("prefix"));
+  const assignedStock = existing.awb.trim() ? await prisma.awbStockNumber.findFirst({ where: { documentId: id, agentKey: "ack" } }) : null;
+  const manual = assignedStock ? "" : text(formData.get("manualAwb"));
+  const prefix = assignedStock ? assignedStock.prefix : text(formData.get("prefix"));
   const airlinePrefix = manual.replace(/\D/g, "").slice(0, 3) || prefix;
   const airline = /^\d{3}$/.test(airlinePrefix)
     ? await prisma.airlinePrefix.findUnique({ where: { prefix: airlinePrefix } })

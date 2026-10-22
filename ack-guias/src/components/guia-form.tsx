@@ -58,6 +58,7 @@ export function GuiaForm({
   truckerPhone = "",
   driverName = "",
   seal = "",
+  awbOptions = [],
 }: {
   mode: "new" | "edit";
   id?: string;
@@ -69,6 +70,8 @@ export function GuiaForm({
   truckerPhone?: string;
   driverName?: string;
   seal?: string;
+  /** Airline prefixes with the numbers left in stock. Only the new guía form offers them. */
+  awbOptions?: Array<{ prefix: string; airline: string; left: number }>;
 }) {
   const [paste, setPaste] = useState("");
   const [draft, setDraft] = useState(values);
@@ -284,6 +287,33 @@ export function GuiaForm({
           <Input id="seal" name="seal" defaultValue={seal} />
         </div>
       </section>
+      {mode === "new" ? (
+        <section className="space-y-3 rounded-md border border-border p-3">
+          <div>
+            <h2 className="font-display text-2xl">Asignar AWB ahora (opcional)</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Reserva el número del stock al guardar. El borrador de la guía, los labels y el Folder Label ya salen con ese número, y al emitir se usa el mismo.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="assignPrefix">Airline prefix stock</Label>
+              <select id="assignPrefix" name="assignPrefix" defaultValue="" className="block h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                <option value="">No asignar todavía</option>
+                {awbOptions.map((row) => (
+                  <option key={row.prefix} value={row.prefix}>
+                    {row.prefix} {row.airline} ({row.left} left)
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="assignAwb">O un número en stock</Label>
+              <Input id="assignAwb" name="assignAwb" placeholder="123-12345675" className="font-mono" />
+            </div>
+          </div>
+        </section>
+      ) : null}
       <Button type="submit">{mode === "new" ? "Save draft" : "Save guía"}</Button>
     </form>
   );
