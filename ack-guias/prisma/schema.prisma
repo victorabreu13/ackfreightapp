@@ -56,6 +56,7 @@ model IssuingAgent {
   stock         AwbStockNumber[]
   profile       CompanyProfile?
   guiaClients   GuiaClient[]
+  parties       GuiaParty[]
   agreedRates   ClientAgreedRate[]
   quickBooks    QuickBooksConnection?
 }
@@ -271,9 +272,33 @@ model GuiaClient {
   updatedAt      DateTime         @updatedAt
   guias          AirWaybillDocument[]
   agreedRates    ClientAgreedRate[]
+  parties        GuiaParty[]
 
   @@unique([agentKey, normalizedName])
   @@index([agentKey])
+}
+
+/// Address book: the shippers, consignees and notify parties a client ships with.
+/// Typing a name on a new guía searches this table, and every saved guía adds to it.
+model GuiaParty {
+  id             String        @id @default(cuid())
+  agentKey       String
+  agent          IssuingAgent  @relation(fields: [agentKey], references: [key], onDelete: Cascade)
+  guiaClientId   String?
+  guiaClient     GuiaClient?   @relation(fields: [guiaClientId], references: [id], onDelete: SetNull)
+  /// SHIPPER, CONSIGNEE or NOTIFY
+  role           String
+  name           String
+  normalizedName String
+  address        String?       @db.Text
+  phone          String?
+  email          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([agentKey, guiaClientId, role, normalizedName])
+  @@index([agentKey, role, normalizedName])
+  @@index([guiaClientId])
 }
 
 /// USD per chargeable kg. This is not the rate printed on the AWB face.

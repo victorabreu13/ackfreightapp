@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { GuiaLookupInput, type LookupType } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { GuiaValues } from "@/lib/guias/extract";
@@ -36,6 +37,14 @@ const FIELDS: Array<{ key: keyof GuiaValues; label: string; area?: boolean; hint
   },
   { key: "hawb", label: "HAWB (optional, on labels)" },
 ];
+
+/** Fields that search the directory while typing. Shippers and consignees also fill their address. */
+const LOOKUP: Partial<Record<keyof GuiaValues, { type: LookupType; addressKey?: keyof GuiaValues }>> = {
+  client: { type: "client" },
+  shipper: { type: "shipper", addressKey: "shipperAddress" },
+  consignee: { type: "consignee", addressKey: "consigneeAddress" },
+  notify: { type: "notify", addressKey: "notifyAddress" },
+};
 
 export function GuiaForm({
   mode,
@@ -159,6 +168,21 @@ export function GuiaForm({
                   value={draft[field.key]}
                   onChange={(event) => update(field.key, event.target.value)}
                   className={`w-full rounded-md border bg-background px-3 py-2 text-sm ${flagged ? "border-amber-500 bg-amber-50" : "border-input"}`}
+                />
+              ) : LOOKUP[field.key] ? (
+                <GuiaLookupInput
+                  id={field.key}
+                  name={field.key}
+                  type={LOOKUP[field.key]!.type}
+                  value={draft[field.key]}
+                  client={draft.client}
+                  onChange={(value) => update(field.key, value)}
+                  onPick={(item) => {
+                    update(field.key, item.name);
+                    const addressKey = LOOKUP[field.key]?.addressKey;
+                    if (addressKey && item.address) update(addressKey, item.address);
+                  }}
+                  className={flagged ? "border-amber-500 bg-amber-50" : ""}
                 />
               ) : (
                 <Input

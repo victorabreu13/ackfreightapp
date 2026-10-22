@@ -11,6 +11,8 @@ test("ACK Guías exposes guías, stock, and auth, and refuses the other product"
     "/guias/new",
     "/guias/documents",
     "/guias/templates",
+    "/guias/directory",
+    "/api/guias/lookup",
     "/api/guias/templates/awb",
     "/guias/settings",
     "/guias/clients",

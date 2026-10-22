@@ -13,6 +13,7 @@ import { loadCompany } from "@/lib/guias/company";
 import { guiaAwbFolder, publishRenderedPdf, saveDocumentLog } from "@/lib/guias/document-log";
 import { ensureGuiaClient, guiaBillToName } from "@/lib/guias/guia-client";
 import { type GuiaValues, type ReviewField } from "@/lib/guias/extract";
+import { rememberGuiaParties } from "@/lib/guias/parties";
 import { reviewFieldsToSave } from "@/lib/guias/review";
 import { GUIA_FILE_KINDS, guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
 
@@ -114,6 +115,15 @@ function documentData(values: GuiaValues, review: ReviewField[], snippets: Recor
   };
 }
 
+/** The directory is a convenience. A failure there never blocks saving the guía. */
+async function rememberParties(guiaClientId: string | null, values: GuiaValues) {
+  try {
+    await rememberGuiaParties("ack", guiaClientId, values);
+  } catch (error) {
+    console.error("guía directory", error);
+  }
+}
+
 export async function saveNewGuia(formData: FormData) {
   const user = await requireGuiaTeam();
   const values = valuesFromForm(formData);
@@ -141,6 +151,7 @@ export async function saveNewGuia(formData: FormData) {
       lines: { create: [lineData(values)] },
     },
   });
+  await rememberParties(billTo?.id ?? null, values);
   revalidatePath("/guias");
   redirect(`/guias/${created.id}`);
 }
@@ -168,6 +179,7 @@ export async function saveGuia(formData: FormData) {
       lines: { create: [lineData(values)] },
     },
   });
+  await rememberParties(billTo?.id ?? null, values);
   revalidatePath(`/guias/${id}`);
   redirect(`/guias/${id}?saved=1`);
 }
