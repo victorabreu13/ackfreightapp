@@ -278,7 +278,8 @@ test("Guías sheet documents match the original functions", async () => {
     assert.match(legText, /045-55219415/);
     assert.doesNotMatch(legText, /INBOUND /);
     assert.match(legText, /BOG/);
-    assert.match(legText, /Magaya Cargo System\. www\.magaya\.com/);
+    assert.match(legText, /www\.ackfreight\.com/);
+    assert.doesNotMatch(legText, /Magaya Cargo System|magaya\.com/);
     assert.match(legText, /MASTER WAY BILL NUMBER/);
     assert.match(pageInfo(legGuia), /Pages:\s+2/);
     assert.match(pageInfo(legGuia), /612 x 792/);
@@ -307,7 +308,7 @@ test("Guías sheet documents match the original functions", async () => {
     assert.match(kopeText, /DORAL, FL 33178\./);
     assert.match(kopeText, /UNITED STATES/);
     assert.match(kopeText, /Tel: \+1 \(786\) 719-0590, Fax: \+1 \(305\) 503-9451/);
-    assert.match(kopeText, /Magaya Cargo System\. www\.magaya\.com/);
+    assert.match(kopeText, /www\.ackfreight\.com/);
     assert.equal(imageWidths(kopeLeg).includes(440), false);
     assert.equal(imageWidths(kopeLeg).includes(1958), false);
     assert.match(pageInfo(kopeLeg), /612 x 792/);
@@ -329,7 +330,7 @@ test("Guías sheet documents match the original functions", async () => {
     assert.match(masterText, /045-55219415/);
     assert.match(masterText, /MIA/);
     assert.doesNotMatch(masterText, /INBOUND/);
-    assert.match(masterText, /Magaya Cargo System/);
+    assert.match(masterText, /www\.ackfreight\.com/);
     assert.match(pageInfo(masterGuia), /612 x 792/);
     assert.equal(imageWidths(masterGuia).includes(1958), true);
     assert.match(pdfText(sheetMaster), /KOPE LOGISTICS INC\./);
@@ -346,7 +347,7 @@ test("Guías sheet documents match the original functions", async () => {
     const missingOriginal = await labels(await loadedForGuia(missingRecord, company(), options), "leg");
     assert.match(pdfText(missing), /CONSIGNEE MISSING/);
     assert.match(pdfText(missing), /ACK TEAM LLC/);
-    assert.match(pdfText(missing), /Magaya Cargo System/);
+    assert.match(pdfText(missing), /www\.ackfreight\.com/);
     assert.match(pdfText(missingOriginal), /CONSIGNEE MISSING/);
     assert.match(pdfText(missingOriginal), /KOPE LOGISTICS INC\./);
     assert.match(contentStream(missing), /0\.7254901960784313 0\.10980392156862745 0\.10980392156862745 scn/);

@@ -162,7 +162,7 @@ export async function renderMagayaLabels(
     which === "leg" && loaded.awb !== awb ? `INBOUND ${loaded.awb}` : "",
   ].filter(Boolean).join("   ");
   const trackingText = `*${magayaTracking(awb)}*`;
-  const bar = { scale: 2, height: 10, includetext: false, paddingwidth: 0, paddingheight: 0 } as const;
+  const bar = { scale: 3, height: 16, includetext: false, paddingwidth: 0, paddingheight: 0 } as const;
   const trackingPng = await bwipjs.toBuffer({ bcid: "code39", text: magayaTracking(awb), ...bar });
   const logo = company.agentKey === "ack" ? companyLogo(company) : null;
   const name = headName(company);
@@ -188,7 +188,7 @@ export async function renderMagayaLabels(
       rule(doc, 3.76, 231.97, 607.72, 0.25);
       at(doc, "MASTER WAY BILL NUMBER", 15.12, 247.44, 10.88, "Helvetica", "#000000", 1.156);
       atCenter(doc, awb, 300, 274.44, 26.12);
-      doc.image(piecePng, 223, 342, { width: 149, height: 43 });
+      doc.image(piecePng, 118, 296, { width: 370, height: 116 });
 
       rule(doc, 3.26, 427.81, 606.96, 0.25);
       doc.save().moveTo(206.34, 427.81).lineTo(206.34, 513.33).moveTo(396.36, 427.81).lineTo(396.36, 513.33).lineWidth(0.25).strokeColor("#000000").stroke().restore();
@@ -201,12 +201,12 @@ export async function renderMagayaLabels(
       rule(doc, 3.76, 512.89, 607.72, 0.25);
 
       at(doc, "Tracking Number. (SystemID-Warehouse Receipt-ItemID)", 13.32, 527.04, 10.88, "Helvetica", "#000000", 1.156);
-      doc.image(trackingPng, 180, 534, { width: 238, height: 43 });
-      atCenter(doc, trackingText, 299, 591, 18, "Courier");
+      doc.image(trackingPng, 98, 536, { width: 410, height: 96 });
+      atCenter(doc, trackingText, 303, 662, 21, "Courier");
       rule(doc, 3.26, 690.68, 606.96, 0.25);
       at(doc, "NOTES", 15.36, 706.8, 10.88, "Helvetica", "#000000", 1.156);
       at(doc, notes, 15.36, 724, 12);
-      at(doc, "Magaya Cargo System. www.magaya.com", 19.56, 784.68, 10.88, "Helvetica", "#000000", 1.156);
+      atCenter(doc, "www.ackfreight.com", 306, 784.68, 11);
     }
   });
 }
