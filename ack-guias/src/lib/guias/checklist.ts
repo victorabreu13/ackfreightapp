@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import type { CompanyView } from "@/lib/guias/company-profile";
 import { companyLogo, plain } from "@/lib/guias/corte";
-import { hasLithiumUn, parseUnNumbers } from "@/lib/guias/dg";
+import { hasLithiumUn } from "@/lib/guias/dg";
 import type { GuiaPrintOptions, GuiaRecord } from "@/lib/guias/files";
 import { SECURITY_LETTER_COPIES } from "@/lib/guias/magaya-docs";
 import { formatFlightDate } from "@/lib/sheets/layout";

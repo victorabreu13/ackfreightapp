@@ -332,9 +332,16 @@ export default async function GuiaDetailPage({
               Printing as ACK TEAM LLC. Every file below is generated here.
             </p>
           </div>
-          <Button asChild>
-            <a href={`${fileBase}?kind=all`}>Todos los documentos</a>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {document.dgDeclarable && document.unNumbers ? (
+              <Button asChild variant="outline">
+                <Link href={`/guias/dg-labels?un=${encodeURIComponent(document.unNumbers)}&copies=${Math.max(1, pieces)}&guia=${document.id}`}>Labels DG ({document.unNumbers})</Link>
+              </Button>
+            ) : null}
+            <Button asChild>
+              <a href={`${fileBase}?kind=all`}>Todos los documentos</a>
+            </Button>
+          </div>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           {GUIA_FILE_KINDS.map((kind) => {
