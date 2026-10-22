@@ -106,6 +106,15 @@ Starts the Cloud SQL proxy, rewrites `DATABASE_URL` to `127.0.0.1` without print
 
 ## Optional Drive
 
+Uploads fail with `Drive is not configured` until both of these are set:
+
+- Secret `GOOGLE_DRIVE_SA_JSON`: the service account key JSON. It must contain `client_email` and `private_key`. The app asks Google for the `https://www.googleapis.com/auth/drive` scope.
+- Env `ACK_GUIAS_DRIVE_ROOT_ID`: the Drive folder id (the last path segment of the folder URL). Share that folder with the service account email as an Editor. On a Shared drive, add the service account as a Content manager.
+
+`ACK_GUIAS_DRIVE_FOLDER` is optional. When it is unset, files go in a child folder named `ACK Guías` unless the root folder already has that name. Set it to a blank value before deploy to put files directly in the root folder.
+
+Imported `driveFileId` and `driveUrl` values are the files already stored by Kope. The import does not copy bytes and does not move them into the ACK folder. The ACK service account can open those files only if Kope's folder is shared with it too.
+
 Share a Drive folder with the service account in `GOOGLE_DRIVE_SA_JSON`.
 
 ```bash
