@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
     serverActions: { bodySizeLimit: "32mb" },
     proxyClientMaxBodySize: "32mb",
   },
-  serverExternalPackages: ["exceljs", "@prisma/client", "pdfkit", "bwip-js", "bwip-js/node", "next-auth", "@auth/core", "google-auth-library"],
+  serverExternalPackages: ["exceljs", "@prisma/client", "pdfkit", "bwip-js", "bwip-js/node", "google-auth-library"],
 };
 
 export default nextConfig;
