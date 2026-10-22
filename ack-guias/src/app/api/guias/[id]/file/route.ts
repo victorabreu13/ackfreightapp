@@ -59,7 +59,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   try {
     const masterLabel = params.get("master") === "1";
     const pdf = await renderGuiaPdf(kind as GuiaFileKind, document, company, printOptions(masterLabel));
-    const base = guiaFileName(kind as GuiaFileKind, kind === "labels" && document.status !== "issued" ? labelAwb : document.awb, master, { masterLabel });
+    const base = guiaFileName(kind as GuiaFileKind, kind === "labels" && document.status !== "issued" ? labelAwb || document.awb : document.awb, master, { masterLabel });
     const fileName = draft ? `DRAFT ${base}` : base;
     // A draft print is not a final document, so it is not saved to Documentos or Drive.
     if (!draft) await recordPdf(document, kind, fileName, pdf, user.email);

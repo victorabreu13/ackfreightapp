@@ -291,7 +291,7 @@ export default async function GuiaDetailPage({
               <input type="hidden" name="draft" value="1" />
               <label className="space-y-1 text-sm">
                 <span className="text-muted-foreground">AWB number on the labels</span>
-                <input name="awb" required className="block h-10 rounded-md border border-input bg-background px-3 font-mono" placeholder="123-12345675" />
+                <input name="awb" required defaultValue={document.awb} className="block h-10 rounded-md border border-input bg-background px-3 font-mono" placeholder="123-12345675" />
               </label>
               <Button type="submit" variant="outline" size="lg">
                 Imprimir labels

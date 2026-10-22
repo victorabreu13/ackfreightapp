@@ -205,7 +205,8 @@ export async function renderGuiaPdf(kind: GuiaFileKind, document: GuiaRecord, co
     throw Object.assign(new Error("Issue the guía before printing the AWB or labels."), { status: 409 });
   }
   if (kind === "labels" && document.status !== "issued") {
-    const parsed = parseAwb(options.labelAwb ?? "");
+    // A draft that already carries an AWB number prints it. A typed number wins over it.
+    const parsed = parseAwb(options.labelAwb?.trim() || document.awb || "");
     if (!parsed) throw Object.assign(new Error("Enter the AWB number the labels will carry, like 123-12345675."), { status: 400 });
     if (!isValidSerial(parsed.serial)) {
       throw Object.assign(new Error(`${formatAwb(parsed.prefix, parsed.serial)} fails the mod-7 check digit.`), { status: 400 });

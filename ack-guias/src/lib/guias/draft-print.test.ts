@@ -58,6 +58,9 @@ test("the AWB and labels still wait for the number unless a draft is asked for",
 test("labels print before issuing when the AWB number is typed, and it must pass mod 7", async () => {
   const labels = await renderGuiaPdf("labels", draftGuia(), company, { ...options, draft: true, labelAwb: "045-55219415" });
   assert.equal(pages(labels), 2);
+  // A draft that already has its number prints it without typing it again.
+  const numbered = { ...draftGuia(), awb: "045-55219415", prefix: "045", serial: "55219415" } as GuiaRecord;
+  assert.equal(pages(await renderGuiaPdf("labels", numbered, company, { ...options, draft: true })), 2);
   const missing = await failure(renderGuiaPdf("labels", draftGuia(), company, { ...options, draft: true, labelAwb: "" }));
   assert.equal(missing.status, 400);
   const bad = await failure(renderGuiaPdf("labels", draftGuia(), company, { ...options, draft: true, labelAwb: "045-55219416" }));
