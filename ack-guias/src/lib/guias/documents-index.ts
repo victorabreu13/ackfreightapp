@@ -34,6 +34,8 @@ export type LoggedDocument = {
   driveFileId?: string | null;
   mime?: string | null;
   size?: number | null;
+  /** The file itself is saved in the database. */
+  stored?: boolean;
 };
 
 export function nyDay(date: Date): string {

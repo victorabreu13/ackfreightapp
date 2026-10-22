@@ -62,6 +62,7 @@ export default async function GuiaDocumentsPage({
     const logged = await prisma.guiaDocument.findMany({
       where: accountingCompany ? { company: { equals: accountingCompany, mode: "insensitive" } } : {},
       orderBy: { generatedAt: "desc" },
+      include: { file: { select: { documentId: true } } },
     });
     const indexed: LoggedDocument[] = logged.map((row) => ({
       id: row.id,
@@ -80,6 +81,7 @@ export default async function GuiaDocumentsPage({
       generatedAt: row.generatedAt,
       generatedBy: row.generatedBy,
       source: row.source,
+      stored: Boolean(row.file),
     }));
     clients = [...new Set(indexed.map((row) => row.client))].sort((left, right) => left.localeCompare(right));
     rows = filterLoggedDocuments(indexed, filters);
@@ -247,8 +249,13 @@ export default async function GuiaDocumentsPage({
                                 <td className="px-3 py-2">{formatNy(row.generatedAt)}</td>
                                 <td className="px-3 py-2">{row.generatedBy}</td>
                                 <td className="px-3 py-2">
-                                  <span className={row.status === "FAILED" ? "text-stuck" : undefined}>{row.status}</span>
-                                  {row.status === "FAILED" && row.error ? <span className="mt-1 block text-xs text-stuck">{row.error}</span> : null}
+                                  <span className={row.status === "FAILED" && !row.stored ? "text-stuck" : undefined}>{row.stored ? "SAVED" : row.status}</span>
+                                  {row.stored ? (
+                                    <span className="mt-1 block text-xs text-muted-foreground">{row.status === "UPLOADED" ? "Database + Drive" : "Database only"}</span>
+                                  ) : null}
+                                  {row.status === "FAILED" && row.error ? (
+                                    <span className="mt-1 block text-xs text-stuck">{row.stored ? `Drive backup pending: ${row.error}` : row.error}</span>
+                                  ) : null}
                                 </td>
                                 <td className="px-3 py-2">
                                   {row.driveUrl ? (
@@ -262,7 +269,7 @@ export default async function GuiaDocumentsPage({
                                 <td className="px-3 py-2">
                                   {row.source === "upload" ? (
                                     <div className="flex flex-col items-start gap-1">
-                                      {row.driveFileId ? (
+                                      {row.driveFileId || row.stored ? (
                                         <a className="underline-offset-2 hover:underline" href={`/api/guias/uploads/${row.id}`}>
                                           Descargar
                                         </a>
@@ -273,6 +280,16 @@ export default async function GuiaDocumentsPage({
                                         <DeleteUploadButton id={row.id} fileName={row.fileName} returnTo={pageHref(filters, page)} />
                                       ) : null}
                                     </div>
+                                  ) : row.stored ? (
+                                    <>
+                                      <a className="underline-offset-2 hover:underline" href={`/api/guias/documents/${row.id}/file`} target="_blank" rel="noreferrer">
+                                        Open
+                                      </a>
+                                      <span className="text-muted-foreground"> · </span>
+                                      <a className="underline-offset-2 hover:underline" href={`/api/guias/documents/${row.id}/file?download=1`}>
+                                        Download
+                                      </a>
+                                    </>
                                   ) : row.guiaId && row.source === "generated" ? (
                                     <>
                                       <a className="underline-offset-2 hover:underline" href={`/api/guias/${row.guiaId}/file?kind=${row.kind}`} target="_blank" rel="noreferrer">
@@ -286,7 +303,7 @@ export default async function GuiaDocumentsPage({
                                   ) : (
                                     <span className="text-muted-foreground">Imported file</span>
                                   )}
-                                  {row.status === "FAILED" && row.guiaId && row.source === "generated" && canManageGuias(user) ? (
+                                  {row.status === "FAILED" && (row.stored || (row.guiaId && row.source === "generated")) && canManageGuias(user) ? (
                                     <form action={retryGuiaDocument} className="mt-2">
                                       <input type="hidden" name="id" value={row.id} />
                                       <button type="submit" className="underline-offset-2 hover:underline">
@@ -294,7 +311,7 @@ export default async function GuiaDocumentsPage({
                                       </button>
                                     </form>
                                   ) : null}
-                                  {row.status === "FAILED" && admin && row.source === "import" ? (
+                                  {row.status === "FAILED" && admin && row.source === "import" && !row.stored ? (
                                     <form action={importGuiaDocument} className="mt-2 space-y-1">
                                       <input type="hidden" name="client" value={row.client} />
                                       <input type="hidden" name="awb" value={row.awb} />

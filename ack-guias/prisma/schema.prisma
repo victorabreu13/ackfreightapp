@@ -205,6 +205,7 @@ model GuiaDocument {
   source      String              @default("generated")
   mime        String?
   size        Int?
+  file        GuiaDocumentFile?
 
   @@index([client])
   @@index([awb])
@@ -213,6 +214,14 @@ model GuiaDocument {
   @@index([generatedAt])
   @@index([guiaId, kind])
   @@index([status])
+}
+
+/// The PDF or upload itself. Kept apart from GuiaDocument so listing documents never loads the bytes.
+model GuiaDocumentFile {
+  documentId String       @id
+  document   GuiaDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  bytes      Bytes
+  updatedAt  DateTime     @updatedAt
 }
 
 model AwbGoodsLine {

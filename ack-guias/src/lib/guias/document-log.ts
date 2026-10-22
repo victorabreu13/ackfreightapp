@@ -139,6 +139,8 @@ export type DocumentLogInput = LogIdentity & {
   driveUrl?: string | null;
   mime?: string | null;
   size?: number | null;
+  /** The file itself. Saved in the database so it survives a failed Drive copy. */
+  bytes?: Buffer | null;
 };
 
 export async function saveDocumentLog(input: DocumentLogInput) {
@@ -192,6 +194,14 @@ export async function saveDocumentLog(input: DocumentLogInput) {
             size: input.size ?? null,
           },
         });
+    if (input.bytes) {
+      const bytes = Uint8Array.from(input.bytes);
+      await tx.guiaDocumentFile.upsert({
+        where: { documentId: saved.id },
+        create: { documentId: saved.id, bytes },
+        update: { bytes },
+      });
+    }
     if (input.guiaId && input.source === "generated") {
       await tx.guiaDriveFile.upsert({
         where: { documentId_kind: { documentId: input.guiaId, kind: input.kind } },
@@ -219,6 +229,7 @@ async function sendToDrive(input: {
   awb: string;
   fileName: string;
   bytes: Buffer;
+  mime?: string | null;
   rootId?: string;
   libraryName?: string;
   fetchImpl?: DriveFetch;
@@ -226,6 +237,7 @@ async function sendToDrive(input: {
 }) {
   try {
     const uploaded = await uploadDrivePdf({
+      mime: input.mime ?? undefined,
       rootId: input.rootId ?? driveRootId(),
       libraryName: input.libraryName,
       clientName: input.client,
@@ -268,6 +280,9 @@ export async function publishRenderedPdf(input: {
     kind: input.kind,
     fileName: input.fileName,
     generatedBy: input.generatedBy,
+    bytes: input.bytes,
+    size: input.bytes.byteLength,
+    mime: "application/pdf",
     ...outcome,
   });
   return { ...outcome, id: saved.id };
@@ -301,7 +316,36 @@ export async function importGuiaPdf(input: {
     kind: input.kind,
     fileName: input.fileName,
     generatedBy: input.generatedBy,
+    bytes: input.bytes,
+    size: input.bytes.byteLength,
+    mime: "application/pdf",
     ...outcome,
   });
   return { ...outcome, id: saved.id, guiaId: guia?.id ?? null };
+}
+
+/** Sends the copy kept in the database to Drive again. Used by Retry when a Drive upload failed. */
+export async function backupStoredDocument(
+  id: string,
+  options: { rootId?: string; libraryName?: string; fetchImpl?: DriveFetch; serviceAccountJson?: string } = {},
+): Promise<{ ok: true; status: DocumentStatus; error: string | null } | { ok: false; error: string }> {
+  const row = await prisma.guiaDocument.findUnique({ where: { id }, include: { file: true } });
+  if (!row?.file) return { ok: false, error: "This document has no saved copy to send to Drive." };
+  const outcome = await sendToDrive({
+    client: row.client.trim() || "No client",
+    awb: row.awb.trim() || guiaAwbFolder("", row.guiaId ?? row.id),
+    fileName: row.fileName,
+    bytes: Buffer.from(row.file.bytes),
+    mime: row.mime,
+    ...options,
+  });
+  await prisma.guiaDocument.update({
+    where: { id },
+    data: {
+      status: outcome.status,
+      error: outcome.error,
+      ...(outcome.driveFileId ? { driveFileId: outcome.driveFileId, driveUrl: outcome.driveUrl } : {}),
+    },
+  });
+  return { ok: true, status: outcome.status, error: outcome.error };
 }

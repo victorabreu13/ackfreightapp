@@ -125,7 +125,9 @@ Share that Shared drive with `ack-guias-run@ack-guias.iam.gserviceaccount.com` a
 
 `ACK_GUIAS_DRIVE_FOLDER` is optional. When it is unset, files go in a child folder named `ACK Guías` unless the shared-drive root already has that name. Set it to a blank value before deploy to put files directly in the root.
 
-Uploads without `ACK_GUIAS_DRIVE_ROOT_ID` fail with `Drive is not configured`.
+Every generated PDF, import, and team upload is saved in the database first (`GuiaDocumentFile`), then copied to Drive as a backup under `ACK Guías / client / AWB`. Without Drive the document is still saved and shows `Database only` on Documentos, with the Drive error. Retry sends the saved copy to Drive again.
+
+Uploads without `ACK_GUIAS_DRIVE_ROOT_ID` do not reach Drive and report `Drive is not configured`.
 
 Imported `driveFileId` and `driveUrl` values are the files already stored by Kope. The import does not copy bytes and does not move them into the ACK Shared drive. Opening those files works when the Cloud Run service account can see them.
 

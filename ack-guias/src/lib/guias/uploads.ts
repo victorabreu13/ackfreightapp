@@ -53,6 +53,7 @@ export async function storeGuiaUpload(input: {
     generatedBy: input.uploadedBy,
     mime: input.mime,
     size: input.size,
+    bytes: input.bytes,
     ...outcome,
     error: outcome.status === "FAILED" ? uploadFailureMessage(outcome.error) : null,
   });

@@ -6,7 +6,7 @@ import { canManageGuias, isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { loadCompany } from "@/lib/guias/company";
-import { guiaAwbFolder, importGuiaPdf, parseImport, publishRenderedPdf } from "@/lib/guias/document-log";
+import { backupStoredDocument, guiaAwbFolder, importGuiaPdf, parseImport, publishRenderedPdf } from "@/lib/guias/document-log";
 import { guiaBillToName } from "@/lib/guias/guia-client";
 import { GUIA_FILE_KINDS, guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
 
@@ -50,6 +50,15 @@ export async function retryGuiaDocument(formData: FormData) {
   const id = text(formData.get("id"));
   const row = await prisma.guiaDocument.findUnique({ where: { id } });
   if (!row) documentsRedirect(`importError=${encodeURIComponent("Document not found")}`);
+  const stored = await prisma.guiaDocumentFile.findUnique({ where: { documentId: row.id }, select: { documentId: true } });
+  if (stored) {
+    const backup = await backupStoredDocument(row.id);
+    revalidatePath("/guias/documents");
+    if (!backup.ok || backup.status === "FAILED") {
+      documentsRedirect(`imported=failed&importError=${encodeURIComponent(backup.ok ? (backup.error ?? "Drive upload failed") : backup.error)}`);
+    }
+    documentsRedirect("retried=1");
+  }
   if (!row.guiaId || row.source !== "generated" || !GUIA_FILE_KINDS.includes(row.kind as GuiaFileKind)) {
     documentsRedirect(`importError=${encodeURIComponent("Upload that PDF again from Import")}`);
   }

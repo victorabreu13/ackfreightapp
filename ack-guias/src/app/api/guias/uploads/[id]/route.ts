@@ -14,15 +14,15 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     });
   }
   const { id } = await context.params;
-  const row = await prisma.guiaDocument.findUnique({ where: { id } });
-  if (!row || row.kind !== UPLOAD_KIND || row.source !== "upload" || !row.driveFileId || (isCompanyAccounting(user) && row.company.toLowerCase() !== (user.agentKey ?? "").toLowerCase())) {
+  const row = await prisma.guiaDocument.findUnique({ where: { id }, include: { file: true } });
+  if (!row || row.kind !== UPLOAD_KIND || row.source !== "upload" || (!row.file && !row.driveFileId) || (isCompanyAccounting(user) && row.company.toLowerCase() !== (user.agentKey ?? "").toLowerCase())) {
     return new NextResponse(uploadMissingPage(row?.guiaId ?? null), {
       status: 404,
       headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store" },
     });
   }
   try {
-    const bytes = await downloadDriveFile({ fileId: row.driveFileId });
+    const bytes = row.file ? Buffer.from(row.file.bytes) : await downloadDriveFile({ fileId: row.driveFileId ?? "" });
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
         "Content-Type": row.mime || "application/octet-stream",
