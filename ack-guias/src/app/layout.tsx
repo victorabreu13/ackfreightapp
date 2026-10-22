@@ -20,9 +20,11 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "ACK Guías",
+  applicationName: "ACK Freight App",
+  title: "ACK Freight App",
   description: "Air waybills for ACK TEAM LLC.",
   icons: { icon: "/brand-icon" },
+  appleWebApp: { capable: true, title: "ACK Freight App" },
   robots: { index: false, follow: false },
 };
 

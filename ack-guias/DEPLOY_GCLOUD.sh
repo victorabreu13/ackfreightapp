@@ -223,6 +223,8 @@ cmd_deploy() {
     --region="$REGION" \
     --update-env-vars="$env" \
     --quiet
+  echo "Applying database migrations."
+  cmd_migrate
   gcloud run services describe "$SERVICE" --region="$REGION" --project="$PROJECT_ID" --format='value(status.url)'
 }
 

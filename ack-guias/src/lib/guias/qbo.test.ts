@@ -40,11 +40,12 @@ function guia(overrides: Partial<DraftInvoiceInput> = {}): DraftInvoiceInput {
   };
 }
 
-test("a returning accounting user keeps that role and a new Google user is team", () => {
+test("sign-in keeps a listed role, rejects a new domain account, and forces admin emails", () => {
   const admins = new Set(["victor.abreu@ackfreight.com", "andres.alvarado@ackfreight.com"]);
   assert.equal(roleOnGoogleSignIn("ACCOUNTING", ACK_ACCOUNTING_EMAIL, admins), "ACCOUNTING");
-  assert.equal(roleOnGoogleSignIn(null, "new.person@ackfreight.com", admins), "TEAM");
-  assert.equal(roleOnGoogleSignIn(null, "andres.alvarado@ackfreight.com", admins), "ADMIN");
+  assert.equal(roleOnGoogleSignIn("OPERATIONS", "ops@ackfreight.com", admins), "OPERATIONS");
+  assert.equal(roleOnGoogleSignIn(null, "new.person@ackfreight.com", admins), null);
+  assert.equal(roleOnGoogleSignIn("VIEWER", "andres.alvarado@ackfreight.com", admins), "ADMIN");
   assert.equal(roleOnGoogleSignIn(null, "victor.abreu@ackfreight.com", admins), "ADMIN");
 });
 

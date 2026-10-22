@@ -9,8 +9,9 @@ datasource db {
 
 enum Role {
   ADMIN
-  TEAM
+  OPERATIONS
   ACCOUNTING
+  VIEWER
 }
 
 /// Google Workspace user. There is no password and no link to any other company's book.

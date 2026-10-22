@@ -7,7 +7,7 @@ import { getSessionUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "ACK Guías",
+  title: "ACK Freight App",
   icons: { icon: "/brand-icon" },
 };
 

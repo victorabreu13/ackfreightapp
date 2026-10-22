@@ -23,7 +23,7 @@ export default async function LoginPage({
         <div>
           <img src="/brand-icon" alt="" className="h-12 w-auto rounded-md bg-white object-contain px-2" />
           <p className="mt-8 text-xs uppercase tracking-[0.28em] text-white/60">ACK TEAM LLC</p>
-          <h1 className="mt-4 max-w-md font-display text-6xl leading-[0.95]">ACK Guías</h1>
+          <h1 className="mt-4 max-w-md font-display text-6xl leading-[0.95]">ACK Freight App</h1>
         </div>
         <p className="max-w-sm text-sm leading-6 text-white/75">
           Issue a master or house air waybill from airline stock, print the document set, and send a QuickBooks draft invoice.
@@ -33,8 +33,10 @@ export default async function LoginPage({
         <div className="w-full max-w-md space-y-8">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">ACK TEAM LLC</p>
-            <h1 className="font-display text-4xl">Sign in</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Google accounts on ackfreight.com.</p>
+            <h1 className="font-display text-4xl">ACK Freight App</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Sign in with Google. Only ackfreight.com accounts in ADMIN_EMAILS or added by an admin can enter.
+            </p>
           </div>
           {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">Sign-in did not complete.</p> : null}
           {google ? (

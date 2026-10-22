@@ -1,6 +1,6 @@
 export type GuiaBrand = "ack";
 
-const RESERVED_GUIA_PAGES = new Set(["new", "documents", "settings", "clients"]);
+const RESERVED_GUIA_PAGES = new Set(["new", "documents", "settings", "clients", "users"]);
 
 export function ackEmail(email: string | null | undefined): boolean {
   const normalized = (email ?? "").trim().toLowerCase();
@@ -18,7 +18,7 @@ export function guiaBrand(_input?: unknown): GuiaBrand {
 }
 
 export function brandTitle(_brand?: string): string {
-  return "ACK Guías";
+  return "ACK Freight App";
 }
 
 export function brandIconPath(_brand?: string): string {

@@ -5,22 +5,17 @@ import Google from "next-auth/providers/google";
 import type { SessionUser } from "@/lib/access";
 import { ACK_AGENT_KEY } from "@/lib/access";
 import { emailDomainAllowed, hostedDomainAllowed } from "@/lib/auth-domains";
-import { roleOnGoogleSignIn } from "@/lib/auth-role";
+import { adminEmailSet, devLoginAllowed, roleOnGoogleSignIn } from "@/lib/auth-role";
 import { prisma } from "@/lib/db";
 
 const ROLE_CACHE_MS = 60_000;
 const googleUserCache = new Map<string, { at: number; id: string; email: string; role: Role; name: string | null }>();
 
-function adminEmails() {
-  return new Set(
-    (process.env.ADMIN_EMAILS ?? "victor.abreu@ackfreight.com,andres.alvarado@ackfreight.com")
-      .split(",")
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
 const googleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+
+export function devLoginEnabled() {
+  return devLoginAllowed({ NODE_ENV: process.env.NODE_ENV, ENABLE_DEV_LOGIN: process.env.ENABLE_DEV_LOGIN });
+}
 
 function sessionCookies() {
   const secure = process.env.NODE_ENV === "production" || (process.env.AUTH_URL ?? "").startsWith("https://");
@@ -54,21 +49,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }),
         ]
       : []),
-    Credentials({
-      name: "Development login",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        devLogin: { label: "Dev login", type: "text" },
-      },
-      authorize: async (credentials) => {
-        if (credentials?.devLogin !== "1" || process.env.AUTH_DEV_LOGIN !== "true") return null;
-        const email = String(credentials.email ?? "").trim().toLowerCase();
-        if (!emailDomainAllowed(email)) return null;
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || !user.active) return null;
-        return { id: user.id, email: user.email, name: user.name, role: user.role, clientId: null, clientName: null };
-      },
-    }),
+    ...(devLoginEnabled()
+      ? [
+          Credentials({
+            name: "Development login",
+            credentials: {
+              email: { label: "Email", type: "email" },
+              devLogin: { label: "Dev login", type: "text" },
+            },
+            authorize: async (credentials) => {
+              if (credentials?.devLogin !== "1" || !devLoginEnabled()) return null;
+              const email = String(credentials.email ?? "").trim().toLowerCase();
+              if (!emailDomainAllowed(email)) return null;
+              const user = await prisma.user.findUnique({ where: { email } });
+              if (!user || !user.active) return null;
+              return { id: user.id, email: user.email, name: user.name, role: user.role, clientId: null, clientName: null };
+            },
+          }),
+        ]
+      : []),
   ],
   callbacks: {
     async signIn({ account, profile }) {
@@ -79,9 +78,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!email || !emailDomainAllowed(email)) return false;
       if (!hostedDomainAllowed(hostedDomain)) return false;
       if (verified === false) return false;
+      const admins = adminEmailSet();
       const existing = await prisma.user.findUnique({ where: { email } });
-      if (existing?.active === false) return false;
-      const role = roleOnGoogleSignIn(existing?.role, email, adminEmails());
+      if (existing?.active === false && !admins.has(email)) return false;
+      const role = roleOnGoogleSignIn(existing?.active === false ? null : existing?.role, email, admins);
+      if (!role) return false;
       const picture = typeof profile?.image === "string" ? profile.image : null;
       const name = typeof profile?.name === "string" ? profile.name : null;
       await prisma.user.upsert({
@@ -91,6 +92,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           image: picture ?? existing?.image,
           authProvider: "google",
           role,
+          active: true,
           accountingAgentKey: role === "ACCOUNTING" ? ACK_AGENT_KEY : null,
         },
         create: {
@@ -134,7 +136,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub ?? "";
-        session.user.role = (token.role as Role | undefined) ?? "TEAM";
+        session.user.role = (token.role as Role | undefined) ?? "VIEWER";
         session.user.clientId = null;
         session.user.clientName = null;
         if (token.email) session.user.email = token.email;
@@ -162,10 +164,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     clientName: null,
     agentKey: dbUser.role === "ACCOUNTING" ? ACK_AGENT_KEY : null,
   };
-}
-
-export function devLoginEnabled() {
-  return process.env.AUTH_DEV_LOGIN === "true";
 }
 
 export function googleLoginEnabled() {

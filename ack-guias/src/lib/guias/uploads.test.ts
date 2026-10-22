@@ -81,7 +81,7 @@ test("upload names, types, and delete rights", () => {
   const huge = acceptUpload({ name: "grande.xlsx", type: "", byteLength: MAX_UPLOAD_BYTES + 1 });
   assert.equal(huge.ok, false);
 
-  assert.equal(canDeleteGuiaUpload({ role: "TEAM", email: "ops@kopelogistics.com" }, "other@kopelogistics.com"), true);
+  assert.equal(canDeleteGuiaUpload({ role: "OPERATIONS", email: "ops@kopelogistics.com" }, "other@kopelogistics.com"), true);
   assert.equal(canDeleteGuiaUpload({ role: "ADMIN", email: "andres.alvarado@kopelogistics.com" }, "ops@kopelogistics.com"), true);
   assert.equal(canDeleteGuiaUpload({ role: "REP", email: "rep@kopelogistics.com" }, "rep@kopelogistics.com"), true);
   assert.equal(canDeleteGuiaUpload({ role: "REP", email: "rep@kopelogistics.com" }, "ops@kopelogistics.com"), false);
@@ -211,7 +211,7 @@ test("a guía keeps each uploaded file, even when the name looks like an AWB", {
 
     const removed = await deleteUploadedFile({
       id: photo.id,
-      actor: { role: "TEAM", email: "ops@kopelogistics.com" },
+      actor: { role: "OPERATIONS", email: "ops@kopelogistics.com" },
       fetchImpl: drive.fetchImpl,
       serviceAccountJson,
     });

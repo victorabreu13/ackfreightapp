@@ -3,10 +3,18 @@ export function isGuiasApp(): boolean {
   return true;
 }
 
-const RESERVED = new Set(["new", "documents", "settings", "clients"]);
+const RESERVED = new Set(["new", "documents", "settings", "clients", "users"]);
 
 export function isGuiasAllowed(pathname: string): boolean {
-  if (pathname === "/" || pathname === "/login" || pathname === "/brand-icon" || pathname === "/favicon.ico") return true;
+  if (
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname === "/brand-icon" ||
+    pathname === "/favicon.ico" ||
+    pathname === "/manifest.webmanifest"
+  ) {
+    return true;
+  }
   if (pathname === "/guias" || pathname.startsWith("/guias/")) return true;
   if (pathname === "/awb" || pathname === "/awb/stock") return true;
   if (pathname === "/api/guias" || pathname.startsWith("/api/guias/")) return true;

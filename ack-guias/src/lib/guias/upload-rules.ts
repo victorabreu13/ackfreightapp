@@ -50,9 +50,9 @@ export function formatBytes(size: number | null | undefined): string {
   return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
 }
 
-/** Delete is for the Kope team (TEAM or ADMIN) or the person who uploaded the file. */
+/** Delete is for Admin or Operations, or the person who uploaded the file. */
 export function canDeleteGuiaUpload(user: { role: string; email: string }, uploadedBy: string): boolean {
-  if (user.role === "ADMIN" || user.role === "TEAM") return true;
+  if (user.role === "ADMIN" || user.role === "OPERATIONS" || user.role === "TEAM") return true;
   const owner = uploadedBy.trim().toLowerCase();
   return Boolean(owner) && user.email.trim().toLowerCase() === owner;
 }

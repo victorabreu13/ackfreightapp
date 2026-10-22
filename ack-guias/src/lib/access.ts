@@ -18,16 +18,20 @@ export function isCompanyAccounting(user: SessionUser): boolean {
   return user.role === "ACCOUNTING" && user.agentKey === ACK_AGENT_KEY;
 }
 
+function isOperations(user: SessionUser): boolean {
+  return user.role === "OPERATIONS" || (user.role as string) === "TEAM";
+}
+
 export function isTeam(user: SessionUser): boolean {
-  return user.role === "ADMIN" || user.role === "TEAM";
+  return user.role === "ADMIN" || isOperations(user);
 }
 
 export function canManageGuias(user: SessionUser): boolean {
-  return user.role === "ADMIN" || user.role === "TEAM";
+  return user.role === "ADMIN" || isOperations(user);
 }
 
 export function canReadGuias(user: SessionUser): boolean {
-  return canManageGuias(user) || isCompanyAccounting(user);
+  return canManageGuias(user) || isCompanyAccounting(user) || user.role === "VIEWER";
 }
 
 export function canEditAgreedRate(user: SessionUser): boolean {
@@ -41,14 +45,13 @@ export function canInvoiceGuia(user: SessionUser, agentKey: string): boolean {
 }
 
 export function guiaWhere(user: SessionUser): Prisma.AirWaybillDocumentWhereInput {
-  if (canManageGuias(user)) return { product: "guia", agentKey: ACK_AGENT_KEY };
-  if (isCompanyAccounting(user)) return { product: "guia", agentKey: ACK_AGENT_KEY };
+  if (canReadGuias(user)) return { product: "guia", agentKey: ACK_AGENT_KEY };
   return { product: "guia", id: "__no_guia__" };
 }
 
 export function guiaVisible(user: SessionUser, guia: { agentKey: string }): boolean {
   if (guia.agentKey !== ACK_AGENT_KEY) return false;
-  return canManageGuias(user) || isCompanyAccounting(user);
+  return canReadGuias(user);
 }
 
 export function isAdmin(user: SessionUser): boolean {

@@ -21,6 +21,7 @@ export default async function GuiasPage({
   if (!user) return null;
   if (!canReadGuias(user)) redirect("/login");
   const accounting = isCompanyAccounting(user);
+  const readOnly = !canManageGuias(user);
   const params = await searchParams;
   const error = one(params, "error");
   let guias;
@@ -50,7 +51,9 @@ export default async function GuiasPage({
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             {accounting
               ? "Solo las guías de tu empresa. Puedes ver kilos cobrables, la tarifa acordada y los documentos."
-              : "Draft a guía from client instructions, issue a number from airline stock, and print the AWB, orders, letters, and labels."}
+              : readOnly
+                ? "Guías are read-only for this role."
+                : "Draft a guía from client instructions, issue a number from airline stock, and print the AWB, orders, letters, and labels."}
           </p>
         </div>
         {canManageGuias(user) ? (
@@ -62,7 +65,7 @@ export default async function GuiasPage({
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
       {guias.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-card px-4 py-10 text-sm text-muted-foreground">
-          {accounting ? "No hay guías de tu empresa." : "No guías yet. Nueva guía starts from a pasted email. A sheet arrival is not required."}
+          {accounting ? "No hay guías de tu empresa." : readOnly ? "No guías yet." : "No guías yet. Nueva guía starts from a pasted email. A sheet arrival is not required."}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card">

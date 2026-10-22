@@ -155,7 +155,7 @@ type Loaded = {
 };
 
 async function loadShipment(_shipmentId: string): Promise<Loaded> {
-  throw new Error("ACK Guías does not load shipment records.");
+  throw new Error("ACK Freight App does not load shipment records.");
 }
 
 async function airlineName(awb: string | null | undefined): Promise<string> {

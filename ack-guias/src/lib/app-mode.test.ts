@@ -23,6 +23,8 @@ test("ACK Guías exposes guías, stock, and auth, and refuses the other product"
     "/api/auth/callback/google",
     "/login",
     "/brand-icon",
+    "/manifest.webmanifest",
+    "/guias/users",
   ]) {
     assert.equal(isGuiasAllowed(path), true, path);
   }

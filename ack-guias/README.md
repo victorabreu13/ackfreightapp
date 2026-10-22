@@ -1,4 +1,4 @@
-# ACK Guías
+# ACK Freight App
 
 Standalone air waybill app for **ACK TEAM LLC**. It issues MAWB and HAWB documents, labels, and the document pack (CCSF, CCSP, delivery order, lithium letter, pickup order, TSA), stores per-guía uploads, keeps clients with an agreed rate per chargeable kilogram, tracks AWB stock with the mod-7 check digit, and can create a QuickBooks Online draft invoice.
 
@@ -12,7 +12,7 @@ The only issuer is ACK TEAM LLC.
 | Address | 6550 NW 97th Ave Suite 220, Doral FL 33178 |
 | Signature | ACK TEAM LLC AS AGENT FOR CARRIER |
 
-Google sign-in is limited to the `ackfreight.com` Workspace domain. `ADMIN_EMAILS` defaults to `victor.abreu@ackfreight.com` and `andres.alvarado@ackfreight.com`. A new Google user is TEAM. An existing ACCOUNTING user stays a bookkeeper for ACK only.
+Google sign-in is limited to the `ackfreight.com` Workspace domain, and only to addresses in `ADMIN_EMAILS` or added on Usuarios. `ADMIN_EMAILS` defaults to `victor.abreu@ackfreight.com` and `andres.alvarado@ackfreight.com` and those accounts are always Admin. Roles are Admin, Operations, Accounting, and Viewer. Accounting can invoice and open guías read-only. The migration seeds `xiomara.viloria@ackfreight.com` as Accounting.
 
 GCP project `ack-guias` (number `711303341686`), region `us-east1`.
 
@@ -25,7 +25,7 @@ pnpm exec prisma migrate dev
 pnpm dev
 ```
 
-The app listens on port 43123. Copy `.env.example` to `.env`. Leave `AUTH_DEV_LOGIN` unset unless you are on a machine that is not Cloud Run.
+The app listens on port 43123. Copy `.env.example` to `.env`. Development sign-in is available when `NODE_ENV` is not production. Leave `ENABLE_DEV_LOGIN` unset on Cloud Run.
 
 ## Cloud Shell, in this order
 
@@ -58,9 +58,11 @@ cd ack-guias
 bash DEPLOY_GCLOUD.sh deploy
 ```
 
-`deploy` prints the service URL. Sign-in redirect is `{service url}/api/auth/callback/google`.
+`deploy` updates the service, then runs database migrations, then prints the service URL. Sign-in redirect is `{service url}/api/auth/callback/google`.
 
 ### 3. migrate
+
+`deploy` already runs this. Use it alone only when you need to migrate the current image again:
 
 ```bash
 cd ack-guias
@@ -94,9 +96,9 @@ Starts the Cloud SQL proxy, rewrites `DATABASE_URL` to `127.0.0.1` without print
 ## OAuth client in the ack-guias console
 
 1. Open [Google Cloud Console](https://console.cloud.google.com/) and select project **ack-guias** (711303341686).
-2. APIs & Services → OAuth consent screen. User type Internal if the Workspace allows it. App name **ACK Guías**. Support email an `@ackfreight.com` address.
+2. APIs & Services → OAuth consent screen. User type Internal if the Workspace allows it. App name **ACK Freight App**. Support email an `@ackfreight.com` address.
 3. APIs & Services → Credentials → Create credentials → OAuth client ID → Web application.
-4. Name: `ACK Guías`.
+4. Name: `ACK Freight App`.
 5. Authorized JavaScript origins: `https://<cloud run url>` (the URL from `deploy`, no path).
 6. Authorized redirect URIs: `https://<cloud run url>/api/auth/callback/google`.
 7. Create. Copy the client id and secret into Secret Manager with the `read -s` commands above. Do not commit them.

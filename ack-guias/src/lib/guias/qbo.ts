@@ -174,7 +174,7 @@ export function draftInvoiceBody(plan: Extract<InvoicePlan, { ok: true }>, custo
   return {
     CustomerRef: { value: customerId },
     EmailStatus: "NotSet" as const,
-    PrivateNote: "Borrador creado desde ACK Guías. No se envía por correo.",
+    PrivateNote: "Borrador creado desde ACK Freight App. No se envía por correo.",
     Line: [
       {
         Amount: plan.amount,

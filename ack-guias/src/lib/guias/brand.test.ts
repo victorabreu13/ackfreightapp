@@ -9,10 +9,11 @@ test("ACK Guías wears only the ACK mark", () => {
   assert.equal(ackEmail("ops@mail.ackfreight.com"), false);
   assert.equal(userBrand(), "ack");
   assert.equal(guiaBrand(), "ack");
-  assert.equal(brandTitle(), "ACK Guías");
+  assert.equal(brandTitle(), "ACK Freight App");
   assert.equal(brandIconPath(), "/brand-icon");
   assert.equal(guiaIdFromPath("/guias/abc"), "abc");
   assert.equal(guiaIdFromPath("/guias/new"), null);
+  assert.equal(guiaIdFromPath("/guias/users"), null);
   assert.equal(documentsCompanyFromRequest("/guias/documents"), "ack");
   assert.equal(documentsCompanyFromRequest("/guias"), null);
 });

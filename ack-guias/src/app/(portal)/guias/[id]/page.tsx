@@ -6,7 +6,7 @@ import { GuiaForm } from "@/components/guia-form";
 import { GuiaUploads } from "@/components/guia-uploads";
 import { MigrationPending } from "@/components/migration-pending";
 import { Button } from "@/components/ui/button";
-import { canEditAgreedRate, canInvoiceGuia, canReadGuias, guiaWhere, isCompanyAccounting } from "@/lib/access";
+import { canEditAgreedRate, canInvoiceGuia, canManageGuias, canReadGuias, guiaWhere } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { loadCompany } from "@/lib/guias/company";
@@ -138,7 +138,7 @@ export default async function GuiaDetailPage({
     qboInvoiceId: document.qboInvoiceId,
     qboDocNumber: document.qboDocNumber,
   };
-  if (isCompanyAccounting(user)) {
+  if (!canManageGuias(user)) {
     const uploadNotice = one(query, "upload") === "ok" ? "Archivos guardados en la guía." : one(query, "invoiced") ? "Factura guardada." : one(query, "qbo") ? "Factura creada en QuickBooks." : one(query, "rate") ? "Tarifa guardada." : null;
     return (
       <GuiaAccountingView
