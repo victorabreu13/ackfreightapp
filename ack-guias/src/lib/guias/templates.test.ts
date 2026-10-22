@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { GUIA_FILE_KINDS, renderGuiaPdf } from "@/lib/guias/files";
 import type { CompanyView } from "@/lib/guias/company-profile";
-import { guiaTemplates, isTemplateKind, sampleGuia, samplePrintOptions } from "@/lib/guias/templates";
+import { guiaTemplates, isTemplateKind, sampleGuia, samplePrintOptions, templateFileName } from "@/lib/guias/templates";
 
 const company: CompanyView = {
   agentKey: "ack",
@@ -38,4 +38,11 @@ test("every template draws a PDF from the sample guía", async () => {
     const pdf = await renderGuiaPdf(kind, sampleGuia(), company, samplePrintOptions("team@ackfreight.com", "Team"));
     assert.equal(pdf.subarray(0, 5).toString("latin1"), "%PDF-", kind);
   }
+});
+
+test("template downloads are named by what they print", () => {
+  assert.equal(templateFileName("ccsp"), "TEMPLATE-ccsf.pdf");
+  assert.equal(templateFileName("ccsf-alternate"), "TEMPLATE-ccsp.pdf");
+  assert.equal(templateFileName("awb"), "TEMPLATE-awb.pdf");
+  assert.equal(templateFileName("tsa-unknown"), "TEMPLATE-tsa-unknown.pdf");
 });

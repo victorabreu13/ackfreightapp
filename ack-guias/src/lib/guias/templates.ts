@@ -63,6 +63,12 @@ const INFO: Record<GuiaFileKind, { purpose: string; format: string; needs: strin
 
 export const SAMPLE_AWB = "045-55219415";
 
+/** Download name of a template. The internal kinds ccsp and ccsf-alternate are swapped, so name them by what they print. */
+export function templateFileName(kind: GuiaFileKind): string {
+  const label = kind === "ccsp" ? "ccsf" : kind === "ccsf-alternate" ? "ccsp" : kind;
+  return `TEMPLATE-${label}.pdf`;
+}
+
 export function isTemplateKind(value: string): value is GuiaFileKind {
   return GUIA_FILE_KINDS.some((kind) => kind === value);
 }
