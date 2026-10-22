@@ -59,6 +59,11 @@ const INFO: Record<GuiaFileKind, { purpose: string; format: string; needs: strin
     format: "Letter",
     needs: "Nothing extra.",
   },
+  "folder-label": {
+    purpose: "Folder label, 4 x 6 in portrait: MAWB, the AWB number and the route, like MIA-GUA. Printed on its own.",
+    format: "4 x 6 in portrait",
+    needs: "The guía must have its AWB number.",
+  },
   labels: {
     purpose: "Magaya cargo labels, one per piece.",
     format: "One label page per piece",

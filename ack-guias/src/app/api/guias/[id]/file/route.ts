@@ -4,7 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { loadCompany } from "@/lib/guias/company";
 import { guiaAwbFolder, publishRenderedPdf } from "@/lib/guias/document-log";
-import { GUIA_FILE_KINDS, guiaFileName, renderGuiaPdf, type GuiaFileKind, type GuiaPrintOptions, type GuiaRecord } from "@/lib/guias/files";
+import { GUIA_FILE_KINDS, PRINT_SEPARATELY, guiaFileName, renderGuiaPdf, type GuiaFileKind, type GuiaPrintOptions, type GuiaRecord } from "@/lib/guias/files";
 import type { CompanyView } from "@/lib/guias/company-profile";
 import { draftPrintPage } from "@/lib/guias/draft-print-page";
 import { guiaBillToName } from "@/lib/guias/guia-client";
@@ -111,6 +111,7 @@ async function packGuia(
   const files: Array<{ name: string; data: Buffer }> = [];
   const errors: string[] = [];
   for (const item of GUIA_FILE_KINDS) {
+    if (PRINT_SEPARATELY.includes(item)) continue;
     try {
       const pdf = await renderGuiaPdf(item, document, company, printOptions(false));
       const fileName = guiaFileName(item, document.awb, master);

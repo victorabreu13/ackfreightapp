@@ -350,7 +350,7 @@ export default async function GuiaDetailPage({
             const saved = document.driveFiles.find((file) => file.kind === kind && (file.driveUrl || file.driveFileId));
             const href = `${fileBase}?kind=${kind}`;
             const masterAwb = "";
-            const needsIssue = (kind === "awb" || kind === "labels") && document.status !== "issued";
+            const needsIssue = ((kind === "awb" || kind === "labels") && document.status !== "issued") || (kind === "folder-label" && !document.awb);
             const needsTrucker = (kind === "delivery" || kind === "pickup") && !document.truckerName?.trim();
             const note = needsIssue ? "Emite la guía primero" : needsTrucker ? "Enter a trucker and save" : saved ? "On Drive" : "Ready";
             return (
@@ -391,7 +391,7 @@ export default async function GuiaDetailPage({
           })}
         </div>
         <p className="text-xs text-muted-foreground">
-          Todos los documentos downloads one zip: the 12-page AWB, delivery order, pickup order, TSA letter with the company logo, TSA unknown-shipper letter, CCSF certificate, CCSP certification, lithium battery letter, and Magaya labels. ACK prints the ACK logo and letterhead. Delivery and pickup need a trucker. The AWB and labels wait until the number is issued. Opening a file also uploads it to Drive under ACK Guías / client / AWB.
+          Todos los documentos downloads one zip: the shipment checklist, the 12-page AWB, delivery order, pickup order, TSA letter with the company logo, TSA unknown-shipper letter, CCSF certificate, CCSP certification and the lithium battery letter. ACK prints the ACK logo and letterhead. Delivery and pickup need a trucker. The AWB and labels wait until the number is issued. The cargo labels and the folder label are printed on their own and are not in that zip. Opening a file also uploads it to Drive under ACK Guías / client / AWB.
         </p>
         {profileGaps.length ? (
           <ul className="space-y-1 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">

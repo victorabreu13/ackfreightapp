@@ -14,6 +14,7 @@ export const GUIA_FILE_LABELS: Record<GuiaFileKind, string> = {
   "ccsf-alternate": "CCSP certification",
   lithium: "Lithium battery letter",
   labels: "Magaya labels",
+  "folder-label": "Folder label",
 };
 
 export const UPLOAD_LABEL = "Archivo";

@@ -6,6 +6,7 @@ import { deliveryOrder, type DocumentOptions } from "@/lib/sheets/documents";
 import { tsaUnknownLetter, type ExtraLetter } from "@/lib/sheets/extra-letters";
 import { formatAwb, isValidSerial, parseAwb } from "@/lib/awb/number";
 import { renderChecklist } from "@/lib/guias/checklist";
+import { renderFolderLabel } from "@/lib/guias/folder-label";
 import { guiaBillToName } from "@/lib/guias/guia-client";
 import { identityFor, kopeIdentity, normalizeTrucker, signerName } from "@/lib/sheets/layout";
 
@@ -29,8 +30,11 @@ export type GuiaPrintOptions = {
   labelAwb?: string | null;
 };
 
-export const GUIA_FILE_KINDS = ["checklist", "awb", "delivery", "pickup", "tsa", "tsa-unknown", "ccsp", "ccsf-alternate", "lithium", "labels"] as const;
+export const GUIA_FILE_KINDS = ["checklist", "awb", "delivery", "pickup", "tsa", "tsa-unknown", "ccsp", "ccsf-alternate", "lithium", "labels", "folder-label"] as const;
 export type GuiaFileKind = (typeof GUIA_FILE_KINDS)[number];
+
+/** Labels are printed on their own, never with the document pack. */
+export const PRINT_SEPARATELY: readonly GuiaFileKind[] = ["labels", "folder-label"];
 
 type SheetLoaded = Parameters<typeof deliveryOrder>[0];
 
@@ -40,6 +44,7 @@ export function guiaFileName(kind: GuiaFileKind, awb = "", master = "", extras?:
   const number = awb.trim() || "DRAFT";
   const masterNumber = master.trim() || number;
   if (kind === "checklist") return `CHECKLIST ${number}.pdf`;
+  if (kind === "folder-label") return `FOLDER LABEL ${number}.pdf`;
   if (kind === "awb") return `${number} - GUIA MADRE.pdf`;
   if (kind === "delivery") return `DO-${number}.pdf`;
   if (kind === "pickup") return `PICKUP ORDER ${masterNumber}.pdf`;
@@ -220,6 +225,7 @@ export async function renderGuiaPdf(kind: GuiaFileKind, document: GuiaRecord, co
     throw Object.assign(new Error("Enter a trucker before this document."), { status: 400 });
   }
   if (kind === "checklist") return renderChecklist(document, company, options);
+  if (kind === "folder-label") return renderFolderLabel(document, company, options);
   if (kind === "awb") return renderCorteAwb(document, company, options);
   if (kind === "delivery") return renderCorteDo(document, company, options);
   if (kind === "tsa") return renderCorteTsa(document, company, options);
