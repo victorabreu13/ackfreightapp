@@ -12,6 +12,7 @@ const BADGE: Record<string, string> = {
 };
 
 export function flightStatusLabel(status: string | null): string {
+  if (status === null) return "Sin revisar";
   return isFlightStatus(status) ? FLIGHT_STATUS_LABEL[status] : "Sin información";
 }
 
