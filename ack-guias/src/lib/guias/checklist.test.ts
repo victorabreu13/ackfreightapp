@@ -6,7 +6,7 @@ import { GUIA_FILE_KINDS, guiaFileName } from "@/lib/guias/files";
 const base = { awb: "045-55219415", bup: false, dangerousGoods: false, unNumbers: "", goods: "GENERAL CARGO", hasTrucker: true };
 const titles = (input: Parameters<typeof checklistRows>[0]) => checklistRows(input).map((row) => row.title);
 
-test("the CCSP and the CCSF are always on the checklist, in the order the team collects the documents", () => {
+test("the CCSP and the CCSF are always on the checklist, and the ULD Distribution only for a BUP, in the order the team collects the documents", () => {
   assert.deepEqual(titles(base), [
     "Air Waybill (12 pages)",
     "CCSP certification (ACK)",
@@ -15,7 +15,16 @@ test("the CCSP and the CCSF are always on the checklist, in the order the team c
     "Delivery order (DO)",
     "Commercial invoice or manifest",
   ]);
-  assert.deepEqual(titles({ ...base, bup: true }), titles(base));
+  const bup = titles({ ...base, bup: true });
+  assert.deepEqual(bup, [
+    "Air Waybill (12 pages)",
+    "CCSP certification (ACK)",
+    "CCSF certificate (Kope)",
+    "TSA letter",
+    "ULD Distribution",
+    "Delivery order (DO)",
+    "Commercial invoice or manifest",
+  ]);
   const notes = checklistRows({ ...base, bup: true }).filter((row) => /CCS/.test(row.title)).map((row) => row.note);
   assert.ok(notes.every((note) => note.startsWith("BUP.")));
 });

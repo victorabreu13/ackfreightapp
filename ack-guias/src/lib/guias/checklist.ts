@@ -26,8 +26,8 @@ export type ChecklistInput = {
 
 /**
  * The documents a shipment needs, in the order the team collects them. The lithium letter is listed only when the
- * shipment has lithium batteries and the DGD only when the guía declares dangerous goods. The CCSF and the CCSP are
- * always listed. Labels are printed apart and are not on the checklist.
+ * shipment has lithium batteries, the DGD only when the guía declares dangerous goods and the ULD Distribution only
+ * for a BUP. The CCSF and the CCSP are always listed. Labels are printed apart and are not on the checklist.
  */
 export function checklistRows(input: ChecklistInput): ChecklistRow[] {
   const sectionII = isLithiumPi(input.lithiumPi);
@@ -57,6 +57,9 @@ export function checklistRows(input: ChecklistInput): ChecklistRow[] {
     { source: "auto", title: "CCSP certification (ACK)", note: input.bup ? `BUP. ${SECURITY_LETTER_COPIES} copies` : "If the shipment is a BUP" },
     { source: "auto", title: "CCSF certificate (Kope)", note: input.bup ? `BUP. ${SECURITY_LETTER_COPIES} copies` : "If the shipment is a BUP" },
     { source: "auto", title: "TSA letter", note: "Known or unknown shipper letter, as it applies" },
+  );
+  if (input.bup) rows.push({ source: "paper", title: "ULD Distribution", note: "BUP. The build-up of the ULD" });
+  rows.push(
     { source: "auto", title: "Delivery order (DO)", note: input.hasTrucker ? "Trucker entered" : "Enter the trucker first" },
     { source: "paper", title: "Commercial invoice or manifest", note: "If the client provides it" },
   );
