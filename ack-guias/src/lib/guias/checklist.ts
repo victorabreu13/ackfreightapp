@@ -25,49 +25,40 @@ export type ChecklistInput = {
 };
 
 /**
- * The documents a shipment needs. The CCSF and the CCSP are listed only for a BUP, and the DG papers only
- * when the guía declares dangerous goods.
+ * The documents a shipment needs, in the order the team collects them. The lithium letter is listed only when the
+ * shipment has lithium batteries and the DGD only when the guía declares dangerous goods. The CCSF and the CCSP are
+ * always listed. Labels are printed apart and are not on the checklist.
  */
 export function checklistRows(input: ChecklistInput): ChecklistRow[] {
   const sectionII = isLithiumPi(input.lithiumPi);
   const lithium = sectionII || hasLithiumUn(input.unNumbers) || /lithium|litio/i.test(input.goods);
   const rows: ChecklistRow[] = [
-    { source: "auto", title: "Air Waybill (12 pages)", note: input.awb ? `Number ${input.awb}` : "Issue the guía to get the number" },
-    { source: "separate", title: "Cargo labels, one per piece", note: input.awb ? "Print separately. They carry the AWB number" : "Print separately. Issue the guía first, or use a draft" },
-    { source: "separate", title: "Folder label", note: input.awb ? "Print separately, 4 x 6 portrait" : "Print separately once it has the AWB number" },
-    { source: "auto", title: "Delivery order (DO)", note: input.hasTrucker ? "Trucker entered" : "Enter the trucker first" },
-    { source: "auto", title: "Pickup order", note: input.hasTrucker ? "Trucker entered" : "Enter the trucker first" },
-    { source: "auto", title: "TSA letter, known shipper", note: "Use this one or the unknown shipper letter, as it applies" },
-    { source: "auto", title: "TSA letter, unknown shipper", note: "Use this one or the known shipper letter, as it applies" },
+    {
+      source: "auto",
+      title: "Air Waybill (12 pages)",
+      note: input.awb ? `Number ${input.awb}` : "Issue the guía to get the number",
+    },
   ];
-  if (input.bup) {
-    rows.push(
-      { source: "auto", title: "CCSF certificate (Kope)", note: `BUP. ${SECURITY_LETTER_COPIES} copies` },
-      { source: "auto", title: "CCSP certification (ACK)", note: `BUP. ${SECURITY_LETTER_COPIES} copies` },
-    );
-  }
-  if (lithium) rows.push({ source: "auto", title: "Lithium battery letter", note: "Lithium batteries in the shipment" });
-  if (sectionII) {
-    rows.push(
-      { source: "paper", title: "Lithium battery mark on each package (Section II)", note: "No DGD and no hazard label for Section II" },
-      { source: "auto", title: `AWB Handling Information: ${lithiumSectionIIStatement(input.lithiumPi)}`, note: "Printed on the AWB automatically" },
-    );
+  if (lithium) {
+    rows.push({
+      source: "auto",
+      title: "Lithium battery letter",
+      note: sectionII ? `${lithiumSectionIIStatement(input.lithiumPi)}. No DGD for Section II` : "Lithium batteries in the shipment",
+    });
   }
   if (input.dangerousGoods) {
-    rows.push(
-      {
-        source: "paper",
-        title: "Shipper's Declaration for Dangerous Goods (DGD)",
-        note: "Two completed and signed copies from the shipper",
-      },
-      { source: "paper", title: "DG hazard labels and package markings", note: "Match the UN numbers. Use the Labels DG tab" },
-      { source: "auto", title: "AWB Handling Information: Dangerous Goods as per associated DGD", note: "Printed on the AWB automatically" },
-    );
+    rows.push({
+      source: "paper",
+      title: "Shipper's Declaration for Dangerous Goods (DGD)",
+      note: "Two completed and signed copies from the shipper. Handling Information prints Dangerous Goods as per associated DGD",
+    });
   }
   rows.push(
-    { source: "paper", title: "Client instructions / Shipper's Letter of Instruction", note: "Shipper" },
-    { source: "paper", title: "Commercial invoice and packing list", note: "If the client provides them" },
-    { source: "paper", title: "AES ITN or the NO EEI exemption", note: "ITN goes in Handling Information; blank prints NO EEI REQ 30.37(a)" },
+    { source: "auto", title: "CCSP certification (ACK)", note: input.bup ? `BUP. ${SECURITY_LETTER_COPIES} copies` : "If the shipment is a BUP" },
+    { source: "auto", title: "CCSF certificate (Kope)", note: input.bup ? `BUP. ${SECURITY_LETTER_COPIES} copies` : "If the shipment is a BUP" },
+    { source: "auto", title: "TSA letter", note: "Known or unknown shipper letter, as it applies" },
+    { source: "auto", title: "Delivery order (DO)", note: input.hasTrucker ? "Trucker entered" : "Enter the trucker first" },
+    { source: "paper", title: "Commercial invoice or manifest", note: "If the client provides it" },
   );
   return rows;
 }
