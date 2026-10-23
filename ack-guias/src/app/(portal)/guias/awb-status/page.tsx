@@ -155,7 +155,7 @@ export default async function AwbStatusPage({ searchParams }: { searchParams: Pr
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <FlightBadge status={guia.flightStatus} />
+                    <FlightBadge status={guia.flightStatus} checked={Boolean(guia.flightCheckedAt)} />
                     <a
                       href={`/api/guias/${guia.id}/file?kind=awb`}
                       target="_blank"
@@ -178,7 +178,11 @@ export default async function AwbStatusPage({ searchParams }: { searchParams: Pr
                 {times ? <p className="text-sm text-muted-foreground">{times}</p> : null}
                 <FlightHistory events={guia.events} />
                 <p className="text-xs text-muted-foreground">
-                  {guia.flightCheckedAt ? `Revisado ${flightStamp(guia.flightCheckedAt)}` : guia.flightNumber ? "Todavía no se ha revisado" : "Sin número de vuelo en la guía"}
+                  {guia.flightCheckedAt
+                    ? `Revisado ${flightStamp(guia.flightCheckedAt)}${guia.flightStatus ? "" : ". El servicio de vuelos todavía no tiene este vuelo; se vuelve a intentar solo."}`
+                    : guia.flightNumber
+                      ? "Todavía no se ha revisado"
+                      : "Sin número de vuelo en la guía"}
                 </p>
               </li>
             );

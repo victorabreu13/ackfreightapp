@@ -53,7 +53,7 @@ export default async function CustomerPortalPage() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <FlightBadge status={guia.flightStatus} />
+                    <FlightBadge status={guia.flightStatus} checked={Boolean(guia.flightCheckedAt)} />
                     <a
                       href={`/api/guias/portal/awb/${guia.id}`}
                       target="_blank"

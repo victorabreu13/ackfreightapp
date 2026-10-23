@@ -11,13 +11,14 @@ const BADGE: Record<string, string> = {
   UNKNOWN: "bg-slate-100 text-slate-700",
 };
 
-export function flightStatusLabel(status: string | null): string {
-  if (status === null) return "Sin revisar";
+/** `checked` is true when the flight was looked up already. A flight the source does not know says so, not "Sin revisar". */
+export function flightStatusLabel(status: string | null, checked = false): string {
+  if (status === null) return checked ? "Sin información" : "Sin revisar";
   return isFlightStatus(status) ? FLIGHT_STATUS_LABEL[status] : "Sin información";
 }
 
-export function FlightBadge({ status }: { status: string | null }) {
-  return <span className={`rounded-full px-3 py-1 text-sm font-medium ${BADGE[status ?? "UNKNOWN"] ?? BADGE.UNKNOWN}`}>{flightStatusLabel(status)}</span>;
+export function FlightBadge({ status, checked = false }: { status: string | null; checked?: boolean }) {
+  return <span className={`rounded-full px-3 py-1 text-sm font-medium ${BADGE[status ?? "UNKNOWN"] ?? BADGE.UNKNOWN}`}>{flightStatusLabel(status, checked)}</span>;
 }
 
 export function flightDetailOf(value: string | null): Partial<FlightDetail> {
