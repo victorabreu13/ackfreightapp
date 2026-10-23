@@ -8,6 +8,7 @@ import { registerForPushNotifications } from "../services/notifications";
 const BUTTONS = [
   { route: "Dispatch", icon: "🚚", label: "Trips", hint: "Review, assign and complete trips" },
   { route: "DispatchNewRequest", icon: "➕", label: "New Trip", hint: "Create a trip request for a customer" },
+  { route: "Search", icon: "🔎", label: "Search", hint: "Find any AWB, customer or driver" },
   { route: "LiveMap", icon: "🗺️", label: "Live Map", hint: "See where every driver is" },
   { route: "ManageUsers", icon: "👤", label: "Users", hint: "Roles, logins and driver accounts" },
 ] as const;

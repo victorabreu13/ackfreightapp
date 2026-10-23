@@ -15,6 +15,7 @@ import { useAuth } from "../context/AuthContext";
 import { subscribeToCustomerTripRequests } from "../services/tripRequests";
 import { TripRequest, TripRequestStatus } from "../types";
 import { toLocalDateString } from "../utils/date";
+import { matchesTokens } from "../utils/search";
 
 const STATUS_LABELS: Record<TripRequest["status"], string> = {
   submitted: "Submitted",
@@ -77,7 +78,7 @@ export default function CustomerTripRequestsScreen({ navigation }: any) {
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       return requests.filter((r) =>
-        r.awbLines.some((l) => l.awbNumber.toLowerCase().includes(q))
+        matchesTokens([r.from, r.to, r.personRequesting, r.notes, ...r.awbLines.map((l) => l.awbNumber)], searchQuery)
       );
     }
     const byStatus = filter === "all" ? requests : requests.filter((r) => r.status === filter);

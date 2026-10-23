@@ -17,6 +17,7 @@ import { Btn, cargoSummary, StagePill, to12h } from "../components/DispatchUI";
 import { subscribeToAllTripRequests } from "../services/tripRequests";
 import { TripRequest } from "../types";
 import { toLocalDateString } from "../utils/date";
+import { matchesTokens } from "../utils/search";
 import { isOpenStage } from "../utils/dispatchBoard";
 import { STAGE_ORDER, stageInfo, tripStage, TripStage, unassignedCount } from "../utils/tripStatus";
 
@@ -97,7 +98,18 @@ export default function DispatchScreen({ navigation, route }: any) {
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       return byCustomer.filter((r) =>
-        r.awbLines.some((l) => l.awbNumber.toLowerCase().includes(q))
+        matchesTokens(
+          [
+            r.customerName,
+            r.from,
+            r.to,
+            r.personRequesting,
+            r.notes,
+            ...(r.assignedDriverNames ?? []),
+            ...r.awbLines.map((l) => l.awbNumber),
+          ],
+          searchQuery
+        )
       );
     }
     let result =

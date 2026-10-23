@@ -20,6 +20,7 @@ const linking = {
       SignUp: "signup",
       AdminHome: "admin-home",
       Today: "today",
+      Search: "search",
       LiveMap: "live-map",
       NewRequests: "new-requests",
       Drivers: "drivers",

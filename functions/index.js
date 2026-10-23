@@ -350,9 +350,19 @@ async function findDuplicateTripAwb(db, trip) {
   await ensureTripAwbKeysBackfilled(db);
   for (const { key, label } of tripAwbEntries(trip)) {
     const snap = await db.collection("trips").where("awbKeys", "array-contains", key).limit(1).get();
-    if (!snap.empty) return label;
+    if (!snap.empty) return { label, id: snap.docs[0].id, data: snap.docs[0].data() };
   }
   return null;
+}
+
+// "Dee, 2026-10-14, Atlas -> Kope": which trip log already has the AWB.
+function describeTrip(t) {
+  return [t.driverName || "a driver", t.date || "an unknown date", (t.from || "?") + " -> " + (t.to || "?")].join(", ");
+}
+
+// Trip logs a driver saves when completing a trip request start with this note.
+function isFromRequestNote(note) {
+  return String(note || "").startsWith("From dispatch request");
 }
 
 exports.onTripIndexAwbKeys = onDocumentWritten("trips/{tripId}", async (event) => {
@@ -404,11 +414,16 @@ exports.submitTripLog = onCall({ invoker: "public" }, async (request) => {
     createdAt: Date.now(),
   };
 
-  const dupAwb = await findDuplicateTripAwb(db, trip);
-  if (dupAwb) {
+  const dup = await findDuplicateTripAwb(db, trip);
+  if (dup) {
+    // The same driver saving the same request's completion again (the first try
+    // saved the log but never marked the AWB completed): hand back that log.
+    if (dup.data.driverId === request.auth.uid && isFromRequestNote(dup.data.notes) && isFromRequestNote(trip.notes)) {
+      return { id: dup.id };
+    }
     throw new HttpsError(
       "already-exists",
-      `AWB ${dupAwb} duplicated — it's already logged on another trip.`
+      `AWB ${dup.label} duplicated — it's already logged on another trip (${describeTrip(dup.data)}).`
     );
   }
   trip.awbKeys = tripAwbKeys(trip);
@@ -1292,13 +1307,19 @@ exports.adminCompleteAwbLines = onCall({ invoker: "public" }, async (request) =>
 
   const preSnap = await ref.get();
   if (!preSnap.exists) throw new HttpsError("not-found", "Trip request not found.");
+  // AWBs whose driver already has an unlinked log for this request are completed
+  // with that log instead of making a second one.
+  const reuseByIndex = {};
   for (const i of new Set(awbIndexes)) {
-    const awb = (preSnap.data().awbLines || [])[i]?.awbNumber;
-    const dup = awb ? await findDuplicateTripAwb(db, { awbNumber: awb }) : null;
-    if (dup) {
+    const line = (preSnap.data().awbLines || [])[i];
+    const dup = line && line.awbNumber ? await findDuplicateTripAwb(db, { awbNumber: line.awbNumber }) : null;
+    if (!dup) continue;
+    if (line.assignedDriverId && dup.data.driverId === line.assignedDriverId && isFromRequestNote(dup.data.notes)) {
+      reuseByIndex[i] = dup.id;
+    } else {
       throw new HttpsError(
         "failed-precondition",
-        `AWB ${dup} duplicated — it's already logged on another trip.`
+        `AWB ${dup.label} duplicated — it's already logged on another trip (${describeTrip(dup.data)}).`
       );
     }
   }
@@ -1322,9 +1343,14 @@ exports.adminCompleteAwbLines = onCall({ invoker: "public" }, async (request) =>
 
     const done = applyAdminComplete(lines, indexes, tripIdByDriver);
     if (!done.ok) throw new HttpsError("failed-precondition", done.message);
+    done.awbLines = done.awbLines.map((l, i) => (reuseByIndex[i] ? { ...l, tripLogId: reuseByIndex[i] } : l));
 
     driverIds.forEach((driverId, k) => {
-      const picked = indexes.map((i) => lines[i]).filter((l) => l.assignedDriverId === driverId);
+      const picked = indexes
+        .filter((i) => !reuseByIndex[i])
+        .map((i) => lines[i])
+        .filter((l) => l.assignedDriverId === driverId);
+      if (picked.length === 0) return;
       const profile = driverSnaps[k].data() || {};
       const time = String(data.pickupTime || "00:00");
       tx.set(db.collection("trips").doc(tripIdByDriver[driverId]), {

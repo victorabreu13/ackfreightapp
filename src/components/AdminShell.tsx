@@ -20,6 +20,7 @@ export interface AdminMenuItem {
 // The dispatcher's main menu. Order follows the daily workflow.
 export const ADMIN_MENU: AdminMenuItem[] = [
   { route: "Today", label: "Today", icon: "📋" },
+  { route: "Search", label: "Search", icon: "🔎" },
   { route: "LiveMap", label: "Live Map", icon: "🗺️" },
   { route: "Dispatch", label: "Trips", icon: "🚚" },
   { route: "NewRequests", label: "New Requests", icon: "📥" },

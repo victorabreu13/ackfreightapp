@@ -17,6 +17,7 @@ import DateField from "../components/DateField";
 import TripCard from "../components/TripCard";
 import { notify } from "../utils/alert";
 import { toLocalDateString as formatDate } from "../utils/date";
+import { matchesTokens } from "../utils/search";
 
 export default function DriversLogScreen({ navigation }: any) {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -62,7 +63,9 @@ export default function DriversLogScreen({ navigation }: any) {
   const filteredTrips = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (q) {
-      return trips.filter((t) => t.awbNumber.toLowerCase().includes(q));
+      return trips.filter((t) =>
+        matchesTokens([t.awbNumber, t.driverName, t.from, t.to, t.notes, ...(t.uldNumbers ?? [])], searchQuery)
+      );
     }
     let result = trips;
     if (filterStartDate) {
@@ -107,7 +110,7 @@ export default function DriversLogScreen({ navigation }: any) {
 
       <TextInput
         style={[styles.searchInput, Platform.OS === "web" && styles.searchInputWeb]}
-        placeholder="Search by AWB #"
+        placeholder="Search AWB, ULD #, driver, place…"
         value={searchQuery}
         onChangeText={setSearchQuery}
         autoCapitalize="characters"
@@ -159,7 +162,7 @@ export default function DriversLogScreen({ navigation }: any) {
         <ActivityIndicator style={{ marginTop: 40 }} />
       ) : filteredTrips.length === 0 ? (
         <Text style={styles.empty}>
-          {searchQuery.trim() ? "No trips match that AWB search." : "No trips logged for this filter."}
+          {searchQuery.trim() ? "No trips match that search." : "No trips logged for this filter."}
         </Text>
       ) : (
         <FlatList
