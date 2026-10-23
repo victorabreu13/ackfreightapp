@@ -12,9 +12,6 @@ import type { DgLabelItem, DgLabelPlan } from "@/lib/guias/dg/un";
 type Doc = PDFKit.PDFDocument;
 
 const MM = 72 / 25.4;
-const PAGE_W = 612;
-const PAGE_H = 792;
-const MARGIN = 22;
 
 const RED = "#E1251B";
 const ORANGE = "#F7941D";
@@ -23,12 +20,6 @@ const BLUE = "#0072BC";
 const YELLOW = "#FFD500";
 const BLACK = "#000000";
 const WHITE = "#FFFFFF";
-
-export type DgPrintOptions = {
-  shipper?: string;
-  consignee?: string;
-  generatedBy?: string;
-};
 
 /* ───────────── symbols ───────────── */
 
@@ -323,18 +314,6 @@ function drawArrows(doc: Doc, x: number, y: number) {
   }
 }
 
-const MARK_W = 480;
-const MARK_H = 150;
-
-function drawMark(doc: Doc, x: number, y: number, un: string, name: string, options: DgPrintOptions) {
-  doc.save().lineWidth(2).strokeColor(BLACK).rect(x, y, MARK_W, MARK_H).stroke().restore();
-  doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(40).text(`UN${un}`, x + 14, y + 8, { lineBreak: false });
-  doc.font("Helvetica-Bold").fontSize(12).text(name, x + 14, y + 56, { width: MARK_W - 28, height: 30, ellipsis: true });
-  doc.font("Helvetica").fontSize(9).text("Net quantity per package: ____________________", x + 14, y + 92, { lineBreak: false });
-  const parties = [`Shipper: ${options.shipper ?? ""}`, `Consignee: ${options.consignee ?? ""}`];
-  parties.forEach((line, index) => doc.font("Helvetica").fontSize(8).text(line, x + 14, y + 110 + index * 14, { width: MARK_W - 28, lineBreak: false, ellipsis: true }));
-}
-
 function drawMagnetized(doc: Doc, x: number, y: number) {
   doc.save().lineWidth(1).strokeColor(BLACK).rect(x, y, CAO_W, CAO_H).stroke().restore();
   doc.save().lineWidth(16).strokeColor(BLUE).lineCap("butt");
@@ -345,72 +324,213 @@ function drawMagnetized(doc: Doc, x: number, y: number) {
   doc.text("MATERIAL", x + 10, y + CAO_H - 36, { width: CAO_W - 20, align: "center", lineBreak: false });
 }
 
-/* ───────────── the sheets ───────────── */
+/* ───────────── names ───────────── */
 
-type Placed = { width: number; height: number; draw: (doc: Doc, x: number, y: number) => void; caption: string };
+const HAZARD_NAME: Record<string, string> = {
+  "2.1": "Class 2.1 - Flammable gas",
+  "2.2": "Class 2.2 - Non-flammable, non-toxic gas",
+  "2.3": "Class 2.3 - Toxic gas",
+  "3": "Class 3 - Flammable liquid",
+  "4.1": "Class 4.1 - Flammable solid",
+  "4.2": "Class 4.2 - Spontaneously combustible",
+  "4.3": "Class 4.3 - Dangerous when wet",
+  "5.1": "Class 5.1 - Oxidizer",
+  "5.2": "Class 5.2 - Organic peroxide",
+  "6.1": "Class 6.1 - Toxic",
+  "6.2": "Class 6.2 - Infectious substance",
+  "7": "Class 7 - Radioactive",
+  "8": "Class 8 - Corrosive",
+  "9": "Class 9 - Miscellaneous dangerous goods",
+  "9A": "Class 9A - Lithium battery",
+  MAGNETIZED: "Magnetized material",
+};
 
-function placed(item: DgLabelItem, options: DgPrintOptions): Placed | null {
-  const caption = `UN${item.un} · package ${item.copy}`;
-  if (item.kind === "hazard") {
-    if (item.code === "MAGNETIZED") return { width: CAO_W, height: CAO_H, draw: (doc, x, y) => drawMagnetized(doc, x, y), caption };
-    const face = hazardFace(item.code);
-    if (!face) return null;
-    const box = 2 * HALF_DIAGONAL;
-    return { width: box, height: box, draw: (doc, x, y) => drawHazard(doc, face, x + box / 2, y + box / 2), caption: `${caption} · label ${item.code}` };
-  }
-  if (item.kind === "cao") return { width: CAO_W, height: CAO_H, draw: (doc, x, y) => drawCargoOnly(doc, x, y), caption: `${caption} · Cargo Aircraft Only` };
-  if (item.kind === "arrows") return { width: ARROW_W, height: ARROW_H, draw: (doc, x, y) => drawArrows(doc, x, y), caption: `${caption} · orientation arrows` };
-  return { width: MARK_W, height: MARK_H, draw: (doc, x, y) => drawMark(doc, x, y, item.un, item.name, options), caption: `${caption} · marking` };
+/** The name a label goes by on the checklist. */
+export function hazardLabelName(code: string): string {
+  if (HAZARD_NAME[code]) return HAZARD_NAME[code];
+  if (/^1(\.\d)?/.test(code)) return `Class 1 - Explosive ${code === "1" ? "(subsidiary)" : code}`;
+  return `Class ${code}`;
 }
 
-export function renderDgLabels(plan: DgLabelPlan, options: DgPrintOptions = {}): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: "LETTER", margin: 0 });
-    const chunks: Buffer[] = [];
+/* ───────────── the checklist of required labels ───────────── */
+
+export type DgChecklistOptions = {
+  /** Packages, so each label says how many are needed. */
+  copies: number;
+  /** Shown at the top, like the AWB number of the guía. */
+  reference?: string;
+};
+
+type Entry = { name: string; detail: string; draw: ((doc: Doc, x: number, y: number, w: number, h: number) => void) | null };
+
+function iconBox(width: number, height: number, draw: (doc: Doc) => void) {
+  return (doc: Doc, x: number, y: number, w: number, h: number) => {
+    const scale = Math.min(w / width, h / height);
+    doc.save();
+    doc.translate(x + (w - width * scale) / 2, y + (h - height * scale) / 2);
+    doc.scale(scale);
+    draw(doc);
+    doc.restore();
+  };
+}
+
+function entryFor(item: DgLabelItem, copies: number): Entry | null {
+  const packages = `${copies} ${copies === 1 ? "package" : "packages"}`;
+  if (item.kind === "hazard") {
+    if (item.code === "MAGNETIZED") return { name: hazardLabelName(item.code), detail: `1 per package · ${packages}`, draw: iconBox(CAO_W, CAO_H, (doc) => drawMagnetized(doc, 0, 0)) };
+    const face = hazardFace(item.code);
+    const box = 2 * HALF_DIAGONAL;
+    return {
+      name: hazardLabelName(item.code),
+      detail: `1 per package · ${packages}`,
+      draw: face ? iconBox(box, box, (doc) => drawHazard(doc, face, box / 2, box / 2)) : null,
+    };
+  }
+  if (item.kind === "cao") return { name: "Cargo Aircraft Only", detail: `1 per package · ${packages}`, draw: iconBox(CAO_W, CAO_H, (doc) => drawCargoOnly(doc, 0, 0)) };
+  if (item.kind === "arrows") return { name: "Orientation arrows", detail: `2 per package (opposite sides) · ${packages}`, draw: iconBox(ARROW_W, ARROW_H, (doc) => drawArrows(doc, 0, 0)) };
+  return { name: `Package marking UN${item.un}`, detail: `UN number and proper shipping name on each package · ${packages}`, draw: null };
+}
+
+function checkbox(doc: Doc, x: number, y: number) {
+  doc.save().lineWidth(1.2).strokeColor(BLACK).rect(x, y, 13, 13).stroke().restore();
+}
+
+/* Both documents print on a 4 x 6 in thermal label, landscape: 432 x 288 pt. */
+const LABEL_W = 432;
+const LABEL_H = 288;
+const MARGIN = 12;
+
+/** The symbols are drawn at their full size and then scaled, so text sits far below the small page before scaling; a deep bottom margin stops pdfkit from turning that into new pages. */
+const NO_BREAK = { top: 0, left: 0, right: 0, bottom: -4000 };
+
+const COLUMNS = 3;
+const CELL_W = (LABEL_W - 2 * MARGIN) / COLUMNS;
+const CELLS_TOP = 58;
+const CELLS_BOTTOM = 244;
+
+function newLabel() {
+  const doc = new PDFDocument({ size: [LABEL_W, LABEL_H], margins: NO_BREAK });
+  const chunks: Buffer[] = [];
+  const done = new Promise<Buffer>((resolve, reject) => {
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
-    try {
-      doc.info.Title = `DG LABELS ${plan.units.map((unit) => `UN${unit.un}`).join(" ")}`;
-      const footer = () => {
-        doc.fillColor("#6b7280").font("Helvetica").fontSize(6.5);
-        doc.text("Prepared in ACK Guías from the 49 CFR 172.101 table and the general IATA/ICAO label rules.", MARGIN, PAGE_H - 22, { lineBreak: false });
-        doc.text("Confirm every label against the current IATA DGR. The shipper is responsible for classification, marking and labelling.", MARGIN, PAGE_H - 13, { lineBreak: false });
-      };
-      let x = MARGIN;
-      let y = MARGIN + 10;
-      let rowHeight = 0;
-      let pageHasItems = false;
-      const items = plan.items.map((item) => placed(item, options)).filter((item): item is Placed => item !== null);
-      if (items.length === 0) {
-        doc.fillColor(BLACK).font("Helvetica").fontSize(12).text("No labels to print for these UN numbers.", MARGIN, MARGIN + 20);
-        footer();
-      }
-      for (const item of items) {
-        if (x + item.width > PAGE_W - MARGIN && pageHasItems && x > MARGIN) {
-          x = MARGIN;
-          y += rowHeight + 18;
-          rowHeight = 0;
-        }
-        if (y + item.height > PAGE_H - 26 && pageHasItems) {
-          footer();
-          doc.addPage({ size: "LETTER", margin: 0 });
-          x = MARGIN;
-          y = MARGIN + 10;
-          rowHeight = 0;
-          pageHasItems = false;
-        }
-        doc.fillColor("#6b7280").font("Helvetica").fontSize(6.5).text(item.caption, x, y - 9, { lineBreak: false });
-        item.draw(doc, x, y);
-        pageHasItems = true;
-        x += item.width + 16;
-        rowHeight = Math.max(rowHeight, item.height);
-      }
-      if (items.length) footer();
-    } catch (error) {
-      reject(error);
-      return;
-    }
-    doc.end();
   });
+  return { doc, done };
+}
+
+/**
+ * The labels each UN number needs, on 4 x 6 in landscape pages: the drawing, its name and a box to check once it is
+ * on the package. Three labels fit on a page, so a UN with more continues on the next one. Nothing here is printed
+ * on the package itself.
+ */
+export function renderDgChecklist(plan: DgLabelPlan, options: DgChecklistOptions): Promise<Buffer> {
+  const { doc, done } = newLabel();
+  try {
+    const copies = Math.max(1, options.copies);
+    doc.info.Title = `DG LABEL CHECKLIST ${plan.units.map((unit) => `UN${unit.un}`).join(" ")}`;
+    let first = true;
+    const page = (title: string, facts: string, notes: string[]) => {
+      if (!first) doc.addPage({ size: [LABEL_W, LABEL_H], margins: NO_BREAK });
+      first = false;
+      doc.fillColor("#6b7280").font("Helvetica").fontSize(7);
+      doc.text(`DANGEROUS GOODS LABEL CHECKLIST  ·  ${options.reference ? `${options.reference}  ·  ` : ""}Packages: ${copies}`, MARGIN, 10, { lineBreak: false });
+      doc.save().rect(MARGIN, 21, LABEL_W - 2 * MARGIN, 18).fill("#111827").restore();
+      doc.fillColor(WHITE).font("Helvetica-Bold").fontSize(9.5);
+      doc.text(title, MARGIN + 6, 26, { width: LABEL_W - 2 * MARGIN - 12, height: 11, ellipsis: true, lineBreak: false });
+      if (facts) doc.fillColor("#374151").font("Helvetica").fontSize(8).text(facts, MARGIN, 44, { lineBreak: false });
+      if (notes.length) {
+        doc.fillColor("#6b7280").font("Helvetica-Oblique").fontSize(6.5);
+        doc.text(notes.join("  ·  "), MARGIN, CELLS_BOTTOM + 4, { width: LABEL_W - 2 * MARGIN, height: 22, ellipsis: true });
+      }
+      doc.fillColor("#6b7280").font("Helvetica").fontSize(5.5);
+      doc.text("Prepared in ACK Guías from the 49 CFR 172.101 table and the general IATA/ICAO label rules.", MARGIN, LABEL_H - 20, { lineBreak: false });
+      doc.text("Confirm every label against the current IATA DGR. The shipper is responsible for classification, marking and labelling.", MARGIN, LABEL_H - 12, { lineBreak: false });
+    };
+    if (plan.units.length === 0) {
+      page("No UN numbers were entered", "", []);
+    }
+    for (const unit of plan.units) {
+      const items = plan.items.filter((item) => item.un === unit.un && item.copy === 1);
+      const entries = items.map((item) => entryFor(item, copies)).filter((entry): entry is Entry => entry !== null);
+      const title = unit.found ? `UN${unit.un}  ·  ${unit.name}` : `UN${unit.un}  ·  not in the table`;
+      const facts = unit.found ? [`Class ${unit.cls}`, unit.pg ? `PG ${unit.pg}` : "", unit.cargoOnly ? "Cargo aircraft only" : "", unit.forbidden ? "FORBIDDEN on aircraft in the table" : ""].filter(Boolean).join("  ·  ") : "";
+      if (entries.length === 0) {
+        page(title, facts, unit.notes);
+        doc.fillColor(BLACK).font("Helvetica").fontSize(10).text("No label to apply for this UN number.", MARGIN, CELLS_TOP + 10, { lineBreak: false });
+        continue;
+      }
+      for (let start = 0; start < entries.length; start += COLUMNS) {
+        page(start === 0 ? title : `${title}  (continued)`, facts, start === 0 ? unit.notes : []);
+        entries.slice(start, start + COLUMNS).forEach((entry, index) => {
+          const x = MARGIN + index * CELL_W;
+          checkbox(doc, x, CELLS_TOP);
+          doc.fillColor(BLACK).font("Helvetica-Bold").fontSize(8.5).text(entry.name, x + 19, CELLS_TOP, { width: CELL_W - 22, height: 22 });
+          doc.fillColor("#6b7280").font("Helvetica").fontSize(6.5).text(entry.detail, x + 19, CELLS_TOP + 23, { width: CELL_W - 22, height: 16 });
+          if (entry.draw) entry.draw(doc, x + 6, CELLS_TOP + 42, CELL_W - 12, CELLS_BOTTOM - CELLS_TOP - 44);
+        });
+      }
+    }
+  } catch (error) {
+    return Promise.reject(error);
+  }
+  doc.end();
+  return done;
+}
+
+/* ───────────── shipper and consignee as the DGD shows them ───────────── */
+
+export type DgParty = { name: string; address: string };
+
+/** Each party gets a box as wide as the label. The DGD fields are 241 x 52 pt, so the text is set at a size that reads the same in proportion. */
+const FIELD_W = LABEL_W - 2 * MARGIN;
+const FIELD_H = 118;
+
+function fitParty(doc: Doc, party: DgParty): { lines: Array<{ text: string; bold: boolean }>; size: number } {
+  const rows = [{ text: party.name, bold: true }, ...party.address.split(/\r?\n/).map((text) => ({ text, bold: false }))].filter((row) => row.text.trim());
+  let lines: Array<{ text: string; bold: boolean }> = [];
+  for (let size = 14; size >= 5; size -= 0.5) {
+    lines = [];
+    for (const row of rows) {
+      doc.font(row.bold ? "Helvetica-Bold" : "Helvetica").fontSize(size);
+      let current = "";
+      for (const word of row.text.trim().split(/\s+/)) {
+        const next = current ? `${current} ${word}` : word;
+        if (current && doc.widthOfString(next) > FIELD_W - 12) {
+          lines.push({ text: current, bold: row.bold });
+          current = word;
+        } else current = next;
+      }
+      if (current) lines.push({ text: current, bold: row.bold });
+    }
+    if (lines.length * size * 1.18 <= FIELD_H - 10 || size <= 5) return { lines, size };
+  }
+  return { lines, size: 5 };
+}
+
+/**
+ * The Shipper and the Consignee as the DGD shows them: the name and the full address and nothing else, each in its
+ * own box. One 4 x 6 in landscape label.
+ */
+export function renderDgParties(shipper: DgParty, consignee: DgParty): Promise<Buffer> {
+  const { doc, done } = newLabel();
+  try {
+    doc.info.Title = "DGD SHIPPER AND CONSIGNEE";
+    let y = MARGIN;
+    for (const [caption, party] of [["Shipper", shipper], ["Consignee", consignee]] as const) {
+      doc.fillColor("#374151").font("Helvetica-Bold").fontSize(7.5).text(caption.toUpperCase(), MARGIN, y, { lineBreak: false });
+      y += 10;
+      doc.save().lineWidth(1).strokeColor(BLACK).rect(MARGIN, y, FIELD_W, FIELD_H).stroke().restore();
+      const fit = fitParty(doc, party);
+      doc.fillColor(BLACK);
+      fit.lines.forEach((line, index) => {
+        doc.font(line.bold ? "Helvetica-Bold" : "Helvetica").fontSize(fit.size).text(line.text, MARGIN + 6, y + 5 + index * fit.size * 1.18, { lineBreak: false });
+      });
+      y += FIELD_H + 8;
+    }
+  } catch (error) {
+    return Promise.reject(error);
+  }
+  doc.end();
+  return done;
 }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hazardFace, renderDgLabels } from "@/lib/guias/dg/labels-pdf";
+import { hazardFace, hazardLabelName, renderDgChecklist, renderDgParties } from "@/lib/guias/dg/labels-pdf";
+import { cleanDgAddress, dgParty } from "@/lib/guias/dg/party-text";
 import { lookupUn, planDgLabels, planUn } from "@/lib/guias/dg/un";
 
 test("the table has the UN numbers the forwarder ships most", () => {
@@ -54,9 +55,33 @@ test("a hazard face exists for every class the table uses, except radioactive", 
   assert.equal(hazardFace("7"), null);
 });
 
-test("the label sheet is a PDF", async () => {
-  const plan = planDgLabels({ un: "UN1203, UN3481", copies: 2, cargoAircraftOnly: "auto", arrows: "auto", marks: true });
-  const pdf = await renderDgLabels(plan, { shipper: "SHIPPER", consignee: "CONSIGNEE" });
+function pageBoxes(pdf: Buffer) {
+  return [...pdf.toString("latin1").matchAll(/\/MediaBox \[\s*0 0 ([\d.]+) ([\d.]+)\s*\]/g)].map((match) => [Number(match[1]), Number(match[2])]);
+}
+
+test("the checklist is a 4 x 6 in landscape PDF with a page per three labels", async () => {
+  const plan = planDgLabels({ un: "UN1950, UN3481", copies: 2, cargoAircraftOnly: "auto", arrows: "auto", marks: true });
+  const pdf = await renderDgChecklist(plan, { copies: 2, reference: "AWB 123-45678901" });
   assert.equal(pdf.subarray(0, 5).toString("latin1"), "%PDF-");
-  assert.ok((pdf.toString("latin1").match(/\/Type \/Page\b(?!s)/g) ?? []).length >= 2);
+  const boxes = pageBoxes(pdf);
+  assert.ok(boxes.length >= 2);
+  for (const [width, height] of boxes) assert.deepEqual([width, height], [432, 288]);
+});
+
+test("the shipper and consignee label is one 4 x 6 in landscape page", async () => {
+  const pdf = await renderDgParties({ name: "ACME CORP", address: "100 MAIN ST\nMIAMI FL 33126 US" }, { name: "RECEIVER SA", address: "AVE 1\nGUATEMALA" });
+  assert.equal(pdf.subarray(0, 5).toString("latin1"), "%PDF-");
+  assert.deepEqual(pageBoxes(pdf), [[432, 288]]);
+});
+
+test("every required label has a name for the checklist", () => {
+  assert.equal(hazardLabelName("3"), "Class 3 - Flammable liquid");
+  assert.equal(hazardLabelName("9A"), "Class 9A - Lithium battery");
+  assert.equal(hazardLabelName("2.2"), "Class 2.2 - Non-flammable, non-toxic gas");
+});
+
+test("the DGD parties keep the name and the address and drop the contact details", () => {
+  assert.equal(cleanDgAddress("100 MAIN ST\nTel: 305-555-1234\nMIAMI FL 33126\nops@acme.com\n+1 305 555 1234\nAttn: John"), "100 MAIN ST\nMIAMI FL 33126");
+  assert.deepEqual(dgParty("  ACME   CORP ", "1 A ST\nPhone 12345"), { name: "ACME CORP", address: "1 A ST" });
+  assert.deepEqual(dgParty(null, undefined), { name: "", address: "" });
 });
