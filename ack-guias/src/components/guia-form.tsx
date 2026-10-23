@@ -34,7 +34,7 @@ const FIELDS: Array<{ key: keyof GuiaValues; label: string; area?: boolean; hint
   {
     key: "aesItn",
     label: "AES ITN (optional)",
-    hint: "Prints in Handling Information as AES ITN: …. Leave it blank to print NO EEI REQ 30.37(a). Goods and special handling are printed as entered.",
+    hint: "Prints in Handling Information as AES ITN: …. Leave it blank and NO EEI REQ 30.37A is added to the Nature of Goods. Special handling is printed as entered.",
   },
   { key: "hawb", label: "HAWB (optional, on labels)" },
 ];

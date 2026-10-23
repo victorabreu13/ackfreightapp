@@ -160,16 +160,16 @@ function wrap(text: string, size: number, width: number): string[] {
   return rows;
 }
 
-/** Exemption printed in Handling Information only when the guía has no AES ITN. */
-export const NO_EEI_LINE = "NO EEI REQ 30.37(a)";
+/** Exemption added to the Nature of Goods, never to Handling Information, when the guía has no AES ITN. */
+export const NO_EEI_GOODS = "NO EEI REQ 30.37A";
 
 export function aesItnToken(value: string | null | undefined): string {
   return plain(value).replace(/^AES\s*ITN\s*:\s*/i, "").trim();
 }
 
 /**
- * User handling, unchanged, plus the DGD line when the guía carries dangerous goods, and the ITN line or the
- * NO EEI line. Nothing is moved out of goods.
+ * User handling, unchanged, plus the DGD line when the guía carries dangerous goods and the ITN line when there
+ * is an ITN. Nothing is moved out of goods.
  */
 export function handlingForPrint(
   entered: string | null | undefined,
@@ -183,15 +183,23 @@ export function handlingForPrint(
   const dg = dangerousGoods && !base.toLowerCase().includes(DG_HANDLING_LINE.toLowerCase()) ? `\n${DG_HANDLING_LINE}` : "";
   const statement = lithiumSectionIIStatement(lithiumPi);
   const lithium = statement && !base.toLowerCase().includes(statement.toLowerCase()) ? `\n${statement}` : "";
-  return `${base}${dg}${lithium}\n${token ? `AES ITN: ${token}` : NO_EEI_LINE}`;
+  return `${base}${dg}${lithium}${token ? `\nAES ITN: ${token}` : ""}`;
 }
 
-export function goodsForPrint(lines: Array<{ nature?: string | null; sortOrder?: number }>): string {
-  return [...lines]
+/**
+ * The goods as entered. With no AES ITN the exemption is added: just before the PMC code when the goods carry one,
+ * as the team types it, otherwise at the end. Goods that already say NO EEI are left alone.
+ */
+export function goodsForPrint(lines: Array<{ nature?: string | null; sortOrder?: number }>, aesItn?: string | null): string {
+  const goods = [...lines]
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     .map((line) => plain(line.nature))
     .filter(Boolean)
     .join("\n");
+  if (!goods || aesItnToken(aesItn) || /NO\s+EEI/i.test(goods) || /AES\s*ITN/i.test(goods)) return goods;
+  const pmc = [...goods.matchAll(/\s+PMC\s*\d/g)].pop();
+  if (pmc?.index != null) return `${goods.slice(0, pmc.index)} ${NO_EEI_GOODS}${goods.slice(pmc.index)}`;
+  return `${goods} ${NO_EEI_GOODS}`;
 }
 
 function wrapMeasured(doc: Doc, text: string, size: number, width: number, font: string): string[] {
@@ -370,7 +378,7 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
   const rate = first?.rate ?? null;
   const lineTotal = first?.total ?? (rate != null && chargeable != null ? rate * chargeable : null);
   const prepaid = (document.chgsCode || "PP").toUpperCase().startsWith("C") ? "" : money(document.weightCharge ?? lineTotal);
-  const natureText = goodsForPrint(goods);
+  const natureText = goodsForPrint(goods, document.aesItn);
   const handlingText = handlingForPrint(document.handling, document.aesItn, document.dgDeclarable, document.lithiumPi);
   const accounting = plain(document.accountingInfo) || ((document.chgsCode || "PP").toUpperCase().startsWith("C") ? "FREIGHT COLLECT" : "FREIGHT PREPAID");
   const tel = [phone ? `TEL: ${phone}` : "", email].filter(Boolean).join("   ");

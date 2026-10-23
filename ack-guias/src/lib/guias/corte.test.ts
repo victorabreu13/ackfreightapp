@@ -243,7 +243,7 @@ test("045-53981966 prints the goods and the Pacifiko line, and the ITN field, wi
   assert.doesNotMatch(text, /NO EEI REQ 30\.37A PMC/);
 });
 
-test("goods that still contain an ITN phrase are not rewritten, and a blank ITN adds only the NO EEI line", async () => {
+test("goods that still contain an ITN phrase are not rewritten, and a blank ITN adds NO EEI to the goods", async () => {
   const dirty = `${GOODS_045.replace(" PMC", " AES ITN: X20261021165293 PMC")}`;
   const kept = pdfText(
     await renderCorteAwb(withNature("ack", dirty, { handling: PACIFIKO, aesItn: "X20261021165293" }), company("ack"), {
@@ -260,9 +260,7 @@ test("goods that still contain an ITN phrase are not rewritten, and a blank ITN 
       now,
     }),
   );
-  assert.match(open, /WIDGETS PMC 40106 R7=01 PC/);
-  assert.match(open, /NO EEI REQ 30\.37\(a\)/);
+  assert.match(open, /WIDGETS NO EEI REQ 30\.37A PMC 40106 R7=01 PC/);
   assert.match(open, /pmorales@pacifiko/);
-  assert.doesNotMatch(open, /NO EEI REQ 30\.37A PMC/);
-  assert.doesNotMatch(open, /WIDGETS NO EEI/);
+  assert.doesNotMatch(open, /NO EEI REQ 30\.37\(a\)/);
 });

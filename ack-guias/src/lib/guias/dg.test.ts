@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { handlingForPrint, NO_EEI_LINE } from "@/lib/guias/corte";
+import { goodsForPrint, handlingForPrint, NO_EEI_GOODS } from "@/lib/guias/corte";
 import { DG_HANDLING_LINE, formatUnNumbers, hasLithiumUn, isLithiumPi, lithiumSectionIIStatement, onlyLithiumUn, parseUnNumbers } from "@/lib/guias/dg";
 
 test("UN numbers are read from however they are typed, once each", () => {
@@ -22,7 +22,7 @@ test("Handling Information gets the DGD line only for dangerous goods, and only 
   assert.ok(!handlingForPrint("", "", false).includes(DG_HANDLING_LINE));
   const withDg = handlingForPrint("", "", true);
   assert.ok(withDg.includes(DG_HANDLING_LINE));
-  assert.ok(withDg.endsWith(NO_EEI_LINE));
+  assert.ok(!withDg.includes("NO EEI"));
   const typed = handlingForPrint(`KEEP DRY\n${DG_HANDLING_LINE}`, "X20261021165293", true);
   assert.equal(typed.split(DG_HANDLING_LINE).length - 1, 1);
   assert.ok(typed.endsWith("AES ITN: X20261021165293"));
@@ -36,7 +36,7 @@ test("Section II lithium batteries have no DGD line, and the AWB names the packi
   const text = handlingForPrint("", "", false, "967");
   assert.ok(!text.includes(DG_HANDLING_LINE));
   assert.ok(text.includes("Lithium ion batteries in compliance with Section II of PI967"));
-  assert.ok(text.endsWith(NO_EEI_LINE));
+  assert.ok(!text.includes("NO EEI"));
   const both = handlingForPrint("", "", true, "970");
   assert.ok(both.includes(DG_HANDLING_LINE) && both.includes("Section II of PI970"));
   assert.ok(handlingForPrint("", "", false, null).indexOf("Section II") < 0);
@@ -48,4 +48,15 @@ test("a UN list of only lithium batteries is recognised so the form can warn", (
   assert.equal(onlyLithiumUn(""), false);
   assert.equal(isLithiumPi("967"), true);
   assert.equal(isLithiumPi("971"), false);
+});
+
+test("with no AES ITN the NO EEI exemption goes in the Nature of Goods, not in Handling Information", () => {
+  const line = (nature: string) => [{ nature, sortOrder: 0 }];
+  assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), ""), `WIDGETS ${NO_EEI_GOODS} PMC 40106 R7=01 PC`);
+  assert.equal(goodsForPrint(line("WIDGETS"), null), `WIDGETS ${NO_EEI_GOODS}`);
+  assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), "X20261021165293"), "WIDGETS PMC 40106 R7=01 PC");
+  assert.equal(goodsForPrint(line(`WIDGETS ${NO_EEI_GOODS} PMC 40106`), ""), `WIDGETS ${NO_EEI_GOODS} PMC 40106`);
+  assert.equal(goodsForPrint([], ""), "");
+  assert.ok(!handlingForPrint("", "", false).includes("NO EEI"));
+  assert.ok(handlingForPrint("", "X20261021165293", false).endsWith("AES ITN: X20261021165293"));
 });
