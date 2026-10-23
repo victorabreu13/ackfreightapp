@@ -4,6 +4,7 @@ import { GuiaAccountingView } from "@/components/guia-accounting";
 import { GuiaBilling } from "@/components/guia-billing";
 import { GuiaForm } from "@/components/guia-form";
 import { DgdUpload } from "@/components/dgd-upload";
+import { setGuiaCompleted } from "@/server/guia-actions";
 import { GuiaUploads } from "@/components/guia-uploads";
 import { MigrationPending } from "@/components/migration-pending";
 import { Button } from "@/components/ui/button";
@@ -379,6 +380,25 @@ export default async function GuiaDetailPage({
             </form>
           </>
         )}
+      </section>
+
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
+        <div>
+          <h2 className="font-display text-2xl">Pantalla Guías</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {document.completedAt
+              ? `Marcada completada${document.completedBy ? ` por ${document.completedBy}` : ""}. No aparece en la pantalla Guías.`
+              : "Los borradores y las guías que no han volado aparecen en la pantalla Guías. Una guía sale sola el día después de su vuelo, o la marcas completada."}
+          </p>
+        </div>
+        <form action={setGuiaCompleted}>
+          <input type="hidden" name="id" value={document.id} />
+          <input type="hidden" name="done" value={document.completedAt ? "0" : "1"} />
+          <input type="hidden" name="returnTo" value={document.completedAt ? `/guias/${document.id}` : "/guias"} />
+          <Button type="submit" variant="outline">
+            {document.completedAt ? "Volver a la lista" : "Marcar completada"}
+          </Button>
+        </form>
       </section>
 
       {document.status !== "issued" ? (

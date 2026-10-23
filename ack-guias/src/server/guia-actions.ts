@@ -395,6 +395,22 @@ export async function checkGuiaFlight(formData: FormData) {
   redirect(`${target}${joiner}flight=ok`);
 }
 
+/** The team marks a guía completed so it leaves the Guías screen, or brings it back. */
+export async function setGuiaCompleted(formData: FormData) {
+  const user = await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  const done = text(formData.get("done")) === "1";
+  const guia = await prisma.airWaybillDocument.findFirst({ where: { id, product: "guia" }, select: { id: true } });
+  if (!guia) redirect(`/guias?error=${encodeURIComponent("No se encontró la guía.")}`);
+  await prisma.airWaybillDocument.update({
+    where: { id },
+    data: done ? { completedAt: new Date(), completedBy: user.email } : { completedAt: null, completedBy: null },
+  });
+  revalidatePath("/guias");
+  revalidatePath(`/guias/${id}`);
+  redirect(safeGuiaReturn(text(formData.get("returnTo")), done ? "/guias" : `/guias/${id}`));
+}
+
 export async function saveGuiaToDrive(formData: FormData) {
   await requireGuiaTeam();
   const id = text(formData.get("id"));

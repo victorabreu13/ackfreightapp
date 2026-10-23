@@ -6,7 +6,9 @@ import { canManageGuias, canReadGuias, guiaWhere, isCompanyAccounting } from "@/
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatNyDate } from "@/lib/guias/documents-index";
+import { flightDateIso } from "@/lib/guias/flight-status";
 import { guiaOnList } from "@/lib/guias/guia-list";
+import { setGuiaCompleted } from "@/server/guia-actions";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
@@ -85,6 +87,7 @@ export default async function GuiasPage({
                 {accounting ? null : <th className="px-3 py-2">Company</th>}
                 <th className="px-3 py-2">{accounting ? "Estado" : "Status"}</th>
                 {accounting ? <th className="px-3 py-2">Factura</th> : null}
+                {readOnly || accounting ? null : <th className="px-3 py-2" />}
               </tr>
             </thead>
             <tbody>
@@ -108,6 +111,20 @@ export default async function GuiasPage({
                     {accounting ? null : <td className="px-3 py-2">{guia.agent.legalName}</td>}
                     <td className="px-3 py-2">{guia.status === "issued" ? (accounting ? "Emitida" : "Issued") : accounting ? "Borrador" : "Draft"}</td>
                     {accounting ? <td className="px-3 py-2">{guia.invoiceNumber || guia.qboDocNumber || "—"}</td> : null}
+                    {readOnly || accounting ? null : (
+                      <td className="px-3 py-2 text-right">
+                        {flightDateIso(guia.flightDate) ? null : (
+                          <form action={setGuiaCompleted}>
+                            <input type="hidden" name="id" value={guia.id} />
+                            <input type="hidden" name="done" value="1" />
+                            <input type="hidden" name="returnTo" value="/guias" />
+                            <button type="submit" title="Sin fecha de vuelo: márcala completada para quitarla de esta pantalla" className="rounded-md border border-input px-2 py-1 text-xs hover:bg-secondary">
+                              Completar
+                            </button>
+                          </form>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

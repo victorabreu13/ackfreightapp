@@ -141,6 +141,9 @@ model AirWaybillDocument {
   /// What the status source said about the flight: times, airports. JSON.
   flightStatusDetail String?     @db.Text
   flightCheckedAt  DateTime?
+  /** Marked completed by the team: the guía leaves the Guías screen. */
+  completedAt      DateTime?
+  completedBy      String?
   flightEvents     GuiaFlightEvent[]
   otherChargesText String?      @db.Text
   accountingInfo   String?      @db.Text

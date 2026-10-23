@@ -26,3 +26,11 @@ test("the day is New York's, not UTC's", () => {
   assert.equal(guiaOnList({ status: "issued", flightDate: "Oct/23/2026" }, new Date("2026-10-24T02:30:00.000Z")), true);
   assert.equal(guiaOnList({ status: "issued", flightDate: "Oct/23/2026" }, new Date("2026-10-24T05:00:00.000Z")), false);
 });
+
+test("a guía marked completed is off the screen, draft or not, and a flight date still ages the rest", () => {
+  const completedAt = new Date("2026-10-22T12:00:00.000Z");
+  assert.equal(guiaOnList({ status: "draft", flightDate: "", completedAt }, now), false);
+  assert.equal(guiaOnList({ status: "issued", flightDate: "", completedAt }, now), false);
+  assert.equal(guiaOnList({ status: "issued", flightDate: "Oct/30/2026", completedAt }, now), false);
+  assert.equal(guiaOnList({ status: "issued", flightDate: "", completedAt: null }, now), true);
+});
