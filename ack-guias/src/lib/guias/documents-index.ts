@@ -57,6 +57,11 @@ export function formatNy(date: Date): string {
   }).format(date);
 }
 
+/** The day a record was created, in New York time, such as "Oct 22, 2026". */
+export function formatNyDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", dateStyle: "medium" }).format(date);
+}
+
 export function filterLoggedDocuments(
   rows: LoggedDocument[],
   query: { kind?: string; client?: string; company?: string; awb?: string; from?: string; to?: string },

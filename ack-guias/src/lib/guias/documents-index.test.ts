@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterLoggedDocuments, groupDocumentsByClient, nyDay, type LoggedDocument } from "./documents-index";
+import { filterLoggedDocuments, formatNyDate, groupDocumentsByClient, nyDay, type LoggedDocument } from "./documents-index";
 
 const generated = new Date("2026-10-15T18:30:00.000Z");
 
@@ -94,4 +94,9 @@ test("documents group by client A to Z, then one subfolder per guía", () => {
   assert.equal(pacifiko.count, 3);
   assert.deepEqual(pacifiko.guias.map((guia) => guia.awb), ["045-11111111", "045-56631341"]);
   assert.deepEqual(pacifiko.guias[1].documents.map((row) => row.kind), ["awb", "labels"]);
+});
+
+test("the guía list shows the creation day in New York time", () => {
+  assert.equal(formatNyDate(new Date("2026-10-23T02:55:00.000Z")), "Oct 22, 2026");
+  assert.equal(formatNyDate(new Date("2026-10-23T14:00:00.000Z")), "Oct 23, 2026");
 });

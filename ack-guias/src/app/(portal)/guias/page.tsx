@@ -5,6 +5,7 @@ import { MigrationPending } from "@/components/migration-pending";
 import { canManageGuias, canReadGuias, guiaWhere, isCompanyAccounting } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { formatNyDate } from "@/lib/guias/documents-index";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
@@ -28,7 +29,7 @@ export default async function GuiasPage({
   try {
     guias = await prisma.airWaybillDocument.findMany({
     where: guiaWhere(user),
-    orderBy: { updatedAt: "desc" },
+    orderBy: { createdAt: "desc" },
     take: 100,
     include: {
       guiaClient: { select: { name: true, agentKey: true } },
@@ -69,9 +70,10 @@ export default async function GuiasPage({
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[800px] text-left text-sm">
             <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
               <tr>
+                <th className="px-3 py-2">{accounting ? "Fecha" : "Date"}</th>
                 <th className="px-3 py-2">AWB</th>
                 <th className="px-3 py-2">{accounting ? "Cliente" : "Client"}</th>
                 <th className="px-3 py-2">{accounting ? "Ruta" : "Route"}</th>
@@ -88,6 +90,7 @@ export default async function GuiasPage({
                 const kg = guia.lines.reduce((sum, line) => sum + (line.chargeableWeight ?? 0), 0);
                 return (
                   <tr key={guia.id} className="border-b border-border last:border-0">
+                    <td className="whitespace-nowrap px-3 py-2">{formatNyDate(guia.createdAt)}</td>
                     <td className="px-3 py-2">
                       <Link href={`/guias/${guia.id}`} className="font-medium underline-offset-2 hover:underline">
                         {guia.awb || "Draft"}
