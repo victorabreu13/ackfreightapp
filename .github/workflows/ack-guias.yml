@@ -6,10 +6,6 @@ on:
     paths:
       - "ack-guias/**"
       - ".github/workflows/ack-guias.yml"
-  pull_request:
-    paths:
-      - "ack-guias/**"
-      - ".github/workflows/ack-guias.yml"
 
 jobs:
   test:

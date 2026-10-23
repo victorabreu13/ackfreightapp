@@ -38,6 +38,6 @@ test("the draft guía page does not block Issue on review", () => {
   const page = readFileSync(new URL("../../app/(portal)/guias/[id]/page.tsx", import.meta.url), "utf8");
   const form = readFileSync(new URL("../../components/guia-form.tsx", import.meta.url), "utf8");
   assert.equal(page.includes("Issuing stays blocked"), false);
-  assert.match(page, /Emite la guía primero/);
+  assert.match(page, /Emite la guía o usa Imprimir sin emitir/);
   assert.match(form, /Confirmar todo/);
 });
