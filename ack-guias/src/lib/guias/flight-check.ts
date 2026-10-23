@@ -85,6 +85,7 @@ export async function checkFlights(options: FlightCheckOptions = {}): Promise<Fl
         flightNumber,
         date,
         origin: codeForPlace(guia.departure ?? "") || "MIA",
+        destination: codeForPlace(guia.destination ?? ""),
         apiKey,
         fetchImpl: options.fetchImpl,
       });

@@ -104,11 +104,20 @@ function clock(block: TimeBlock): string {
   return block?.local ?? block?.utc ?? "";
 }
 
-/** The flight that leaves the guía's origin, or the first one the source returned. */
-export function pickFlight(flights: AeroFlight[], origin: string): AeroFlight | null {
+/**
+ * The flight of the guía among the ones the source returns for that number and day. A number can show several
+ * legs, or a flight that only arrives that day, so the one that leaves the origin and lands at the destination
+ * wins, then the one that leaves the origin, then the one that lands at the destination, then the first.
+ */
+export function pickFlight(flights: AeroFlight[], origin: string, destination = ""): AeroFlight | null {
   if (flights.length === 0) return null;
-  const wanted = origin.trim().toUpperCase();
-  return flights.find((flight) => flight.departure?.airport?.iata?.toUpperCase() === wanted) ?? flights[0];
+  const from = origin.trim().toUpperCase();
+  const to = destination.trim().toUpperCase();
+  const score = (flight: AeroFlight) =>
+    (from && flight.departure?.airport?.iata?.toUpperCase() === from ? 2 : 0) + (to && flight.arrival?.airport?.iata?.toUpperCase() === to ? 1 : 0);
+  let best = flights[0];
+  for (const flight of flights) if (score(flight) > score(best)) best = flight;
+  return best;
 }
 
 export function lookupFromFlight(flight: AeroFlight): FlightLookup {
@@ -133,6 +142,8 @@ export async function fetchFlightStatus(input: {
   flightNumber: string;
   date: string;
   origin: string;
+  /** Airport of destination, when the guía has one. Picks the right leg of a flight number. */
+  destination?: string;
   apiKey: string;
   fetchImpl?: FlightFetch;
 }): Promise<FlightLookup | null> {
@@ -145,7 +156,7 @@ export async function fetchFlightStatus(input: {
   if (!response.ok) throw new Error(`Flight status source answered ${response.status}`);
   const body = (await response.json()) as unknown;
   const flights = Array.isArray(body) ? (body as AeroFlight[]) : [];
-  const flight = pickFlight(flights, input.origin);
+  const flight = pickFlight(flights, input.origin, input.destination);
   return flight ? lookupFromFlight(flight) : null;
 }
 

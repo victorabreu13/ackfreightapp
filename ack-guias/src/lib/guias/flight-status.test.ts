@@ -69,6 +69,18 @@ test("the flight that leaves the guía's origin is the one picked", () => {
   assert.equal(pickFlight([], "MIA"), null);
 });
 
+test("with several legs of one number, the one that goes from the origin to the destination wins", () => {
+  const legs = [
+    { status: "Arrived", departure: { airport: { iata: "GUA" } }, arrival: { airport: { iata: "MIA" } } },
+    { status: "Departed", departure: { airport: { iata: "MIA" } }, arrival: { airport: { iata: "EZE" } } },
+    { status: "Expected", departure: { airport: { iata: "MIA" } }, arrival: { airport: { iata: "GUA" } } },
+  ];
+  assert.equal(pickFlight(legs, "MIA", "GUA")?.status, "Expected");
+  assert.equal(pickFlight(legs, "MIA", "EZE")?.status, "Departed");
+  assert.equal(pickFlight(legs, "MIA")?.status, "Departed");
+  assert.equal(pickFlight(legs, "BOG", "GUA")?.status, "Expected");
+});
+
 test("the lookup asks the source for the flight number and date and reads the answer", async () => {
   let requested = "";
   let key = "";
