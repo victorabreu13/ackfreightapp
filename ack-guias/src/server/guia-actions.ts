@@ -15,9 +15,13 @@ import { ensureGuiaClient, guiaBillToName } from "@/lib/guias/guia-client";
 import { type GuiaValues, type ReviewField } from "@/lib/guias/extract";
 import { formatUnNumbers, isLithiumPi } from "@/lib/guias/dg";
 import { checkFlights } from "@/lib/guias/flight-check";
+import { safeGuiaReturn } from "@/lib/guias/upload-rules";
 import { rememberGuiaParties } from "@/lib/guias/parties";
 import { reviewFieldsToSave } from "@/lib/guias/review";
 import { GUIA_FILE_KINDS, guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
+
+/** Every guía belongs to a client of the book. The client portal and its emails depend on it. */
+const CLIENT_REQUIRED = "Escribe el cliente de la guía.";
 
 function text(value: FormDataEntryValue | null): string {
   return String(value ?? "").trim();
@@ -140,6 +144,7 @@ export async function saveNewGuia(formData: FormData) {
   if (values.issuingCompany !== "ack") {
     redirect("/guias/new?error=ACK%20TEAM%20LLC%20is%20the%20only%20issuer");
   }
+  if (!values.client) redirect(`/guias/new?error=${encodeURIComponent(CLIENT_REQUIRED)}`);
   const agent = await prisma.issuingAgent.findUnique({ where: { key: "ack" } });
   if (!agent) redirect("/guias/new?error=ACK%20TEAM%20LLC%20is%20the%20only%20issuer");
   const billTo = await ensureGuiaClient(agent.key, values.client);
@@ -187,6 +192,7 @@ export async function saveGuia(formData: FormData) {
   if (values.issuingCompany !== "ack") {
     redirect(`/guias/${id}?error=ACK%20TEAM%20LLC%20is%20the%20only%20issuer`);
   }
+  if (!values.client) redirect(`/guias/${id}?error=${encodeURIComponent(CLIENT_REQUIRED)}`);
   const billTo = await ensureGuiaClient("ack", values.client);
   const uniqueReview = reviewFromForm(formData);
   await prisma.awbGoodsLine.deleteMany({ where: { documentId: id } });
@@ -381,9 +387,12 @@ export async function checkGuiaFlight(formData: FormData) {
   await requireGuiaTeam();
   const id = text(formData.get("id"));
   const summary = await checkFlights({ guiaIds: [id] });
+  const target = safeGuiaReturn(text(formData.get("returnTo")), `/guias/${id}`);
+  const joiner = target.includes("?") ? "&" : "?";
   revalidatePath(`/guias/${id}`);
-  if (summary.errors.length) redirect(`/guias/${id}?flight=${encodeURIComponent(summary.errors[0])}`);
-  redirect(`/guias/${id}?flight=ok`);
+  revalidatePath("/guias/awb-status");
+  if (summary.errors.length) redirect(`${target}${joiner}flight=${encodeURIComponent(summary.errors[0])}`);
+  redirect(`${target}${joiner}flight=ok`);
 }
 
 export async function saveGuiaToDrive(formData: FormData) {

@@ -20,6 +20,7 @@ export function GuiaLookupInput({
   onPick,
   client = "",
   className = "",
+  required = false,
 }: {
   id: string;
   name: string;
@@ -30,6 +31,7 @@ export function GuiaLookupInput({
   /** The client typed on the form. Its own shippers and consignees are suggested first. */
   client?: string;
   className?: string;
+  required?: boolean;
 }) {
   const [items, setItems] = useState<LookupPick[]>([]);
   const [open, setOpen] = useState(false);
@@ -75,6 +77,7 @@ export function GuiaLookupInput({
         name={name}
         value={value}
         autoComplete="off"
+        required={required}
         role="combobox"
         aria-expanded={open && items.length > 0}
         aria-controls={`${id}-suggestions`}

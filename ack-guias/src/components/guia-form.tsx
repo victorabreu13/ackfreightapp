@@ -177,6 +177,7 @@ export function GuiaForm({
                 <GuiaLookupInput
                   id={field.key}
                   name={field.key}
+                  required={field.key === "client"}
                   type={LOOKUP[field.key]!.type}
                   value={draft[field.key]}
                   client={draft.client}

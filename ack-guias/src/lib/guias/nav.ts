@@ -3,6 +3,7 @@ export const GUIAS_NAV: Array<{ href: string; label: string; team?: boolean; adm
   { href: "/guias", label: "Guías" },
   { href: "/guias/documents", label: "Documentos", team: true, accounting: true, viewer: true },
   { href: "/guias/templates", label: "Templates", team: true, accounting: true, viewer: true },
+  { href: "/guias/awb-status", label: "AWB Status", team: true, accounting: true, viewer: true },
   { href: "/guias/directory", label: "Directorio", team: true },
   { href: "/guias/dg-labels", label: "Labels DG", team: true },
   { href: "/awb/stock", label: "AWB stock", team: true },
