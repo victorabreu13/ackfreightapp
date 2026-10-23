@@ -13,7 +13,7 @@ export const GUIA_FILE_LABELS: Record<GuiaFileKind, string> = {
   ccsp: "CCSF certificate",
   "ccsf-alternate": "CCSP certification",
   lithium: "Lithium battery letter",
-  labels: "Magaya labels",
+  labels: "Cargo Labels",
   "folder-label": "Folder label",
 };
 

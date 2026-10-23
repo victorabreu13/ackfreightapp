@@ -65,7 +65,7 @@ const INFO: Record<GuiaFileKind, { purpose: string; format: string; needs: strin
     needs: "The guía must have its AWB number.",
   },
   labels: {
-    purpose: "Magaya cargo labels, one per piece.",
+    purpose: "Cargo labels, one per piece.",
     format: "One label page per piece",
     needs: "The guía must be issued.",
   },
