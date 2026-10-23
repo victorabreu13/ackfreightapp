@@ -4,7 +4,8 @@ import bwipjs from "bwip-js/node";
 import PDFDocument from "pdfkit";
 import { cityForAirport, codeForPlace, countryForAirport } from "@/lib/awb/airports";
 import { tsaIacFor, type CompanyView } from "@/lib/guias/company-profile";
-import { DG_HANDLING_LINE, lithiumSectionIIStatement } from "@/lib/guias/dg";
+import { DG_HANDLING_LINE, lithiumSectionIIStatement, parseUnNumbers } from "@/lib/guias/dg";
+import { planUn } from "@/lib/guias/dg/un";
 import type { GuiaPrintOptions, GuiaRecord } from "@/lib/guias/files";
 import { formatFlightDate, sheetDate, signerName } from "@/lib/sheets/layout";
 import { KOPE_LOGO_PNG } from "@/lib/sheets/kope-logo";
@@ -167,23 +168,46 @@ export function aesItnToken(value: string | null | undefined): string {
   return plain(value).replace(/^AES\s*ITN\s*:\s*/i, "").trim();
 }
 
+const DG_TYPED = /^dangerous\s+goods\s+as\s+per\s+(?:the\s+)?(?:attached|associated)\s+(?:shipper'?s?\s+declaration|dgd)\s*\.?$/i;
+const CAO_TYPED = /^cargo\s+aircraft\s+only\s*\.?$/i;
+export const CARGO_AIRCRAFT_ONLY_LINE = "CARGO AIRCRAFT ONLY";
+
+/** True when a UN number is forbidden on passenger aircraft, so the shipment is Cargo Aircraft Only. */
+export function unRequiresCargoAircraftOnly(unNumbers: string | null | undefined): boolean {
+  return parseUnNumbers(unNumbers).some((un) => planUn(un).cargoOnly);
+}
+
 /**
- * User handling, unchanged, plus the DGD line when the guía carries dangerous goods and the ITN line when there
- * is an ITN. Nothing is moved out of goods.
+ * User handling, plus the DGD line when the guía carries dangerous goods, Cargo Aircraft Only when a UN number
+ * requires it, and the ITN line when there is an ITN. The two statements are written here and only once: a typed
+ * "Dangerous Goods as per attached Shipper's Declaration" or "Cargo Aircraft Only" line is replaced by them.
  */
 export function handlingForPrint(
   entered: string | null | undefined,
   aesItn: string | null | undefined,
   dangerousGoods = false,
   lithiumPi: string | null | undefined = null,
+  unNumbers: string | null | undefined = null,
 ): string {
   const user = plain(entered);
-  const base = user || EXPORT_LINES.join("\n");
-  const token = aesItnToken(aesItn);
-  const dg = dangerousGoods && !base.toLowerCase().includes(DG_HANDLING_LINE.toLowerCase()) ? `\n${DG_HANDLING_LINE}` : "";
+  const cargoOnly = unRequiresCargoAircraftOnly(unNumbers);
+  // A typed Cargo Aircraft Only line is checked against the UN numbers. With no UN number, or one that is not in
+  // the table, there is nothing to check it against, so the line is kept.
+  const numbers = parseUnNumbers(unNumbers);
+  const checked = numbers.length > 0 && numbers.every((un) => planUn(un).found);
+  const typed = (user ? user.split(/\r?\n/) : EXPORT_LINES).filter((line) => {
+    const text = line.trim();
+    return !(dangerousGoods && DG_TYPED.test(text)) && !(checked && CAO_TYPED.test(text));
+  });
+  const lines = [...typed];
+  const has = (value: string) => lines.some((line) => line.toLowerCase().includes(value.toLowerCase()));
+  if (dangerousGoods && !has(DG_HANDLING_LINE)) lines.push(DG_HANDLING_LINE);
+  if (cargoOnly && !has(CARGO_AIRCRAFT_ONLY_LINE)) lines.push(CARGO_AIRCRAFT_ONLY_LINE);
   const statement = lithiumSectionIIStatement(lithiumPi);
-  const lithium = statement && !base.toLowerCase().includes(statement.toLowerCase()) ? `\n${statement}` : "";
-  return `${base}${dg}${lithium}${token ? `\nAES ITN: ${token}` : ""}`;
+  if (statement && !has(statement)) lines.push(statement);
+  const token = aesItnToken(aesItn);
+  if (token) lines.push(`AES ITN: ${token}`);
+  return lines.join("\n");
 }
 
 /**
@@ -379,7 +403,7 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
   const lineTotal = first?.total ?? (rate != null && chargeable != null ? rate * chargeable : null);
   const prepaid = (document.chgsCode || "PP").toUpperCase().startsWith("C") ? "" : money(document.weightCharge ?? lineTotal);
   const natureText = goodsForPrint(goods, document.aesItn);
-  const handlingText = handlingForPrint(document.handling, document.aesItn, document.dgDeclarable, document.lithiumPi);
+  const handlingText = handlingForPrint(document.handling, document.aesItn, document.dgDeclarable, document.lithiumPi, document.dgDeclarable ? document.unNumbers : null);
   const accounting = plain(document.accountingInfo) || ((document.chgsCode || "PP").toUpperCase().startsWith("C") ? "FREIGHT COLLECT" : "FREIGHT PREPAID");
   const tel = [phone ? `TEL: ${phone}` : "", email].filter(Boolean).join("   ");
   const countryLine = address.find((line) => /UNITED STATES/i.test(line)) ?? "";
@@ -581,7 +605,7 @@ function drawAwbFace(doc: Doc, face: Face) {
   t(doc, L + 2, 290, "Handling Information", 5.5);
   box(doc, 500, 298, R, 322);
   tc(doc, 541, 305, "SCI", 6);
-  drawFitted(doc, L + 2, 300, face.handlingText, 278, 11, 4.5, 1.15);
+  drawFitted(doc, L + 2, 298, face.handlingText, 410, 21, 7, 1.15);
   t(doc, 320, 318, face.country, 9);
   lines(doc, 445, 311, ["Diversion contrary to", "U.S. law prohibited"], 5.5, 6);
 
