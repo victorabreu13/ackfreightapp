@@ -26,6 +26,19 @@ export async function signInDev(formData: FormData) {
   }
 }
 
+export async function signInCustomer(formData: FormData) {
+  try {
+    await signIn("customer", {
+      email: String(formData.get("email") ?? ""),
+      password: String(formData.get("password") ?? ""),
+      redirectTo: "/portal",
+    });
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    redirect("/login?customer=1&error=credentials");
+  }
+}
+
 export async function signOutAction() {
   await signOut({ redirectTo: "/login" });
 }

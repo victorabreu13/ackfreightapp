@@ -14,6 +14,7 @@ import { guiaAwbFolder, publishRenderedPdf, saveDocumentLog } from "@/lib/guias/
 import { ensureGuiaClient, guiaBillToName } from "@/lib/guias/guia-client";
 import { type GuiaValues, type ReviewField } from "@/lib/guias/extract";
 import { formatUnNumbers, isLithiumPi } from "@/lib/guias/dg";
+import { checkFlights } from "@/lib/guias/flight-check";
 import { rememberGuiaParties } from "@/lib/guias/parties";
 import { reviewFieldsToSave } from "@/lib/guias/review";
 import { GUIA_FILE_KINDS, guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
@@ -373,6 +374,16 @@ export async function issueGuia(formData: FormData) {
   revalidatePath(`/guias/${id}`);
   const drive = driveError ? `&drive=${encodeURIComponent(driveError)}` : "&drive=ok";
   redirect(`/guias/${id}?issued=1${drive}`);
+}
+
+/** Looks up the flight of one guía now, and emails the client if the status changed. */
+export async function checkGuiaFlight(formData: FormData) {
+  await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  const summary = await checkFlights({ guiaIds: [id] });
+  revalidatePath(`/guias/${id}`);
+  if (summary.errors.length) redirect(`/guias/${id}?flight=${encodeURIComponent(summary.errors[0])}`);
+  redirect(`/guias/${id}?flight=ok`);
 }
 
 export async function saveGuiaToDrive(formData: FormData) {

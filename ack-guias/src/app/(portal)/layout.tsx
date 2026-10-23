@@ -14,5 +14,6 @@ export const metadata: Metadata = {
 export default async function PortalLayout({ children }: { children: ReactNode }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  if (user.role === "CUSTOMER") redirect("/portal");
   return <Shell user={user}>{children}</Shell>;
 }

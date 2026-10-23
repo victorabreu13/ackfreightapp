@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { devLoginEnabled, getSessionUser, googleLoginEnabled } from "@/lib/auth";
-import { signInDev, signInGoogle } from "@/server/session-actions";
+import { signInCustomer, signInDev, signInGoogle } from "@/server/session-actions";
 
 export default async function LoginPage({
   searchParams,
@@ -11,11 +11,12 @@ export default async function LoginPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await getSessionUser();
-  if (user) redirect("/guias");
+  if (user) redirect(user.role === "CUSTOMER" ? "/portal" : "/guias");
   const params = await searchParams;
   const error = Array.isArray(params.error) ? params.error[0] : params.error;
   const google = googleLoginEnabled();
   const dev = devLoginEnabled();
+  const customer = (Array.isArray(params.customer) ? params.customer[0] : params.customer) === "1";
 
   return (
     <div className="grid min-h-full lg:grid-cols-[1.1fr_0.9fr]">
@@ -38,7 +39,19 @@ export default async function LoginPage({
               Sign in with Google. Only ackfreight.com accounts in ADMIN_EMAILS or added by an admin can enter.
             </p>
           </div>
-          {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">Sign-in did not complete.</p> : null}
+          {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{customer ? "Correo o clave incorrectos." : "Sign-in did not complete."}</p> : null}
+          <form action={signInCustomer} className="space-y-3 rounded-lg border border-border bg-card p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Clientes</p>
+            <Label htmlFor="customer-email">Correo</Label>
+            <Input id="customer-email" name="email" type="email" required autoComplete="username" />
+            <Label htmlFor="customer-password">Clave</Label>
+            <Input id="customer-password" name="password" type="password" required autoComplete="current-password" />
+            <Button type="submit" className="w-full">
+              Entrar
+            </Button>
+            <p className="text-xs text-muted-foreground">Si todavía no tiene acceso, use el enlace que le envió ACK.</p>
+          </form>
+          <p className="text-center text-xs uppercase tracking-[0.18em] text-muted-foreground">Equipo ACK</p>
           {google ? (
             <form action={signInGoogle}>
               <Button type="submit" className="w-full">

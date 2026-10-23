@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input";
 import { ACK_AGENT_KEY, canManageGuias } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { decryptInviteToken, inviteLink } from "@/lib/guias/customer-auth";
 import { normalizeBillToName } from "@/lib/guias/guia-client";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
 import { ensureDirectorySeeded, normalizePartyName, PARTY_ROLES, PARTY_ROLE_LABEL } from "@/lib/guias/parties";
+import { cancelCustomerInvite, createCustomerInvite, revokeCustomerAccess } from "@/server/customer-actions";
 import { createDirectoryClient, createParty, deleteParty, renameDirectoryClient, saveParty } from "@/server/guia-directory-actions";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
@@ -24,6 +26,10 @@ const SAVED_TEXT: Record<string, string> = {
   renamed: "Client renamed.",
   client: "Client created.",
   exists: "That client already exists.",
+  invited: "Invitación creada y enviada por correo.",
+  "invited-nomail": "Invitación creada. El correo no está configurado: copie el enlace de abajo y envíeselo al cliente.",
+  "invite-canceled": "Invitación cancelada.",
+  "access-removed": "Acceso del cliente eliminado.",
 };
 
 const AREA = "block w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
@@ -44,6 +50,8 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
   let parties: Awaited<ReturnType<typeof prisma.guiaParty.findMany>> = [];
   let unassigned = 0;
   let selectedClient: { id: string; name: string } | null = null;
+  let customers: Array<{ id: string; email: string; name: string | null; active: boolean; lastLoginAt: Date | null }> = [];
+  let invites: Array<{ id: string; email: string; link: string | null; expiresAt: Date }> = [];
   try {
     await ensureDirectorySeeded(ACK_AGENT_KEY);
     const rows = await prisma.guiaClient.findMany({
@@ -77,6 +85,19 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
       if (client) {
         selectedClient = client;
         parties = await prisma.guiaParty.findMany({ where: { agentKey: ACK_AGENT_KEY, guiaClientId: client.id }, orderBy: [{ role: "asc" }, { name: "asc" }] });
+        customers = await prisma.user.findMany({
+          where: { role: "CUSTOMER", guiaClientId: client.id },
+          orderBy: { email: "asc" },
+          select: { id: true, email: true, name: true, active: true, lastLoginAt: true },
+        });
+        const pending = await prisma.customerInvite.findMany({
+          where: { guiaClientId: client.id, usedAt: null, expiresAt: { gt: new Date() } },
+          orderBy: { createdAt: "desc" },
+        });
+        invites = pending.map((invite) => {
+          const token = decryptInviteToken(invite.tokenEnc, process.env.AUTH_SECRET ?? "");
+          return { id: invite.id, email: invite.email, link: token ? inviteLink(token) : null, expiresAt: invite.expiresAt };
+        });
       }
     }
   } catch (caught) {
@@ -190,6 +211,69 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
                   </form>
                 ) : null}
               </div>
+
+              {selectedClient ? (
+                <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+                  <div>
+                    <h3 className="font-display text-2xl">Acceso del cliente</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Invita a un contacto de {selectedClient.name}. Recibe un enlace para crear su clave y entra a ver solo el AWB y el estatus del vuelo de sus embarques. Cuando el vuelo cambie de estatus, le llega un correo.
+                    </p>
+                  </div>
+                  {customers.length ? (
+                    <ul className="space-y-2 text-sm">
+                      {customers.map((customer) => (
+                        <li key={customer.id} className="flex flex-wrap items-center gap-3">
+                          <span className="font-medium">{customer.email}</span>
+                          <span className="text-muted-foreground">
+                            {customer.active ? (customer.lastLoginAt ? `Último ingreso ${customer.lastLoginAt.toISOString().slice(0, 16).replace("T", " ")} UTC` : "Todavía no ha entrado") : "Sin acceso"}
+                          </span>
+                          {customer.active ? (
+                            <form action={revokeCustomerAccess}>
+                              <input type="hidden" name="userId" value={customer.id} />
+                              <Button type="submit" variant="ghost" size="sm" className="text-stuck">
+                                Quitar acceso
+                              </Button>
+                            </form>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Todavía no hay usuarios del cliente.</p>
+                  )}
+                  {invites.length ? (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold">Invitaciones pendientes</h4>
+                      {invites.map((invite) => (
+                        <div key={invite.id} className="space-y-1 rounded-md border border-border bg-background p-2 text-sm">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <span className="font-medium">{invite.email}</span>
+                            <span className="text-muted-foreground">Vence {invite.expiresAt.toISOString().slice(0, 10)}</span>
+                            <form action={cancelCustomerInvite}>
+                              <input type="hidden" name="id" value={invite.id} />
+                              <Button type="submit" variant="ghost" size="sm" className="text-stuck">
+                                Cancelar
+                              </Button>
+                            </form>
+                          </div>
+                          {invite.link ? <p className="break-all font-mono text-xs">{invite.link}</p> : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <form action={createCustomerInvite} className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+                    <input type="hidden" name="clientId" value={selectedClient.id} />
+                    <label className="space-y-1 text-sm">
+                      <span className="text-muted-foreground">Correo del contacto</span>
+                      <Input name="email" type="email" required placeholder="nombre@empresa.com" className="w-72" />
+                    </label>
+                    <Button type="submit" variant="outline" size="sm">
+                      Enviar invitación
+                    </Button>
+                  </form>
+                </section>
+              ) : null}
 
               {PARTY_ROLES.map((role) => {
                 const rows = parties.filter((party) => party.role === role);

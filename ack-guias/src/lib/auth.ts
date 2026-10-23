@@ -8,6 +8,7 @@ import { emailDomainAllowed, hostedDomainAllowed } from "@/lib/auth-domains";
 import { applyCanonicalAuthEnv } from "@/lib/app-url";
 import { adminEmailSet, devLoginAllowed, roleOnGoogleSignIn } from "@/lib/auth-role";
 import { prisma } from "@/lib/db";
+import { clearFailedSignIns, normalizeCustomerEmail, recordFailedSignIn, signInBlocked, verifyPassword } from "@/lib/guias/customer-auth";
 
 applyCanonicalAuthEnv();
 
@@ -71,10 +72,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }),
         ]
       : []),
+    // Clients of ACK sign in with the email and the password they chose from their invitation link.
+    Credentials({
+      id: "customer",
+      name: "Customer login",
+      credentials: { email: { label: "Email", type: "email" }, password: { label: "Password", type: "password" } },
+      authorize: async (credentials) => {
+        const email = normalizeCustomerEmail(String(credentials?.email ?? ""));
+        const password = String(credentials?.password ?? "");
+        if (!email || !password || signInBlocked(email)) return null;
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user || user.role !== "CUSTOMER" || !user.active || !(await verifyPassword(password, user.passwordHash))) {
+          recordFailedSignIn(email);
+          return null;
+        }
+        clearFailedSignIns(email);
+        await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+        return { id: user.id, email: user.email, name: user.name, role: user.role, clientId: user.guiaClientId, clientName: null };
+      },
+    }),
   ],
   callbacks: {
     async signIn({ account, profile }) {
-      if (account?.provider !== "google") return account?.provider === "credentials";
+      if (account?.provider !== "google") return account?.provider === "credentials" || account?.provider === "customer";
       const email = profile?.email?.toLowerCase();
       const hostedDomain = (profile as { hd?: string } | undefined)?.hd;
       const verified = (profile as { email_verified?: boolean } | undefined)?.email_verified;
@@ -110,7 +130,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user, account }) {
-      if (user && account?.provider === "credentials") {
+      if (user && (account?.provider === "credentials" || account?.provider === "customer")) {
         token.sub = user.id;
         token.role = user.role;
         token.email = user.email;
@@ -154,17 +174,20 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!session?.user?.id || !session.user.email) return null;
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, email: true, name: true, role: true, active: true, accountingAgentKey: true },
+    select: { id: true, email: true, name: true, role: true, active: true, accountingAgentKey: true, guiaClientId: true, guiaClient: { select: { name: true } } },
   });
   if (!dbUser?.active) return null;
-  if (!emailDomainAllowed(dbUser.email)) return null;
+  const customer = dbUser.role === "CUSTOMER";
+  // Staff are ackfreight.com accounts. A client signs in with its own email and is tied to one client of the book.
+  if (!customer && !emailDomainAllowed(dbUser.email)) return null;
+  if (customer && !dbUser.guiaClientId) return null;
   return {
     id: dbUser.id,
     email: dbUser.email,
     name: dbUser.name,
     role: dbUser.role,
-    clientId: null,
-    clientName: null,
+    clientId: customer ? dbUser.guiaClientId : null,
+    clientName: customer ? (dbUser.guiaClient?.name ?? null) : null,
     agentKey: dbUser.role === "ACCOUNTING" ? ACK_AGENT_KEY : null,
   };
 }

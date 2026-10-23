@@ -131,6 +131,44 @@ Uploads without `ACK_GUIAS_DRIVE_ROOT_ID` do not reach Drive and report `Drive i
 
 Imported `driveFileId` and `driveUrl` values are the files already stored by Kope. The import does not copy bytes and does not move them into the ACK Shared drive. Opening those files works when the Cloud Run service account can see them.
 
+## Client portal, emails and flight status
+
+A client of ACK gets a login that is tied to one client of the book. It sees only the AWB (the shipper original and the conditions, 2 pages) and the flight status of that client's issued guías. Nothing else is reachable with it.
+
+1. In **Directorio**, pick the client and use **Acceso del cliente** to invite a contact by email. The invitation is a one-time link (7 days) where the contact chooses a password. The same link shape serves a password reset. A pending link can be copied again from the same panel.
+2. The client signs in at the sign-in page, in the **Clientes** box, and lands on `/portal`.
+3. Every 30 minutes Cloud Scheduler calls `/api/guias/flight-check`. It looks up the flight of each issued guía from the day before its flight date to two days after, until it lands or is canceled. When the status changes, the client's logins get an email in Spanish. **Revisar ahora** on a guía does the same check by hand.
+
+### Secrets
+
+Flight status comes from AeroDataBox on RapidAPI. Emails go over SMTP, by default Google Workspace (`smtp.gmail.com`, port 587) with a mailbox of ackfreight.com and an app password. Create the secrets once, without echoing the values:
+
+```bash
+read -s AERODATABOX_API_KEY
+printf '%s' "$AERODATABOX_API_KEY" | gcloud secrets create AERODATABOX_API_KEY --project=ack-guias --replication-policy=automatic --data-file=-
+unset AERODATABOX_API_KEY
+```
+
+```bash
+printf '%s' "ops@ackfreight.com" | gcloud secrets create SMTP_USER --project=ack-guias --replication-policy=automatic --data-file=-
+read -s SMTP_PASSWORD
+printf '%s' "$SMTP_PASSWORD" | gcloud secrets create SMTP_PASSWORD --project=ack-guias --replication-policy=automatic --data-file=-
+unset SMTP_PASSWORD
+```
+
+```bash
+openssl rand -base64 32 | gcloud secrets create FLIGHT_CHECK_SECRET --project=ack-guias --replication-policy=automatic --data-file=-
+```
+
+Use `gcloud secrets versions add NAME --data-file=-` when a secret already exists. Optional: `export MAIL_FROM='ACK TEAM LLC <info@ackfreight.com>'` before `deploy` to change the sender name. Then:
+
+```bash
+bash DEPLOY_GCLOUD.sh deploy
+bash DEPLOY_GCLOUD.sh schedule
+```
+
+`schedule` creates (or updates) the Cloud Scheduler job `ack-guias-flight-check`. Without `SMTP_USER` and `SMTP_PASSWORD` the invitation is still created and the link can be copied by hand, and status changes are saved but no email goes out. Without `AERODATABOX_API_KEY` no flight is checked.
+
 ## Optional QuickBooks Online
 
 Intuit redirect URI: `https://<cloud run url>/api/guias/qbo/callback`.

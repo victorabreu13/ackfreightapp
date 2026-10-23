@@ -12,6 +12,8 @@ enum Role {
   OPERATIONS
   ACCOUNTING
   VIEWER
+  /// A client of ACK who signs in with a password to see only the AWBs and flight status of its own guías.
+  CUSTOMER
 }
 
 /// Google Workspace user. There is no password and no link to any other company's book.
@@ -25,8 +27,34 @@ model User {
   /// Set only when role is ACCOUNTING. Always the ACK issuer.
   accountingAgentKey String?
   active             Boolean  @default(true)
+  /// Customers only. Scrypt hash of the password they chose when they registered.
+  passwordHash       String?
+  /// Customers only. The client in the book that this login belongs to.
+  guiaClientId       String?
+  guiaClient         GuiaClient? @relation(fields: [guiaClientId], references: [id], onDelete: SetNull)
+  lastLoginAt        DateTime?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+
+  @@index([guiaClientId])
+}
+
+/// A one-time link that lets a client's contact choose a password. Only the hash of the token is stored.
+model CustomerInvite {
+  id           String     @id @default(cuid())
+  tokenHash    String     @unique
+  /// The token encrypted with AUTH_SECRET, so staff can copy a pending link again. It never appears in a URL.
+  tokenEnc     String?
+  email        String
+  guiaClientId String
+  guiaClient   GuiaClient @relation(fields: [guiaClientId], references: [id], onDelete: Cascade)
+  createdBy    String
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@index([guiaClientId])
+  @@index([email])
 }
 
 model AirlinePrefix {
@@ -108,6 +136,12 @@ model AirWaybillDocument {
   bup              Boolean      @default(false)
   /// Packing instruction (965 to 970) of lithium batteries shipped under Section II. No DGD, and the AWB names the PI.
   lithiumPi        String?
+  /// Last flight status seen by the checker, like DEPARTED or DELAYED. Null until the first check.
+  flightStatus     String?
+  /// What the status source said about the flight: times, airports. JSON.
+  flightStatusDetail String?     @db.Text
+  flightCheckedAt  DateTime?
+  flightEvents     GuiaFlightEvent[]
   otherChargesText String?      @db.Text
   accountingInfo   String?      @db.Text
   weightCharge     Float?
@@ -281,6 +315,8 @@ model GuiaClient {
   guias          AirWaybillDocument[]
   agreedRates    ClientAgreedRate[]
   parties        GuiaParty[]
+  customers      User[]
+  invites        CustomerInvite[]
 
   @@unique([agentKey, normalizedName])
   @@index([agentKey])
@@ -307,6 +343,20 @@ model GuiaParty {
   @@unique([agentKey, guiaClientId, role, normalizedName])
   @@index([agentKey, role, normalizedName])
   @@index([guiaClientId])
+}
+
+/// Each change of flight status seen for a guía, and whether the client was emailed about it.
+model GuiaFlightEvent {
+  id         String             @id @default(cuid())
+  documentId String
+  document   AirWaybillDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  status     String
+  detail     String?            @db.Text
+  emailedTo  String?            @db.Text
+  emailError String?            @db.Text
+  createdAt  DateTime           @default(now())
+
+  @@index([documentId, createdAt])
 }
 
 /// USD per chargeable kg. This is not the rate printed on the AWB face.

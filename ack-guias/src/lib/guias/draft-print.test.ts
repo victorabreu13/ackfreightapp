@@ -67,3 +67,9 @@ test("labels print before issuing when the AWB number is typed, and it must pass
   assert.equal(bad.status, 400);
   assert.match(bad.message, /mod-7/);
 });
+
+test("the AWB a client sees is the shipper original and the conditions, 2 pages", async () => {
+  const copy = await renderGuiaPdf("awb", sampleGuia(), company, { ...options, customerCopy: true });
+  assert.equal(pages(copy), 2);
+  assert.equal(pages(await renderGuiaPdf("awb", sampleGuia(), company, options)), 12);
+});

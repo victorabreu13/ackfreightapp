@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ACK Guías on Cloud Run. Commands: setup, deploy, migrate, import.
+# ACK Guías on Cloud Run. Commands: setup, deploy, migrate, import, schedule.
 # Never prints secret values.
 set -euo pipefail
 
@@ -59,7 +59,7 @@ write_secret() {
 runtime_secrets() {
   local secrets="DATABASE_URL=DATABASE_URL:latest,AUTH_SECRET=AUTH_SECRET:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest"
   local optional
-  for optional in GOOGLE_DRIVE_SA_JSON QBO_CLIENT_ID QBO_CLIENT_SECRET QBO_TOKEN_KEY; do
+  for optional in GOOGLE_DRIVE_SA_JSON QBO_CLIENT_ID QBO_CLIENT_SECRET QBO_TOKEN_KEY AERODATABOX_API_KEY SMTP_USER SMTP_PASSWORD FLIGHT_CHECK_SECRET; do
     if secret_exists "$optional"; then
       secrets="${secrets},${optional}=${optional}:latest"
     fi
@@ -108,6 +108,10 @@ runtime_env() {
   fi
   if [[ -n "${QBO_ENVIRONMENT:-}" ]]; then
     env="${env}|QBO_ENVIRONMENT=${QBO_ENVIRONMENT}"
+  fi
+  # Sender of the client emails. Without it the mailbox in SMTP_USER is the sender.
+  if [[ -n "${MAIL_FROM:-}" ]]; then
+    env="${env}|MAIL_FROM=${MAIL_FROM}"
   fi
   printf '%s' "$env"
 }
@@ -336,13 +340,44 @@ PY
   trap - EXIT
 }
 
+# Cloud Scheduler calls the flight check every 30 minutes. The shared secret is read from Secret Manager and
+# never printed. Run it once, after the service is deployed with FLIGHT_CHECK_SECRET.
+cmd_schedule() {
+  local url secret verb job="ack-guias-flight-check"
+  if ! secret_exists FLIGHT_CHECK_SECRET; then
+    echo "Create the FLIGHT_CHECK_SECRET secret first, then run deploy and schedule again."
+    exit 1
+  fi
+  gcloud services enable cloudscheduler.googleapis.com --project="$PROJECT_ID"
+  url="$(app_url)/api/guias/flight-check"
+  secret="$(gcloud secrets versions access latest --secret=FLIGHT_CHECK_SECRET --project="$PROJECT_ID")"
+  if gcloud scheduler jobs describe "$job" --location="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    verb="update"
+  else
+    verb="create"
+  fi
+  gcloud scheduler jobs "$verb" http "$job" \
+    --location="$REGION" \
+    --project="$PROJECT_ID" \
+    --schedule="*/30 * * * *" \
+    --time-zone="America/New_York" \
+    --uri="$url" \
+    --http-method=POST \
+    --headers="x-flight-check-secret=${secret}" \
+    --attempt-deadline=300s \
+    --quiet >/dev/null
+  unset secret
+  echo "Scheduled ${job} every 30 minutes against ${url}"
+}
+
 case "${1:-}" in
   setup) cmd_setup ;;
+  schedule) cmd_schedule ;;
   deploy) cmd_deploy ;;
   migrate) cmd_migrate ;;
   import) cmd_import "${2:-}" ;;
   *)
-    echo "usage: bash DEPLOY_GCLOUD.sh setup|deploy|migrate|import <file.json>"
+    echo "usage: bash DEPLOY_GCLOUD.sh setup|deploy|migrate|schedule|import <file.json>"
     exit 1
     ;;
 esac

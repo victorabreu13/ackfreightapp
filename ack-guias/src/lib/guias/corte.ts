@@ -383,7 +383,9 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
     doc.info.Author = name || "Kope Guías";
     // A draft is one marked copy of the face, with no conditions page.
     const draft = Boolean(options.draft);
-    const copies: readonly string[] = draft ? [DRAFT_LABEL] : COPY_LABELS;
+    const customerCopy = !draft && Boolean(options.customerCopy);
+    const copies: readonly string[] = draft ? [DRAFT_LABEL] : customerCopy ? [COPY_LABELS[2]] : COPY_LABELS;
+    const totalPages = draft ? 1 : customerCopy ? 2 : 12;
     copies.forEach((label, index) => {
       if (index > 0) doc.addPage({ size: "LETTER", margin: 0 });
       drawAwbFace(doc, {
@@ -425,14 +427,14 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
         place,
         label,
         page: index * 2 + 1,
-        pages: draft ? 1 : 12,
+        pages: totalPages,
         draft,
       });
       if (draft) return;
       doc.addPage({ size: "LETTER", margin: 0 });
       doc.image(CONDITIONS_PNG, 0, 0, { width: 612, height: 792 });
       doc.save().fillColor("#ffffff").rect(536, 779, 76, 13).fill().restore();
-      tr(doc, 582, 788, `Page ${index * 2 + 2} of 12`, 8, "Helvetica-Bold");
+      tr(doc, 582, 788, `Page ${index * 2 + 2} of ${totalPages}`, 8, "Helvetica-Bold");
     });
   });
 }

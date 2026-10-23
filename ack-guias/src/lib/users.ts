@@ -8,6 +8,7 @@ export const USER_ROLE_LABEL: Record<Role, string> = {
   OPERATIONS: "Operations",
   ACCOUNTING: "Accounting",
   VIEWER: "Viewer",
+  CUSTOMER: "Customer",
 };
 
 export function parseUserRole(value: string): Role | null {

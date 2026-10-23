@@ -16,7 +16,8 @@ import { canDeleteGuiaUpload, UPLOAD_KIND } from "@/lib/guias/upload-rules";
 import type { GuiaValues } from "@/lib/guias/extract";
 import { GUIA_FILE_KINDS, guiaFileName } from "@/lib/guias/files";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
-import { assignGuiaAwb, issueGuia, releaseGuiaAwb, saveGuiaToDrive } from "@/server/guia-actions";
+import { FLIGHT_STATUS_LABEL, isFlightStatus } from "@/lib/guias/flight-status";
+import { assignGuiaAwb, checkGuiaFlight, issueGuia, releaseGuiaAwb, saveGuiaToDrive } from "@/server/guia-actions";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
   const value = params[key];
@@ -231,6 +232,8 @@ export default async function GuiaDetailPage({
       </div>
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
       {one(query, "saved") ? <p className="text-sm text-muted-foreground">Saved.</p> : null}
+      {one(query, "flight") === "ok" ? <p className="text-sm text-muted-foreground">Estatus del vuelo revisado.</p> : null}
+      {one(query, "flight") && one(query, "flight") !== "ok" ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">Vuelo: {one(query, "flight")}</p> : null}
       {one(query, "assigned") ? <p className="text-sm text-muted-foreground">AWB asignado. El borrador y los labels ya salen con ese número.</p> : null}
       {one(query, "released") ? <p className="text-sm text-muted-foreground">AWB devuelto al stock.</p> : null}
       {one(query, "issued") ? <p className="text-sm text-muted-foreground">Issued. The PDF download does not depend on Drive.</p> : null}
@@ -239,6 +242,29 @@ export default async function GuiaDetailPage({
       {one(query, "invoiced") ? <p className="text-sm text-muted-foreground">Factura guardada.</p> : null}
       {one(query, "qbo") ? <p className="text-sm text-muted-foreground">Factura creada en QuickBooks.</p> : null}
       {one(query, "rate") ? <p className="text-sm text-muted-foreground">Tarifa guardada.</p> : null}
+
+      {document.status === "issued" && document.flightNumber ? (
+        <section className="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-card p-4">
+          <div>
+            <h2 className="font-display text-2xl">Estatus del vuelo</h2>
+            <p className="text-sm text-muted-foreground">
+              {document.flightNumber}
+              {document.flightDate ? ` · ${document.flightDate}` : ""}
+              {document.flightCheckedAt ? ` · revisado ${formatNy(document.flightCheckedAt)}` : " · todavía no se ha revisado"}
+            </p>
+          </div>
+          <p className="text-xl font-semibold">{isFlightStatus(document.flightStatus) ? FLIGHT_STATUS_LABEL[document.flightStatus] : "Sin información"}</p>
+          <form action={checkGuiaFlight}>
+            <input type="hidden" name="id" value={document.id} />
+            <Button type="submit" variant="outline" size="sm">
+              Revisar ahora
+            </Button>
+          </form>
+          <p className="w-full text-xs text-muted-foreground">
+            Se revisa solo cada 30 minutos desde el día antes del vuelo. Cuando cambia, el cliente recibe un correo.
+          </p>
+        </section>
+      ) : null}
 
       <GuiaBilling {...billing} />
 

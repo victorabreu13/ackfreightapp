@@ -26,6 +26,8 @@ export type GuiaPrintOptions = {
   masterLabel?: boolean;
   /** One draft copy of the AWB face, marked DRAFT. Works before the guía is issued. */
   draft?: boolean;
+  /** The copy a client sees: the shipper original and the conditions page, 2 pages instead of 12. */
+  customerCopy?: boolean;
   /** AWB number the labels carry while the guía is not issued yet. */
   labelAwb?: string | null;
 };
