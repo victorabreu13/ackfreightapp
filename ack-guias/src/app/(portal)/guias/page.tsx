@@ -6,6 +6,7 @@ import { canManageGuias, canReadGuias, guiaWhere, isCompanyAccounting } from "@/
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatNyDate } from "@/lib/guias/documents-index";
+import { guiaOnList } from "@/lib/guias/guia-list";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
@@ -25,12 +26,12 @@ export default async function GuiasPage({
   const readOnly = !canManageGuias(user);
   const params = await searchParams;
   const error = one(params, "error");
-  let guias;
+  let all;
   try {
-    guias = await prisma.airWaybillDocument.findMany({
+    all = await prisma.airWaybillDocument.findMany({
     where: guiaWhere(user),
     orderBy: { createdAt: "desc" },
-    take: 100,
+    take: 500,
     include: {
       guiaClient: { select: { name: true, agentKey: true } },
       agent: { select: { legalName: true } },
@@ -42,6 +43,8 @@ export default async function GuiasPage({
     logMigrationError("/guias", caught);
     return <MigrationPending />;
   }
+  // Drafts and guías that have not flown yet. Documentos keeps every guía, and accounting needs the flown ones to invoice.
+  const guias = (accounting ? all : all.filter((guia) => guiaOnList(guia))).slice(0, 100);
 
   return (
     <div className="space-y-6">
