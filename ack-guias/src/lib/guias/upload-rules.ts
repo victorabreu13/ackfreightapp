@@ -102,3 +102,14 @@ export function uploadMissingPage(guiaId: string | null): string {
 </html>
 `;
 }
+
+/** The signed DGD is an upload whose name starts with DGD. */
+export function isDgdUpload(fileName: string): boolean {
+  return /^dgd\b/i.test(fileName.trim());
+}
+
+/** "DGD 045-53981966 - scan.pdf". A name that already starts with DGD is kept. */
+export function dgdUploadName(awb: string | null | undefined, fileName: string): string {
+  if (isDgdUpload(fileName)) return fileName;
+  return `DGD ${(awb ?? "").trim() || "DRAFT"} - ${fileName}`.slice(0, 180);
+}

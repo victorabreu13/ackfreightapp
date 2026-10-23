@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { GuiaAccountingView } from "@/components/guia-accounting";
 import { GuiaBilling } from "@/components/guia-billing";
 import { GuiaForm } from "@/components/guia-form";
+import { DgdUpload } from "@/components/dgd-upload";
 import { GuiaUploads } from "@/components/guia-uploads";
 import { MigrationPending } from "@/components/migration-pending";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { prisma } from "@/lib/db";
 import { loadCompany } from "@/lib/guias/company";
 import { missingProfileMessages } from "@/lib/guias/company-profile";
 import { GUIA_FILE_LABELS, formatNy } from "@/lib/guias/documents-index";
-import { canDeleteGuiaUpload, UPLOAD_KIND } from "@/lib/guias/upload-rules";
+import { canDeleteGuiaUpload, isDgdUpload, UPLOAD_KIND } from "@/lib/guias/upload-rules";
 import type { GuiaValues } from "@/lib/guias/extract";
 import { GUIA_FILE_KINDS, guiaFileName } from "@/lib/guias/files";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
@@ -112,6 +113,20 @@ export default async function GuiaDetailPage({
     return <MigrationPending />;
   }
   if (!document || document.product !== "guia") notFound();
+  const uploadRows = uploads.map((file) => ({
+    id: file.id,
+    fileName: file.fileName,
+    mime: file.mime,
+    size: file.size,
+    uploadedBy: file.generatedBy,
+    createdAt: formatNy(file.generatedAt),
+    status: file.status,
+    error: file.error,
+    driveUrl: file.driveUrl,
+    canDownload: Boolean(file.driveFileId),
+    canDelete: canDeleteGuiaUpload(user, file.generatedBy),
+  }));
+  const dgdFiles = uploadRows.filter((file) => isDgdUpload(file.fileName));
   const pieces = document.lines.reduce((sum, line) => sum + (line.pieces ?? 0), 0);
   const chargeableKg = document.lines.reduce((sum, line) => sum + (line.chargeableWeight ?? 0), 0);
   const linked = document.guiaClient?.agentKey === document.agentKey ? document.guiaClient : null;
@@ -472,6 +487,7 @@ export default async function GuiaDetailPage({
               </div>
             );
           })}
+          {document.dgDeclarable ? <DgdUpload guiaId={document.id} files={dgdFiles} /> : null}
         </div>
         <p className="text-xs text-muted-foreground">
           Todos los documentos downloads one zip: the shipment checklist, the 12-page AWB, delivery order, pickup order, TSA letter with the company logo, TSA unknown-shipper letter, CCSF certificate, CCSP certification and the lithium battery letter. ACK prints the ACK logo and letterhead. Delivery and pickup need a trucker. The AWB and labels wait until the number is issued. The cargo labels and the folder label are printed on their own and are not in that zip. Opening a file also uploads it to Drive under ACK Guías / client / AWB.
@@ -515,19 +531,7 @@ export default async function GuiaDetailPage({
         guiaId={document.id}
         notice={uploadNotice}
         error={uploadError ?? null}
-        files={uploads.map((file) => ({
-          id: file.id,
-          fileName: file.fileName,
-          mime: file.mime,
-          size: file.size,
-          uploadedBy: file.generatedBy,
-          createdAt: formatNy(file.generatedAt),
-          status: file.status,
-          error: file.error,
-          driveUrl: file.driveUrl,
-          canDownload: Boolean(file.driveFileId),
-          canDelete: canDeleteGuiaUpload(user, file.generatedBy),
-        }))}
+        files={uploadRows}
       />
     </div>
   );

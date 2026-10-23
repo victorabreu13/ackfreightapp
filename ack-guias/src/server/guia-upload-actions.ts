@@ -7,7 +7,7 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { guiaAwbFolder } from "@/lib/guias/document-log";
 import { guiaBillToName } from "@/lib/guias/guia-client";
-import { acceptUpload, safeGuiaReturn } from "@/lib/guias/upload-rules";
+import { acceptUpload, dgdUploadName, safeGuiaReturn } from "@/lib/guias/upload-rules";
 import { deleteUploadedFile, storeGuiaUpload } from "@/lib/guias/uploads";
 
 function text(value: FormDataEntryValue | null): string {
@@ -38,7 +38,7 @@ export async function uploadGuiaFiles(formData: FormData) {
   const errors: string[] = [];
   let saved = 0;
   for (const file of files) {
-    const accepted = acceptUpload({ name: file.name, type: file.type, byteLength: file.size });
+    const accepted = acceptUpload({ name: formData.get("dgd") === "1" ? dgdUploadName(document.awb, file.name) : file.name, type: file.type, byteLength: file.size });
     if (!accepted.ok) {
       errors.push(accepted.error);
       continue;
