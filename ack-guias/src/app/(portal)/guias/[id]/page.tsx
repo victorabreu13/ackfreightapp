@@ -261,7 +261,7 @@ export default async function GuiaDetailPage({
             </Button>
           </form>
           <p className="w-full text-xs text-muted-foreground">
-            Se revisa solo cada 30 minutos desde el día antes del vuelo. Cuando cambia, el cliente recibe un correo.
+            Se revisa solo cada pocas horas, desde el día antes del vuelo hasta el día después. Cuando cambia, el cliente recibe un correo.
           </p>
         </section>
       ) : null}

@@ -88,7 +88,7 @@ export default async function AwbStatusPage({ searchParams }: { searchParams: Pr
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">AWB Status</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Lo mismo que ve el cliente en su portal: cada AWB emitido con el estatus de su vuelo y el historial, para todos los clientes. El estatus se revisa solo cada 30 minutos, desde el día antes del vuelo, y el cliente recibe un correo cuando cambia.
+          Lo mismo que ve el cliente en su portal: cada AWB emitido con el estatus de su vuelo y el historial, para todos los clientes. El estatus se revisa solo cada pocas horas (más seguido cuando el vuelo va en ruta), desde el día antes del vuelo hasta el día después, y el cliente recibe un correo cuando cambia.
         </p>
       </div>
       {flightMessage === "ok" ? <p className="text-sm text-muted-foreground">Estatus del vuelo revisado.</p> : null}

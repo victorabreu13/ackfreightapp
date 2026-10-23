@@ -13,9 +13,19 @@ import {
 } from "@/lib/guias/flight-status";
 import { sendMail, type MailSender } from "@/lib/guias/mailer";
 
-/** A guía is watched from the day before its flight to two days after, until it lands or is canceled. */
+/**
+ * A guía is watched from the day before its flight to the day after, until it lands or is canceled. The status
+ * source has a monthly quota, so each guía is looked up only every few hours, and more often once it is flying.
+ */
 const DAYS_BEFORE = 1;
-const DAYS_AFTER = 2;
+const DAYS_AFTER = 1;
+
+/** Minutes to wait before looking the same flight up again. */
+export function checkIntervalMinutes(status: string | null | undefined): number {
+  if (status === "DEPARTED") return 180;
+  if (status === "DELAYED") return 240;
+  return 480;
+}
 
 function newYorkDay(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
@@ -75,7 +85,11 @@ export async function checkFlights(options: FlightCheckOptions = {}): Promise<Fl
   for (const guia of guias) {
     const date = flightDateIso(guia.flightDate);
     const flightNumber = flightNumberKey(guia.flightNumber);
-    if (!date || !flightNumber || isFinalStatus(guia.flightStatus) || (!options.guiaIds && !inWatchWindow(date, now))) {
+    const recent =
+      !options.guiaIds &&
+      guia.flightCheckedAt != null &&
+      now.getTime() - guia.flightCheckedAt.getTime() < checkIntervalMinutes(guia.flightStatus) * 60_000;
+    if (!date || !flightNumber || isFinalStatus(guia.flightStatus) || recent || (!options.guiaIds && !inWatchWindow(date, now))) {
       summary.skipped += 1;
       continue;
     }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inWatchWindow } from "@/lib/guias/flight-check";
+import { checkIntervalMinutes, inWatchWindow } from "@/lib/guias/flight-check";
 import {
   FLIGHT_STATUS_LABEL,
   fetchFlightStatus,
@@ -40,13 +40,20 @@ test("flight dates and numbers are read from the way the guía form stores them"
   assert.equal(flightNumberKey("la-401"), "LA401");
 });
 
-test("a flight is watched from the day before to two days after it flies", () => {
+test("a flight is watched from the day before to the day after it flies", () => {
   const now = new Date("2026-10-22T15:00:00.000Z");
   assert.equal(inWatchWindow("2026-10-23", now), true);
   assert.equal(inWatchWindow("2026-10-22", now), true);
-  assert.equal(inWatchWindow("2026-10-20", now), true);
-  assert.equal(inWatchWindow("2026-10-19", now), false);
+  assert.equal(inWatchWindow("2026-10-21", now), true);
+  assert.equal(inWatchWindow("2026-10-20", now), false);
   assert.equal(inWatchWindow("2026-10-24", now), false);
+});
+
+test("a flight is looked up again after hours, sooner once it is flying, to save the source's quota", () => {
+  assert.equal(checkIntervalMinutes(null), 480);
+  assert.equal(checkIntervalMinutes("SCHEDULED"), 480);
+  assert.equal(checkIntervalMinutes("DELAYED"), 240);
+  assert.equal(checkIntervalMinutes("DEPARTED"), 180);
 });
 
 test("an email is worth sending for a real change, not for the first on-schedule sighting", () => {

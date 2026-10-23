@@ -137,7 +137,7 @@ A client of ACK gets a login that is tied to one client of the book. It sees onl
 
 1. In **Directorio**, pick the client and use **Acceso del cliente** to invite a contact by email. The invitation is a one-time link (7 days) where the contact chooses a password. The same link shape serves a password reset. A pending link can be copied again from the same panel.
 2. The client signs in at the sign-in page, in the **Clientes** box, and lands on `/portal`.
-3. Every 30 minutes Cloud Scheduler calls `/api/guias/flight-check`. It looks up the flight of each issued guía from the day before its flight date to two days after, until it lands or is canceled. When the status changes, the client's logins get an email in Spanish. **Revisar ahora** on a guía does the same check by hand.
+3. Every 30 minutes Cloud Scheduler calls `/api/guias/flight-check`. Each issued guía is looked up from the day before its flight date to the day after, until it lands or is canceled, but only every 8 hours (4 when delayed, 3 when en route) because AeroDataBox's free plan has a monthly quota of 400 units and each flight lookup uses 2. When the status changes, the client's logins get an email in Spanish. **Revisar ahora** on a guía does the same check by hand.
 
 ### Secrets
 

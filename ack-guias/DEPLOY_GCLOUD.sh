@@ -61,6 +61,8 @@ runtime_secrets() {
   local optional
   for optional in GOOGLE_DRIVE_SA_JSON QBO_CLIENT_ID QBO_CLIENT_SECRET QBO_TOKEN_KEY AERODATABOX_API_KEY SMTP_USER SMTP_PASSWORD FLIGHT_CHECK_SECRET; do
     if secret_exists "$optional"; then
+      # The runtime account has to be allowed to read each secret it is given, or the revision does not start.
+      bind_secret "$optional"
       secrets="${secrets},${optional}=${optional}:latest"
     fi
   done
