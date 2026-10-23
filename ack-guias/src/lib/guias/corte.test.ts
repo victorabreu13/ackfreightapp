@@ -117,8 +117,10 @@ test("the ACK AWB corte matches the 12-page reference wording", async () => {
   assert.match(text, /PINTOPAQ SRL/);
   assert.match(text, /ACK LOGISTICS/);
   assert.match(text, /6550 NW 97TH AVE, SUITE 220/);
-  assert.match(text, /SE1701005/);
-  assert.match(text, /A2939-US-MIA-MIA/);
+  // The Agent's IATA Code and Account No. boxes are always blank.
+  assert.match(text, /Agent's IATA Code/);
+  assert.doesNotMatch(text, /SE1701005/);
+  assert.doesNotMatch(text, /A2939-US-MIA-MIA/);
   assert.doesNotMatch(text, /SE2508006/);
   assert.match(text, /andres\.alvarado@ackfreight\.com/);
   assert.match(text, /FREIGHT PREPAID/);
