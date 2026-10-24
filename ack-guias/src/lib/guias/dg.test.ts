@@ -54,11 +54,14 @@ test("the AES ITN prints in the Nature of Goods after the last line, and with no
   const line = (nature: string) => [{ nature, sortOrder: 0 }];
   assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), ""), `WIDGETS ${NO_EEI_GOODS} PMC 40106 R7=01 PC`);
   assert.equal(goodsForPrint(line("WIDGETS"), null), `WIDGETS ${NO_EEI_GOODS}`);
-  assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), "X20261021165293"), "WIDGETS PMC 40106 R7=01 PC\nAES ITN: X20261021165293");
+  assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), "X20261021165293"), "WIDGETS PMC 40106 R7=01 PC\nITN: X20261021165293");
   const several = "X20261023351371, X20261023351509, X20261023351662, X20261023351717";
-  assert.equal(goodsForPrint([{ nature: "WIDGETS", sortOrder: 0 }, { nature: "PI967 PMC 40106", sortOrder: 1 }], `AES ITN: ${several}`), "WIDGETS\nPI967 PMC 40106\nAES ITN: X20261023351371\nAES ITN: X20261023351509\nAES ITN: X20261023351662\nAES ITN: X20261023351717");
+  assert.equal(goodsForPrint([{ nature: "WIDGETS", sortOrder: 0 }, { nature: "PI967 PMC 40106", sortOrder: 1 }], `AES ITN: ${several}`), "WIDGETS\nPI967 PMC 40106\nITN: X20261023351371\nX20261023351509\nX20261023351662\nX20261023351717");
+  // Typed with AES in front of each number, the word is dropped: ITN: appears once and only the numbers follow.
+  const typed = "AES X20261023351371, AES X20261023351509, AES ITN: X20261023351662, ITN: X20261023351717";
+  assert.equal(goodsForPrint(line("PI967"), typed), "PI967\nITN: X20261023351371\nX20261023351509\nX20261023351662\nX20261023351717");
   assert.deepEqual(aesItnList("x1; X2\nX1,  AES ITN: X3 ,"), ["x1", "X2", "X3"]);
-  assert.equal(goodsForPrint(line("WIDGETS AES ITN: X1 PMC 40106"), "X1, X2"), "WIDGETS AES ITN: X1 PMC 40106\nAES ITN: X2");
+  assert.equal(goodsForPrint(line("WIDGETS AES ITN: X1 PMC 40106"), "X1, X2"), "WIDGETS AES ITN: X1 PMC 40106\nITN: X2");
   assert.equal(goodsForPrint(line("WIDGETS AES ITN: X20261021165293 PMC 40106"), "X20261021165293"), "WIDGETS AES ITN: X20261021165293 PMC 40106");
   assert.ok(!goodsForPrint(line("WIDGETS"), "X20261021165293").includes("NO EEI"));
   assert.equal(goodsForPrint(line(`WIDGETS ${NO_EEI_GOODS} PMC 40106`), ""), `WIDGETS ${NO_EEI_GOODS} PMC 40106`);

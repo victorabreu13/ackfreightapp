@@ -239,8 +239,8 @@ test("045-53981966 prints the goods and the Pacifiko line, and the ITN field, wi
   assert.match(text, /PMC 40106 R7=01 PC/);
   assert.match(text, /pmorales@pacifiko/);
   assert.match(text, /facturas_mia1@pacifiko\.com/);
-  assert.match(text, /AES ITN: X20261021165293/);
-  assert.equal(text.match(/AES ITN: X20261021165293/g)?.length, 6);
+  assert.match(text, /ITN: X20261021165293/);
+  assert.equal(text.match(/ITN: X20261021165293/g)?.length, 6);
   assert.doesNotMatch(text, /NO EEI/);
   assert.doesNotMatch(text, /NO EEI REQ 30\.37A PMC/);
 });

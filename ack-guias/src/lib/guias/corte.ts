@@ -172,7 +172,8 @@ export function aesItnToken(value: string | null | undefined): string {
 export function aesItnList(value: string | null | undefined): string[] {
   const found: string[] = [];
   for (const part of aesItnToken(value).split(/[,;\n]+/)) {
-    const token = part.replace(/^\s*AES\s*ITN\s*:\s*/i, "").trim();
+    // Each number may be typed as "AES X…", "AES ITN: X…" or "ITN: X…". Only the number is kept.
+    const token = part.replace(/^\s*(?:AES\b\s*)?(?:ITN\b\s*:?\s*)?/i, "").trim();
     if (token && !found.some((item) => item.toLowerCase() === token.toLowerCase())) found.push(token);
   }
   return found;
@@ -219,7 +220,8 @@ export function handlingForPrint(
 }
 
 /**
- * The goods as entered. With an AES ITN, a last line "AES ITN: …" follows the last line of the description. With no
+ * The goods as entered. With an AES ITN, "ITN: …" follows the last line of the description, once, with every number
+ * on its own line. With no
  * ITN the exemption is added: just before the PMC code when the goods carry one, as the team types it, otherwise at
  * the end. Goods that already carry the ITN, or say NO EEI, are left alone.
  */
@@ -233,7 +235,8 @@ export function goodsForPrint(lines: Array<{ nature?: string | null; sortOrder?:
   const tokens = aesItnList(aesItn);
   if (tokens.length) {
     const missing = tokens.filter((token) => !goods.toLowerCase().includes(token.toLowerCase()));
-    return missing.length ? `${goods}\n${missing.map((token) => `AES ITN: ${token}`).join("\n")}` : goods;
+    // "ITN:" once, with the first number, and the others each on the next line.
+    return missing.length ? `${goods}\nITN: ${missing.join("\n")}` : goods;
   }
   if (/NO\s+EEI/i.test(goods) || /AES\s*ITN/i.test(goods)) return goods;
   const pmc = [...goods.matchAll(/\s+PMC\s*\d/g)].pop();
