@@ -34,7 +34,7 @@ const FIELDS: Array<{ key: keyof GuiaValues; label: string; area?: boolean; hint
   {
     key: "aesItn",
     label: "AES ITN (optional)",
-    hint: "Prints in the Nature of Goods as AES ITN: …, after the last line of the goods description. Leave it blank and NO EEI REQ 30.37A is added to the Nature of Goods instead.",
+    hint: "Prints in the Nature of Goods after the last line of the goods description, one line AES ITN: … for each number. Separate several with commas. Leave it blank and NO EEI REQ 30.37A is added to the Nature of Goods instead.",
   },
   { key: "hawb", label: "HAWB (optional, on labels)" },
 ];

@@ -168,6 +168,16 @@ export function aesItnToken(value: string | null | undefined): string {
   return plain(value).replace(/^AES\s*ITN\s*:\s*/i, "").trim();
 }
 
+/** Every ITN entered, separated by commas, semicolons or line breaks, once each. */
+export function aesItnList(value: string | null | undefined): string[] {
+  const found: string[] = [];
+  for (const part of aesItnToken(value).split(/[,;\n]+/)) {
+    const token = part.replace(/^\s*AES\s*ITN\s*:\s*/i, "").trim();
+    if (token && !found.some((item) => item.toLowerCase() === token.toLowerCase())) found.push(token);
+  }
+  return found;
+}
+
 const DG_TYPED = /^dangerous\s+goods\s+as\s+per\s+(?:the\s+)?(?:attached|associated)\s+(?:shipper'?s?\s+declaration|dgd)\s*\.?$/i;
 const CAO_TYPED = /^cargo\s+aircraft\s+only\s*\.?$/i;
 export const CARGO_AIRCRAFT_ONLY_LINE = "CARGO AIRCRAFT ONLY";
@@ -220,8 +230,11 @@ export function goodsForPrint(lines: Array<{ nature?: string | null; sortOrder?:
     .filter(Boolean)
     .join("\n");
   if (!goods) return goods;
-  const token = aesItnToken(aesItn);
-  if (token) return goods.toLowerCase().includes(token.toLowerCase()) ? goods : `${goods}\nAES ITN: ${token}`;
+  const tokens = aesItnList(aesItn);
+  if (tokens.length) {
+    const missing = tokens.filter((token) => !goods.toLowerCase().includes(token.toLowerCase()));
+    return missing.length ? `${goods}\n${missing.map((token) => `AES ITN: ${token}`).join("\n")}` : goods;
+  }
   if (/NO\s+EEI/i.test(goods) || /AES\s*ITN/i.test(goods)) return goods;
   const pmc = [...goods.matchAll(/\s+PMC\s*\d/g)].pop();
   if (pmc?.index != null) return `${goods.slice(0, pmc.index)} ${NO_EEI_GOODS}${goods.slice(pmc.index)}`;
