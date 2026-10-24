@@ -1,0 +1,385 @@
+#!/usr/bin/env bash
+# ACK Guías on Cloud Run. Commands: setup, deploy, migrate, import, schedule.
+# Never prints secret values.
+set -euo pipefail
+
+PROJECT_ID="${PROJECT_ID:-ack-guias}"
+PROJECT_NUMBER="${PROJECT_NUMBER:-711303341686}"
+REGION="${REGION:-us-east1}"
+SERVICE="ack-guias"
+INSTANCE="ack-guias-db"
+DB_NAME="ack_guias"
+DB_USER="ack_guias"
+RUNTIME_SA="ack-guias-run"
+JOB="ack-guias-migrate"
+INSTANCE_CONNECTION="${PROJECT_ID}:${REGION}:${INSTANCE}"
+# Deterministic Cloud Run URL. `status.url` is the legacy *.a.run.app host.
+CANONICAL_APP_URL="https://${SERVICE}-${PROJECT_NUMBER}.${REGION}.run.app"
+
+app_url() {
+  local url="${APP_URL:-$CANONICAL_APP_URL}"
+  url="${url%/}"
+  case "$url" in
+    *.a.run.app) url="$CANONICAL_APP_URL" ;;
+  esac
+  printf '%s' "$url"
+}
+
+if [[ "$PROJECT_ID" != "ack-guias" ]]; then
+  echo "PROJECT_ID must be ack-guias."
+  exit 1
+fi
+
+gcloud config set project "$PROJECT_ID" >/dev/null
+
+secret_exists() {
+  gcloud secrets describe "$1" --project="$PROJECT_ID" >/dev/null 2>&1
+}
+
+bind_secret() {
+  local name="$1"
+  gcloud secrets add-iam-policy-binding "$name" \
+    --project="$PROJECT_ID" \
+    --member="serviceAccount:${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor" \
+    --quiet >/dev/null
+}
+
+write_secret() {
+  local name="$1"
+  local file="$2"
+  if secret_exists "$name"; then
+    gcloud secrets versions add "$name" --project="$PROJECT_ID" --data-file="$file" >/dev/null
+  else
+    gcloud secrets create "$name" --project="$PROJECT_ID" --replication-policy="automatic" --data-file="$file" >/dev/null
+  fi
+  bind_secret "$name"
+}
+
+runtime_secrets() {
+  local secrets="DATABASE_URL=DATABASE_URL:latest,AUTH_SECRET=AUTH_SECRET:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest"
+  local optional
+  for optional in GOOGLE_DRIVE_SA_JSON QBO_CLIENT_ID QBO_CLIENT_SECRET QBO_TOKEN_KEY AERODATABOX_API_KEY SMTP_USER SMTP_PASSWORD FLIGHT_CHECK_SECRET; do
+    if secret_exists "$optional"; then
+      # The runtime account has to be allowed to read each secret it is given, or the revision does not start.
+      bind_secret "$optional"
+      secrets="${secrets},${optional}=${optional}:latest"
+    fi
+  done
+  printf '%s' "$secrets"
+}
+
+# Shared drive id already stored on the service. Empty when the service or the var is missing.
+# Does not print the value.
+current_drive_root() {
+  if ! gcloud run services describe "$SERVICE" --region="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    return 0
+  fi
+  gcloud run services describe "$SERVICE" \
+    --region="$REGION" \
+    --project="$PROJECT_ID" \
+    --format=json | python3 -c 'import json,sys
+doc=json.load(sys.stdin)
+containers=((doc.get("spec") or {}).get("template") or {}).get("spec",{}).get("containers") or [{}]
+env=(containers[0] or {}).get("env") or []
+for item in env:
+    if item.get("name")=="ACK_GUIAS_DRIVE_ROOT_ID" and item.get("value"):
+        sys.stdout.write(item["value"])
+        break
+'
+}
+
+runtime_env() {
+  local url root_id
+  url="$(app_url)"
+  # ^|^ is gcloud's custom delimiter so the comma inside ADMIN_EMAILS is not a key separator.
+  # Always set these. Do not read status.url and do not use --set-env-vars, which would drop them.
+  local env="^|^ADMIN_EMAILS=victor.abreu@ackfreight.com,andres.alvarado@ackfreight.com|AUTH_TRUST_HOST=true|APP_URL=${url}|AUTH_URL=${url}|NEXTAUTH_URL=${url}"
+  # No baked-in folder id. An exported value replaces the Shared drive id.
+  # When the variable is not exported, write the current service value back so deploy keeps it.
+  if [[ -n "${ACK_GUIAS_DRIVE_ROOT_ID+x}" ]]; then
+    root_id="${ACK_GUIAS_DRIVE_ROOT_ID}"
+  else
+    root_id="$(current_drive_root)"
+  fi
+  if [[ -n "$root_id" ]]; then
+    env="${env}|ACK_GUIAS_DRIVE_ROOT_ID=${root_id}"
+  fi
+  if [[ -n "${ACK_GUIAS_DRIVE_FOLDER:-}" ]]; then
+    env="${env}|ACK_GUIAS_DRIVE_FOLDER=${ACK_GUIAS_DRIVE_FOLDER}"
+  fi
+  if [[ -n "${QBO_ENVIRONMENT:-}" ]]; then
+    env="${env}|QBO_ENVIRONMENT=${QBO_ENVIRONMENT}"
+  fi
+  # Sender of the client emails. Without it the mailbox in SMTP_USER is the sender.
+  if [[ -n "${MAIL_FROM:-}" ]]; then
+    env="${env}|MAIL_FROM=${MAIL_FROM}"
+  fi
+  printf '%s' "$env"
+}
+
+cmd_setup() {
+  gcloud services enable \
+    run.googleapis.com \
+    sqladmin.googleapis.com \
+    secretmanager.googleapis.com \
+    artifactregistry.googleapis.com \
+    cloudbuild.googleapis.com \
+    iam.googleapis.com \
+    compute.googleapis.com \
+    drive.googleapis.com \
+    --project="$PROJECT_ID"
+
+  if ! gcloud iam service-accounts describe "${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    gcloud iam service-accounts create "$RUNTIME_SA" \
+      --project="$PROJECT_ID" \
+      --display-name="ACK Guías Cloud Run"
+  fi
+
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/cloudsql.client" \
+    --quiet >/dev/null
+
+  gcloud iam service-accounts add-iam-policy-binding "${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --project="$PROJECT_ID" \
+    --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
+    --role="roles/iam.serviceAccountUser" \
+    --quiet >/dev/null
+
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
+    --role="roles/run.developer" \
+    --quiet >/dev/null
+
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
+    --role="roles/artifactregistry.writer" \
+    --quiet >/dev/null
+
+  if ! gcloud sql instances describe "$INSTANCE" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    gcloud sql instances create "$INSTANCE" \
+      --project="$PROJECT_ID" \
+      --database-version=POSTGRES_16 \
+      --edition=enterprise \
+      --tier=db-g1-small \
+      --region="$REGION" \
+      --storage-size=10GB \
+      --storage-type=SSD \
+      --availability-type=zonal \
+      --backup-start-time=08:00 \
+      --quiet
+  fi
+
+  if ! gcloud sql databases describe "$DB_NAME" --instance="$INSTANCE" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    gcloud sql databases create "$DB_NAME" --instance="$INSTANCE" --project="$PROJECT_ID" --quiet
+  fi
+
+  if ! secret_exists DATABASE_URL; then
+    local pass url_file
+    pass="$(openssl rand -hex 24)"
+    url_file="$(mktemp)"
+    chmod 600 "$url_file"
+    DB_USER="$DB_USER" DB_PASS="$pass" DB_NAME="$DB_NAME" INSTANCE_CONNECTION="$INSTANCE_CONNECTION" URL_FILE="$url_file" python3 - <<'PY'
+import os
+url = "postgresql://{user}:{password}@localhost/{db}?host=/cloudsql/{instance}&schema=public".format(
+    user=os.environ["DB_USER"],
+    password=os.environ["DB_PASS"],
+    db=os.environ["DB_NAME"],
+    instance=os.environ["INSTANCE_CONNECTION"],
+)
+open(os.environ["URL_FILE"], "w").write(url)
+PY
+    if ! gcloud sql users list --instance="$INSTANCE" --project="$PROJECT_ID" --format='value(name)' | grep -qx "$DB_USER"; then
+      gcloud sql users create "$DB_USER" --instance="$INSTANCE" --project="$PROJECT_ID" --password="$pass" --quiet
+    fi
+    unset pass
+    write_secret DATABASE_URL "$url_file"
+    rm -f "$url_file"
+    echo "DATABASE_URL secret created. The password was not printed."
+  else
+    bind_secret DATABASE_URL
+    echo "DATABASE_URL secret already exists. Password was not rotated."
+  fi
+
+  if ! secret_exists AUTH_SECRET; then
+    local auth_file
+    auth_file="$(mktemp)"
+    chmod 600 "$auth_file"
+    openssl rand -base64 32 >"$auth_file"
+    write_secret AUTH_SECRET "$auth_file"
+    rm -f "$auth_file"
+    echo "AUTH_SECRET created. The value was not printed."
+  else
+    bind_secret AUTH_SECRET
+  fi
+
+  local placeholder
+  placeholder="$(mktemp)"
+  chmod 600 "$placeholder"
+  printf '%s' 'pending' >"$placeholder"
+  if ! secret_exists GOOGLE_CLIENT_ID; then
+    write_secret GOOGLE_CLIENT_ID "$placeholder"
+    echo "GOOGLE_CLIENT_ID created with a placeholder. Add the real OAuth client id before sign-in."
+  else
+    bind_secret GOOGLE_CLIENT_ID
+  fi
+  if ! secret_exists GOOGLE_CLIENT_SECRET; then
+    write_secret GOOGLE_CLIENT_SECRET "$placeholder"
+    echo "GOOGLE_CLIENT_SECRET created with a placeholder. Add the real OAuth client secret before sign-in."
+  else
+    bind_secret GOOGLE_CLIENT_SECRET
+  fi
+  rm -f "$placeholder"
+
+  if ! gcloud run services describe "$SERVICE" --region="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    gcloud run deploy "$SERVICE" \
+      --project="$PROJECT_ID" \
+      --region="$REGION" \
+      --image="us-docker.pkg.dev/cloudrun/container/hello" \
+      --service-account="${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+      --allow-unauthenticated \
+      --quiet
+    echo "Cloud Run service ${SERVICE} created with a placeholder image. Run deploy next."
+  else
+    echo "Cloud Run service ${SERVICE} already exists."
+  fi
+}
+
+cmd_deploy() {
+  local secrets env
+  secrets="$(runtime_secrets)"
+  env="$(runtime_env)"
+  gcloud run deploy "$SERVICE" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --source=. \
+    --service-account="${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --add-cloudsql-instances="$INSTANCE_CONNECTION" \
+    --set-secrets="$secrets" \
+    --update-env-vars="$env" \
+    --allow-unauthenticated \
+    --memory=1Gi \
+    --cpu=1 \
+    --min-instances=0 \
+    --max-instances=4 \
+    --port=8080 \
+    --quiet
+  # Second write so a later flag cannot leave AUTH_URL pointing at status.url.
+  gcloud run services update "$SERVICE" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --update-env-vars="$env" \
+    --quiet
+  echo "Applying database migrations."
+  cmd_migrate
+  echo "Public URL: $(app_url)"
+}
+
+cmd_migrate() {
+  local image
+  image="$(gcloud run services describe "$SERVICE" --region="$REGION" --project="$PROJECT_ID" --format='value(spec.template.spec.containers[0].image)')"
+  gcloud run jobs deploy "$JOB" \
+    --project="$PROJECT_ID" \
+    --region="$REGION" \
+    --image="$image" \
+    --service-account="${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --set-cloudsql-instances="$INSTANCE_CONNECTION" \
+    --set-secrets="DATABASE_URL=DATABASE_URL:latest" \
+    --command="sh" \
+    --args="-c,pnpm exec prisma migrate deploy && pnpm exec prisma migrate status" \
+    --max-retries=0 \
+    --task-timeout=600 \
+    --quiet
+  gcloud run jobs execute "$JOB" --project="$PROJECT_ID" --region="$REGION" --wait
+}
+
+cmd_import() {
+  local file="$1"
+  if [[ -z "$file" || ! -f "$file" ]]; then
+    echo "usage: bash DEPLOY_GCLOUD.sh import path.json"
+    exit 1
+  fi
+  local proxy pid url_file
+  if command -v cloud-sql-proxy >/dev/null 2>&1; then
+    proxy="cloud-sql-proxy"
+  else
+    proxy="/tmp/cloud-sql-proxy"
+    if [[ ! -x "$proxy" ]]; then
+      curl -fsSL -o "$proxy" "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.14.3/cloud-sql-proxy.linux.amd64"
+      chmod +x "$proxy"
+    fi
+  fi
+  "$proxy" "$INSTANCE_CONNECTION" --port 5432 >/tmp/ack-guias-sql-proxy.log 2>&1 &
+  pid="$!"
+  trap 'kill "$pid" >/dev/null 2>&1 || true' EXIT
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if (echo >/dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+  url_file="$(mktemp)"
+  chmod 600 "$url_file"
+  SRC_DATABASE_URL="$(gcloud secrets versions access latest --secret=DATABASE_URL --project="$PROJECT_ID")" \
+    URL_FILE="$url_file" python3 - <<'PY'
+import os
+import urllib.parse
+raw = os.environ["SRC_DATABASE_URL"]
+parts = urllib.parse.urlsplit(raw)
+user = urllib.parse.quote(parts.username or "", safe="")
+password = urllib.parse.quote(parts.password or "", safe="")
+path = parts.path or "/ack_guias"
+local = f"postgresql://{user}:{password}@127.0.0.1:5432{path}?schema=public"
+open(os.environ["URL_FILE"], "w").write(local)
+PY
+  unset SRC_DATABASE_URL
+  DATABASE_URL="$(cat "$url_file")" pnpm exec prisma generate >/dev/null
+  DATABASE_URL="$(cat "$url_file")" pnpm exec tsx scripts/import-ack.ts "$file"
+  rm -f "$url_file"
+  unset DATABASE_URL
+  kill "$pid" >/dev/null 2>&1 || true
+  trap - EXIT
+}
+
+# Cloud Scheduler calls the flight check every 30 minutes. The shared secret is read from Secret Manager and
+# never printed. Run it once, after the service is deployed with FLIGHT_CHECK_SECRET.
+cmd_schedule() {
+  local url secret verb job="ack-guias-flight-check"
+  if ! secret_exists FLIGHT_CHECK_SECRET; then
+    echo "Create the FLIGHT_CHECK_SECRET secret first, then run deploy and schedule again."
+    exit 1
+  fi
+  gcloud services enable cloudscheduler.googleapis.com --project="$PROJECT_ID"
+  url="$(app_url)/api/guias/flight-check"
+  secret="$(gcloud secrets versions access latest --secret=FLIGHT_CHECK_SECRET --project="$PROJECT_ID")"
+  if gcloud scheduler jobs describe "$job" --location="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    verb="update"
+  else
+    verb="create"
+  fi
+  gcloud scheduler jobs "$verb" http "$job" \
+    --location="$REGION" \
+    --project="$PROJECT_ID" \
+    --schedule="*/30 * * * *" \
+    --time-zone="America/New_York" \
+    --uri="$url" \
+    --http-method=POST \
+    --headers="x-flight-check-secret=${secret}" \
+    --attempt-deadline=300s \
+    --quiet >/dev/null
+  unset secret
+  echo "Scheduled ${job} every 30 minutes against ${url}"
+}
+
+case "${1:-}" in
+  setup) cmd_setup ;;
+  schedule) cmd_schedule ;;
+  deploy) cmd_deploy ;;
+  migrate) cmd_migrate ;;
+  import) cmd_import "${2:-}" ;;
+  *)
+    echo "usage: bash DEPLOY_GCLOUD.sh setup|deploy|migrate|schedule|import <file.json>"
+    exit 1
+    ;;
+esac
