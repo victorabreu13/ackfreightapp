@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { USER_ROLE_LABEL, USER_ROLES } from "@/lib/users";
+import { ROLE_DETAIL, USER_ROLE_LABEL, USER_ROLES } from "@/lib/users";
 import { createUser, removeUser, updateUser } from "@/server/user-actions";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
@@ -26,7 +26,10 @@ export default async function UsersPage({
   if (!user) return null;
   if (!isAdmin(user)) redirect("/guias?error=Usuarios%20es%20solo%20para%20administradores");
   const params = await searchParams;
-  const users = await prisma.user.findMany({ orderBy: [{ role: "asc" }, { email: "asc" }] });
+  // Customers are clients of the portal, not staff. Their access is handled in Directorio, so they are not in this table.
+  const everyone = await prisma.user.findMany({ orderBy: [{ role: "asc" }, { email: "asc" }] });
+  const users = everyone.filter((row) => row.role !== "CUSTOMER");
+  const customers = everyone.length - users.length;
 
   return (
     <div className="space-y-6">
@@ -38,6 +41,22 @@ export default async function UsersPage({
           factura y ve las guías sin editarlas. Viewer solo lee las guías.
         </p>
       </div>
+      <section className="rounded-lg border border-border bg-card p-4">
+        <h2 className="font-display text-2xl">Qué puede hacer cada rol</h2>
+        <dl className="mt-3 space-y-2 text-sm">
+          {ROLE_DETAIL.map((item) => (
+            <div key={item.role} className="grid gap-1 md:grid-cols-[8rem_1fr]">
+              <dt className="font-medium">{USER_ROLE_LABEL[item.role]}</dt>
+              <dd className="text-muted-foreground">{item.summary}</dd>
+            </div>
+          ))}
+        </dl>
+        {customers > 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {customers} {customers === 1 ? "cliente tiene" : "clientes tienen"} acceso al portal. No salen en esta lista porque no son del equipo: se ven y se quitan en el Directorio.
+          </p>
+        ) : null}
+      </section>
       {one(params, "saved") ? <p className="text-sm text-muted-foreground">Guardado.</p> : null}
       {one(params, "error") ? <p className="text-sm text-stuck">{one(params, "error")}</p> : null}
       <div className="overflow-x-auto rounded-lg border border-border bg-card">

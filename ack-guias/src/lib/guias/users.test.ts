@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { devLoginAllowed, roleOnGoogleSignIn } from "@/lib/auth-role";
-import { normalizeAckEmail, parseUserRole, userRemoveError, userRoleChangeError } from "@/lib/users";
+import { normalizeAckEmail, parseUserRole, ROLE_DETAIL, userRemoveError, userRoleChangeError } from "@/lib/users";
 
 const admins = new Set(["victor.abreu@ackfreight.com", "andres.alvarado@ackfreight.com"]);
 
@@ -68,4 +68,20 @@ test("development login stays off in production unless ENABLE_DEV_LOGIN is set",
   assert.equal(devLoginAllowed({ NODE_ENV: "development" }), true);
   assert.equal(roleOnGoogleSignIn(null, "xiomara.viloria@ackfreight.com", admins), null);
   assert.equal(roleOnGoogleSignIn("ACCOUNTING", "xiomara.viloria@ackfreight.com", admins), "ACCOUNTING");
+});
+
+test("a portal customer is never edited or removed from Usuarios, and every role has its detail", () => {
+  assert.match(
+    userRoleChangeError({ email: "bquiroa@pacifiko.com", from: "CUSTOMER", to: "ADMIN", activeAdminCount: 2, adminEmails: admins }) ?? "",
+    /cliente del portal/,
+  );
+  assert.match(
+    userRemoveError({ email: "bquiroa@pacifiko.com", role: "CUSTOMER", activeAdminCount: 2, adminEmails: admins, actorId: "a", targetId: "b" }) ?? "",
+    /cliente del portal/,
+  );
+  assert.deepEqual(
+    ROLE_DETAIL.map((item) => item.role),
+    ["ADMIN", "OPERATIONS", "ACCOUNTING", "VIEWER", "CUSTOMER"],
+  );
+  assert.equal(parseUserRole("CUSTOMER"), null);
 });
