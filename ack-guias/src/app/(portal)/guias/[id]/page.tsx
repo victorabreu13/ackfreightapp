@@ -365,15 +365,6 @@ export default async function GuiaDetailPage({
                   </label>
                 </>
               )}
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">AES ITN (optional)</span>
-                <input
-                  name="aesItn"
-                  defaultValue={document.aesItn ?? ""}
-                  className="block h-10 rounded-md border border-input bg-background px-3 font-mono"
-                  placeholder="X20261021165293"
-                />
-              </label>
               <Button type="submit" size="lg">
                 Issue
               </Button>

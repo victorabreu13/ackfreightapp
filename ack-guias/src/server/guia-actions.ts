@@ -365,7 +365,7 @@ export async function issueGuia(formData: FormData) {
         shipperSignature: signed,
         executedOn: miamiDate(),
         executedAt: "MIA",
-        aesItn: blank(text(formData.get("aesItn")).replace(/^AES\s*ITN\s*:\s*/i, "").trim()),
+        // The AES ITN is entered once, in the guía form, and issuing leaves it as saved.
       },
     });
   } catch (error) {

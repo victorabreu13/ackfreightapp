@@ -19,13 +19,13 @@ test("lithium battery UN numbers are recognised", () => {
 });
 
 test("Handling Information gets the DGD line only for dangerous goods, and only once", () => {
-  assert.ok(!handlingForPrint("", "", false).includes(DG_HANDLING_LINE));
-  const withDg = handlingForPrint("", "", true);
+  assert.ok(!handlingForPrint("", false).includes(DG_HANDLING_LINE));
+  const withDg = handlingForPrint("", true);
   assert.ok(withDg.includes(DG_HANDLING_LINE));
   assert.ok(!withDg.includes("NO EEI"));
-  const typed = handlingForPrint(`KEEP DRY\n${DG_HANDLING_LINE}`, "X20261021165293", true);
+  const typed = handlingForPrint(`KEEP DRY\n${DG_HANDLING_LINE}`, true);
   assert.equal(typed.split(DG_HANDLING_LINE).length - 1, 1);
-  assert.ok(typed.endsWith("AES ITN: X20261021165293"));
+  assert.ok(!typed.includes("AES ITN"));
 });
 
 test("Section II lithium batteries have no DGD line, and the AWB names the packing instruction", () => {
@@ -33,13 +33,13 @@ test("Section II lithium batteries have no DGD line, and the AWB names the packi
   assert.equal(lithiumSectionIIStatement("970"), "Lithium metal batteries in compliance with Section II of PI970");
   assert.equal(lithiumSectionIIStatement(""), "");
   assert.equal(lithiumSectionIIStatement("999"), "");
-  const text = handlingForPrint("", "", false, "967");
+  const text = handlingForPrint("", false, "967");
   assert.ok(!text.includes(DG_HANDLING_LINE));
   assert.ok(text.includes("Lithium ion batteries in compliance with Section II of PI967"));
   assert.ok(!text.includes("NO EEI"));
-  const both = handlingForPrint("", "", true, "970");
+  const both = handlingForPrint("", true, "970");
   assert.ok(both.includes(DG_HANDLING_LINE) && both.includes("Section II of PI970"));
-  assert.ok(handlingForPrint("", "", false, null).indexOf("Section II") < 0);
+  assert.ok(handlingForPrint("", false, null).indexOf("Section II") < 0);
 });
 
 test("a UN list of only lithium batteries is recognised so the form can warn", () => {
@@ -50,15 +50,19 @@ test("a UN list of only lithium batteries is recognised so the form can warn", (
   assert.equal(isLithiumPi("971"), false);
 });
 
-test("with no AES ITN the NO EEI exemption goes in the Nature of Goods, not in Handling Information", () => {
+test("the AES ITN prints in the Nature of Goods after the last line, and with no ITN the NO EEI exemption goes there instead", () => {
   const line = (nature: string) => [{ nature, sortOrder: 0 }];
   assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), ""), `WIDGETS ${NO_EEI_GOODS} PMC 40106 R7=01 PC`);
   assert.equal(goodsForPrint(line("WIDGETS"), null), `WIDGETS ${NO_EEI_GOODS}`);
-  assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), "X20261021165293"), "WIDGETS PMC 40106 R7=01 PC");
+  assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), "X20261021165293"), "WIDGETS PMC 40106 R7=01 PC\nAES ITN: X20261021165293");
+  const several = "X20261023351371, X20261023351509, X20261023351662, X20261023351717";
+  assert.equal(goodsForPrint([{ nature: "WIDGETS", sortOrder: 0 }, { nature: "PI967 PMC 40106", sortOrder: 1 }], `AES ITN: ${several}`), `WIDGETS\nPI967 PMC 40106\nAES ITN: ${several}`);
+  assert.equal(goodsForPrint(line("WIDGETS AES ITN: X20261021165293 PMC 40106"), "X20261021165293"), "WIDGETS AES ITN: X20261021165293 PMC 40106");
+  assert.ok(!goodsForPrint(line("WIDGETS"), "X20261021165293").includes("NO EEI"));
   assert.equal(goodsForPrint(line(`WIDGETS ${NO_EEI_GOODS} PMC 40106`), ""), `WIDGETS ${NO_EEI_GOODS} PMC 40106`);
   assert.equal(goodsForPrint([], ""), "");
-  assert.ok(!handlingForPrint("", "", false).includes("NO EEI"));
-  assert.ok(handlingForPrint("", "X20261021165293", false).endsWith("AES ITN: X20261021165293"));
+  assert.ok(!handlingForPrint("", false).includes("NO EEI"));
+  assert.ok(!handlingForPrint("", false).includes("AES ITN"));
 });
 
 const lines = (text: string) => text.split("\n");
@@ -66,12 +70,12 @@ const lines = (text: string) => text.split("\n");
 test("Handling Information says the DGD line once and Cargo Aircraft Only only when a UN number requires it", () => {
   const typed = "DANGEROUS GOODS AS PER ATTACHED SHIPPER'S DECLARATION\nCARGO AIRCRAFT ONLY\nNotificar a pmorales@pacifiko.com\nDangerous Goods as per associated DGD";
   // UN1950 flies on passenger aircraft in the table, UN3480 does not.
-  assert.deepEqual(lines(handlingForPrint(typed, "", true, null, "UN1950")), ["Notificar a pmorales@pacifiko.com", "Dangerous Goods as per associated DGD"]);
-  assert.deepEqual(lines(handlingForPrint(typed, "", true, null, "UN3480")), ["Notificar a pmorales@pacifiko.com", "Dangerous Goods as per associated DGD", "CARGO AIRCRAFT ONLY"]);
+  assert.deepEqual(lines(handlingForPrint(typed, true, null, "UN1950")), ["Notificar a pmorales@pacifiko.com", "Dangerous Goods as per associated DGD"]);
+  assert.deepEqual(lines(handlingForPrint(typed, true, null, "UN3480")), ["Notificar a pmorales@pacifiko.com", "Dangerous Goods as per associated DGD", "CARGO AIRCRAFT ONLY"]);
   // A UN number that is not in the table, or none at all, keeps what was typed.
-  assert.ok(lines(handlingForPrint(typed, "", true, null, "UN3556")).includes("CARGO AIRCRAFT ONLY"));
-  assert.deepEqual(lines(handlingForPrint("KEEP DRY\nCARGO AIRCRAFT ONLY", "", false, null, null)), ["KEEP DRY", "CARGO AIRCRAFT ONLY"]);
-  assert.deepEqual(lines(handlingForPrint("KEEP DRY", "", false, null, "UN3480")), ["KEEP DRY", "CARGO AIRCRAFT ONLY"]);
+  assert.ok(lines(handlingForPrint(typed, true, null, "UN3556")).includes("CARGO AIRCRAFT ONLY"));
+  assert.deepEqual(lines(handlingForPrint("KEEP DRY\nCARGO AIRCRAFT ONLY", false, null, null)), ["KEEP DRY", "CARGO AIRCRAFT ONLY"]);
+  assert.deepEqual(lines(handlingForPrint("KEEP DRY", false, null, "UN3480")), ["KEEP DRY", "CARGO AIRCRAFT ONLY"]);
   assert.equal(unRequiresCargoAircraftOnly("UN1950, UN3480"), true);
   assert.equal(unRequiresCargoAircraftOnly(""), false);
 });

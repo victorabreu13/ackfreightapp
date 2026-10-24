@@ -178,13 +178,13 @@ export function unRequiresCargoAircraftOnly(unNumbers: string | null | undefined
 }
 
 /**
- * User handling, plus the DGD line when the guía carries dangerous goods, Cargo Aircraft Only when a UN number
- * requires it, and the ITN line when there is an ITN. The two statements are written here and only once: a typed
- * "Dangerous Goods as per attached Shipper's Declaration" or "Cargo Aircraft Only" line is replaced by them.
+ * User handling, plus the DGD line when the guía carries dangerous goods and Cargo Aircraft Only when a UN number
+ * requires it. The two statements are written here and only once: a typed "Dangerous Goods as per attached
+ * Shipper's Declaration" or "Cargo Aircraft Only" line is replaced by them. The AES ITN is not here: it prints in
+ * the Nature of Goods.
  */
 export function handlingForPrint(
   entered: string | null | undefined,
-  aesItn: string | null | undefined,
   dangerousGoods = false,
   lithiumPi: string | null | undefined = null,
   unNumbers: string | null | undefined = null,
@@ -205,14 +205,13 @@ export function handlingForPrint(
   if (cargoOnly && !has(CARGO_AIRCRAFT_ONLY_LINE)) lines.push(CARGO_AIRCRAFT_ONLY_LINE);
   const statement = lithiumSectionIIStatement(lithiumPi);
   if (statement && !has(statement)) lines.push(statement);
-  const token = aesItnToken(aesItn);
-  if (token) lines.push(`AES ITN: ${token}`);
   return lines.join("\n");
 }
 
 /**
- * The goods as entered. With no AES ITN the exemption is added: just before the PMC code when the goods carry one,
- * as the team types it, otherwise at the end. Goods that already say NO EEI are left alone.
+ * The goods as entered. With an AES ITN, a last line "AES ITN: …" follows the last line of the description. With no
+ * ITN the exemption is added: just before the PMC code when the goods carry one, as the team types it, otherwise at
+ * the end. Goods that already carry the ITN, or say NO EEI, are left alone.
  */
 export function goodsForPrint(lines: Array<{ nature?: string | null; sortOrder?: number }>, aesItn?: string | null): string {
   const goods = [...lines]
@@ -220,7 +219,10 @@ export function goodsForPrint(lines: Array<{ nature?: string | null; sortOrder?:
     .map((line) => plain(line.nature))
     .filter(Boolean)
     .join("\n");
-  if (!goods || aesItnToken(aesItn) || /NO\s+EEI/i.test(goods) || /AES\s*ITN/i.test(goods)) return goods;
+  if (!goods) return goods;
+  const token = aesItnToken(aesItn);
+  if (token) return goods.toLowerCase().includes(token.toLowerCase()) ? goods : `${goods}\nAES ITN: ${token}`;
+  if (/NO\s+EEI/i.test(goods) || /AES\s*ITN/i.test(goods)) return goods;
   const pmc = [...goods.matchAll(/\s+PMC\s*\d/g)].pop();
   if (pmc?.index != null) return `${goods.slice(0, pmc.index)} ${NO_EEI_GOODS}${goods.slice(pmc.index)}`;
   return `${goods} ${NO_EEI_GOODS}`;
@@ -403,7 +405,7 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
   const lineTotal = first?.total ?? (rate != null && chargeable != null ? rate * chargeable : null);
   const prepaid = (document.chgsCode || "PP").toUpperCase().startsWith("C") ? "" : money(document.weightCharge ?? lineTotal);
   const natureText = goodsForPrint(goods, document.aesItn);
-  const handlingText = handlingForPrint(document.handling, document.aesItn, document.dgDeclarable, document.lithiumPi, document.dgDeclarable ? document.unNumbers : null);
+  const handlingText = handlingForPrint(document.handling, document.dgDeclarable, document.lithiumPi, document.dgDeclarable ? document.unNumbers : null);
   const accounting = plain(document.accountingInfo) || ((document.chgsCode || "PP").toUpperCase().startsWith("C") ? "FREIGHT COLLECT" : "FREIGHT PREPAID");
   const tel = [phone ? `TEL: ${phone}` : "", email].filter(Boolean).join("   ");
   const countryLine = address.find((line) => /UNITED STATES/i.test(line)) ?? "";
