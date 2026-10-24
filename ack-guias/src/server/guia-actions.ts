@@ -2,13 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { carrierBlock } from "@/lib/awb/airports";
 import { miamiDate, signatureFor } from "@/lib/awb/document";
 import { destinationCountry, routingTo } from "@/lib/guias/awb-face";
 import { assignDraftAwb, issueErrorInSpanish, issueWaybillAtomic, releaseDraftAwb } from "@/lib/awb/issue";
 import { canManageGuias, isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { resolveCarrier } from "@/lib/guias/carriers";
 import { loadCompany } from "@/lib/guias/company";
 import { guiaAwbFolder, publishRenderedPdf, saveDocumentLog } from "@/lib/guias/document-log";
 import { ensureGuiaClient, guiaBillToName } from "@/lib/guias/guia-client";
@@ -167,6 +167,7 @@ export async function saveNewGuia(formData: FormData) {
     },
   });
   await rememberParties(billTo?.id ?? null, values);
+  await applyCarrier(created.id, text(formData.get("carrierId")), null);
   const wantedAwb = text(formData.get("assignAwb"));
   const wantedPrefix = text(formData.get("assignPrefix"));
   if (wantedAwb || wantedPrefix) {
@@ -208,6 +209,7 @@ export async function saveGuia(formData: FormData) {
     },
   });
   await rememberParties(billTo?.id ?? null, values);
+  await applyCarrier(id, text(formData.get("carrierId")), existing.carrierId);
   revalidatePath(`/guias/${id}`);
   redirect(`/guias/${id}?saved=1`);
 }
@@ -276,9 +278,8 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
 }
 
 /** The carrier block and routing that come from the airline prefix. Used when the number is assigned and again at issue. */
-async function carrierData(agent: { accountNo: string | null }, destination: string | null, awbPrefix: string) {
-  const airline = /^\d{3}$/.test(awbPrefix) ? await prisma.airlinePrefix.findUnique({ where: { prefix: awbPrefix } }) : null;
-  const carrier = carrierBlock(/^\d{3}$/.test(awbPrefix) ? awbPrefix : "000", airline?.airline ?? null);
+async function carrierData(agent: { accountNo: string | null }, destination: string | null, awbPrefix: string, carrierId: string | null = null) {
+  const carrier = await resolveCarrier({ carrierId, awbPrefix });
   return {
     carrierName: carrier.name,
     carrierAddress: carrier.address,
@@ -287,6 +288,26 @@ async function carrierData(agent: { accountNo: string | null }, destination: str
     destCountry: destinationCountry(destination) || null,
     accountNo: agent.accountNo,
   };
+}
+
+/**
+ * Saves the carrier picked in the form and prints it as the first carrier. With none picked nothing changes, unless one
+ * was picked before: then the airline prefix of the AWB decides again.
+ */
+async function applyCarrier(id: string, carrierId: string, before: string | null) {
+  if (!carrierId && !before) return;
+  const row = carrierId ? await prisma.carrier.findUnique({ where: { id: carrierId } }) : null;
+  const current = await prisma.airWaybillDocument.findUnique({ where: { id }, select: { awb: true } });
+  const prefix = (current?.awb ?? "").replace(/\D/g, "").slice(0, 3);
+  if (!row && !prefix) {
+    await prisma.airWaybillDocument.update({ where: { id }, data: { carrierId: null, carrierName: null, carrierAddress: null, by1: null } });
+    return;
+  }
+  const carrier = await resolveCarrier({ carrierId: row?.id ?? null, awbPrefix: prefix });
+  await prisma.airWaybillDocument.update({
+    where: { id },
+    data: { carrierId: row?.id ?? null, carrierName: carrier.name, carrierAddress: carrier.address, by1: carrier.name },
+  });
 }
 
 async function assignAwbTo(id: string, manualAwb: string, prefix: string) {
@@ -299,7 +320,7 @@ async function assignAwbTo(id: string, manualAwb: string, prefix: string) {
     agentKey: agent.key,
     manualAwb: manualAwb || null,
     prefix,
-    data: await carrierData(agent, existing.destination, awbPrefix),
+    data: await carrierData(agent, existing.destination, awbPrefix, existing.carrierId),
   });
 }
 
@@ -320,8 +341,11 @@ export async function assignGuiaAwb(formData: FormData) {
 export async function releaseGuiaAwb(formData: FormData) {
   await requireGuiaTeam();
   const id = text(formData.get("id"));
+  const before = await prisma.airWaybillDocument.findUnique({ where: { id }, select: { carrierId: true } });
   try {
     await releaseDraftAwb(id, "ack");
+    // Giving the number back clears the carrier block. The one the team picked stays.
+    if (before?.carrierId) await applyCarrier(id, before.carrierId, before.carrierId);
   } catch (error) {
     redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorInSpanish(error))}`);
   }
@@ -341,10 +365,7 @@ export async function issueGuia(formData: FormData) {
   const manual = assignedStock ? "" : text(formData.get("manualAwb"));
   const prefix = assignedStock ? assignedStock.prefix : text(formData.get("prefix"));
   const airlinePrefix = manual.replace(/\D/g, "").slice(0, 3) || prefix;
-  const airline = /^\d{3}$/.test(airlinePrefix)
-    ? await prisma.airlinePrefix.findUnique({ where: { prefix: airlinePrefix } })
-    : null;
-  const carrier = carrierBlock(/^\d{3}$/.test(airlinePrefix) ? airlinePrefix : "000", airline?.airline ?? null);
+  const carrier = await resolveCarrier({ carrierId: existing.carrierId, awbPrefix: airlinePrefix });
   const signed = signatureFor(agent, user.name || user.email);
   const billTo = await ensureGuiaClient(agent.key, existing.clientLabel);
   try {

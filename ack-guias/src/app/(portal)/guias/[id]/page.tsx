@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { canEditAgreedRate, canInvoiceGuia, canManageGuias, canReadGuias, guiaWhere } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { loadCarrierOptions } from "@/lib/guias/carriers";
 import { loadCompany } from "@/lib/guias/company";
 import { missingProfileMessages } from "@/lib/guias/company-profile";
 import { GUIA_FILE_LABELS, formatNy } from "@/lib/guias/documents-index";
@@ -114,6 +115,7 @@ export default async function GuiaDetailPage({
     return <MigrationPending />;
   }
   if (!document || document.product !== "guia") notFound();
+  const carrierOptions = await loadCarrierOptions();
   const uploadRows = uploads.map((file) => ({
     id: file.id,
     fileName: file.fileName,
@@ -433,6 +435,8 @@ export default async function GuiaDetailPage({
         truckerPhone={document.truckerPhone || ""}
         driverName={document.driverName || ""}
         seal={document.seal || ""}
+        carrierOptions={carrierOptions}
+        carrierId={document.carrierId || ""}
       />
 
       <section className="space-y-4 rounded-lg border border-border bg-card p-4">

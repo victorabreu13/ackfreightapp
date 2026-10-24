@@ -594,7 +594,9 @@ function drawAwbFace(doc: Doc, face: Face) {
   t(doc, L + 2, 251, "To", 5.5);
   t(doc, L + 3, 262, face.to, 9);
   t(doc, 55, 251, "By First Carrier", 5.5);
-  t(doc, 55, 262, face.carrierShown, 9);
+  // The cell is 185 pt wide, so a long carrier name shrinks to fit instead of running under the next column.
+  doc.font("Helvetica").fontSize(9);
+  t(doc, 55, 262, face.carrierShown, Math.min(9, (9 * 182) / Math.max(1, doc.widthOfString(face.carrierShown))));
   for (const [x, label] of [[243, "to"], [265, "by"], [287, "to"], [309, "by"]] as const) t(doc, x, 251, label, 5.5);
   t(doc, M + 2, 251, "Currency", 5);
   t(doc, M + 3, 262, face.currency, 8);

@@ -4,6 +4,7 @@ import { GuiaForm } from "@/components/guia-form";
 import { canManageGuias } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { loadCarrierOptions } from "@/lib/guias/carriers";
 import type { GuiaValues } from "@/lib/guias/extract";
 
 const blank: GuiaValues = {
@@ -43,6 +44,7 @@ export default async function NewGuiaPage() {
     where: { status: "available", agentKey: "ack" },
     _count: true,
   });
+  const carrierOptions = await loadCarrierOptions();
   const awbOptions = prefixes.map((row) => ({ prefix: row.prefix, airline: row.airline, left: stock.find((item) => item.prefix === row.prefix)?._count ?? 0 }));
   return (
     <div className="space-y-4">
@@ -53,7 +55,7 @@ export default async function NewGuiaPage() {
           Chargeable kg is the weight that bills. Gross is optional. Every guía is issued by ACK TEAM LLC.
         </p>
       </div>
-      <GuiaForm mode="new" values={blank} review={[]} snippets={{}} awbOptions={awbOptions} />
+      <GuiaForm mode="new" values={blank} review={[]} snippets={{}} awbOptions={awbOptions} carrierOptions={carrierOptions} />
     </div>
   );
 }

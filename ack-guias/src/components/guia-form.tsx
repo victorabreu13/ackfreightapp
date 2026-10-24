@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GuiaLookupInput, type LookupType } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
@@ -59,6 +59,8 @@ export function GuiaForm({
   driverName = "",
   seal = "",
   awbOptions = [],
+  carrierOptions = [],
+  carrierId = "",
 }: {
   mode: "new" | "edit";
   id?: string;
@@ -72,7 +74,11 @@ export function GuiaForm({
   seal?: string;
   /** Airline prefixes with the numbers left in stock. Only the new guía form offers them. */
   awbOptions?: Array<{ prefix: string; airline: string; left: number }>;
+  /** The carriers of the list, for the Carrier field that follows Destination. */
+  carrierOptions?: Array<{ id: string; label: string }>;
+  carrierId?: string;
 }) {
+  const [carrier, setCarrier] = useState(carrierId);
   const [paste, setPaste] = useState("");
   const [draft, setDraft] = useState(values);
   const [flags, setFlags] = useState<string[]>(review);
@@ -162,7 +168,8 @@ export function GuiaForm({
         {FIELDS.map((field) => {
           const flagged = reviewSet.has(field.key);
           return (
-            <div key={field.key} className={field.area ? "md:col-span-2 space-y-1.5" : "space-y-1.5"}>
+            <Fragment key={field.key}>
+            <div className={field.area ? "md:col-span-2 space-y-1.5" : "space-y-1.5"}>
               <Label htmlFor={field.key}>{field.label}</Label>
               {field.area ? (
                 <textarea
@@ -213,6 +220,29 @@ export function GuiaForm({
               {field.hint ? <p className="text-xs text-muted-foreground">{field.hint}</p> : null}
               {sources[field.key] ? <p className="text-xs text-muted-foreground">Source: {sources[field.key]}</p> : null}
             </div>
+            {field.key === "destination" ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="carrierId">Carrier</Label>
+                <select
+                  id="carrierId"
+                  name="carrierId"
+                  value={carrier}
+                  onChange={(event) => setCarrier(event.target.value)}
+                  className="block h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Automático (por el prefijo del AWB)</option>
+                  {carrierOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Prints in By First Carrier and, with its address, under Issued By. The list is under Recursos, Carriers.
+                </p>
+              </div>
+            ) : null}
+            </Fragment>
           );
         })}
         <div className="space-y-3 rounded-md border border-border p-3 md:col-span-2">

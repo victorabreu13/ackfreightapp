@@ -26,6 +26,7 @@ export const GUIAS_MENU: NavItem[] = [
     label: "Recursos",
     links: [
       { href: "/awb/stock", label: "AWB stock", team: true },
+      { href: "/guias/carriers", label: "Carriers", team: true },
       { href: "/guias/custom-labels", label: "Custom Labels", team: true },
       { href: "/guias/dg-labels", label: "Labels DG", team: true },
       { href: "/guias/templates", label: "Templates", team: true, accounting: true, viewer: true },

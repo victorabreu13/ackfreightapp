@@ -57,6 +57,20 @@ model CustomerInvite {
   @@index([email])
 }
 
+/// First carriers: the name that prints in By First Carrier and under Issued By, with its address.
+model Carrier {
+  id        String   @id @default(cuid())
+  name      String
+  address   String   @db.Text
+  /// AWB prefix of the airline, used when a guía does not pick a carrier.
+  prefix    String?
+  iata      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([prefix])
+}
+
 model AirlinePrefix {
   prefix              String   @id
   airline             String
@@ -102,6 +116,7 @@ model AirWaybillDocument {
   consigneeName    String?
   consigneeAddress String?      @db.Text
   consigneeAccount String?
+  carrierId        String?
   carrierName      String?
   carrierAddress   String?      @db.Text
   accountNo        String?
