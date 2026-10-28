@@ -423,7 +423,7 @@ export async function setGuiaCompleted(formData: FormData) {
   const user = await requireGuiaTeam();
   const id = text(formData.get("id"));
   const done = text(formData.get("done")) === "1";
-  const guia = await prisma.airWaybillDocument.findFirst({ where: { id, product: "guia" }, select: { id: true } });
+  const guia = await prisma.airWaybillDocument.findFirst({ where: { id, product: "guia" }, select: { id: true, awb: true } });
   if (!guia) redirect(`/guias?error=${encodeURIComponent("No se encontró la guía.")}`);
   await prisma.airWaybillDocument.update({
     where: { id },
@@ -431,7 +431,37 @@ export async function setGuiaCompleted(formData: FormData) {
   });
   revalidatePath("/guias");
   revalidatePath(`/guias/${id}`);
-  redirect(safeGuiaReturn(text(formData.get("returnTo")), done ? "/guias" : `/guias/${id}`));
+  const target = safeGuiaReturn(text(formData.get("returnTo")), done ? "/guias" : `/guias/${id}`);
+  if (done && target === "/guias") {
+    redirect(`/guias?notice=${encodeURIComponent(`Guía ${guia.awb || "en borrador"} marcada como completada. Ya no aparece en esta pantalla; sigue en Documentos.`)}`);
+  }
+  redirect(target);
+}
+
+/**
+ * Deletes a guía from the system. A draft gives its reserved AWB number back to stock. An issued guía can only be
+ * deleted by an Admin, and its number is not returned: it was used. Its files in Drive and in Documentos stay.
+ */
+export async function deleteGuia(formData: FormData) {
+  const user = await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  const guia = await prisma.airWaybillDocument.findFirst({ where: { id, product: "guia" }, select: { id: true, awb: true, status: true } });
+  if (!guia) redirect(`/guias?error=${encodeURIComponent("No se encontró la guía.")}`);
+  const label = guia.awb || "en borrador";
+  if (guia.status === "issued" && !isAdmin(user)) {
+    redirect(`/guias?error=${encodeURIComponent(`Solo un Admin puede eliminar una guía emitida (${label}).`)}`);
+  }
+  if (guia.status === "draft" && guia.awb) {
+    try {
+      await releaseDraftAwb(id, "ack");
+    } catch (error) {
+      redirect(`/guias?error=${encodeURIComponent(issueErrorInSpanish(error))}`);
+    }
+  }
+  await prisma.airWaybillDocument.delete({ where: { id } });
+  revalidatePath("/guias");
+  revalidatePath("/guias/documents");
+  redirect(`/guias?notice=${encodeURIComponent(`Guía ${label} eliminada.${guia.status === "draft" && guia.awb ? " El número AWB volvió al stock." : ""}`)}`);
 }
 
 export async function saveGuiaToDrive(formData: FormData) {

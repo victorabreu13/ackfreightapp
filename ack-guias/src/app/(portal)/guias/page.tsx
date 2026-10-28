@@ -2,13 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { GuiaEyebrow } from "@/components/guia-eyebrow";
 import { MigrationPending } from "@/components/migration-pending";
-import { canManageGuias, canReadGuias, guiaWhere, isCompanyAccounting } from "@/lib/access";
+import { canManageGuias, canReadGuias, guiaWhere, isAdmin, isCompanyAccounting } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { formatNyDate } from "@/lib/guias/documents-index";
-import { flightDateIso } from "@/lib/guias/flight-status";
+import { GuiaRowMenu } from "@/components/guia-row-menu";
 import { guiaOnList } from "@/lib/guias/guia-list";
-import { setGuiaCompleted } from "@/server/guia-actions";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
@@ -28,6 +27,7 @@ export default async function GuiasPage({
   const readOnly = !canManageGuias(user);
   const params = await searchParams;
   const error = one(params, "error");
+  const notice = one(params, "notice");
   let all;
   try {
     all = await prisma.airWaybillDocument.findMany({
@@ -68,6 +68,7 @@ export default async function GuiasPage({
           </Link>
         ) : null}
       </div>
+      {notice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{notice}</p> : null}
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
       {guias.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-card px-4 py-10 text-sm text-muted-foreground">
@@ -113,16 +114,7 @@ export default async function GuiasPage({
                     {accounting ? <td className="px-3 py-2">{guia.invoiceNumber || guia.qboDocNumber || "—"}</td> : null}
                     {readOnly || accounting ? null : (
                       <td className="px-3 py-2 text-right">
-                        {flightDateIso(guia.flightDate) ? null : (
-                          <form action={setGuiaCompleted}>
-                            <input type="hidden" name="id" value={guia.id} />
-                            <input type="hidden" name="done" value="1" />
-                            <input type="hidden" name="returnTo" value="/guias" />
-                            <button type="submit" title="Sin fecha de vuelo: márcala completada para quitarla de esta pantalla" className="rounded-md border border-input px-2 py-1 text-xs hover:bg-secondary">
-                              Completar
-                            </button>
-                          </form>
-                        )}
+                        <GuiaRowMenu id={guia.id} label={guia.awb || "en borrador"} issued={guia.status === "issued"} canDelete={guia.status !== "issued" || isAdmin(user)} />
                       </td>
                     )}
                   </tr>
