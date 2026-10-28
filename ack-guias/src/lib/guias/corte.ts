@@ -4,7 +4,7 @@ import bwipjs from "bwip-js/node";
 import PDFDocument from "pdfkit";
 import { cityForAirport, codeForPlace, countryForAirport } from "@/lib/awb/airports";
 import { tsaIacFor, type CompanyView } from "@/lib/guias/company-profile";
-import { DG_HANDLING_LINE, lithiumSectionIIStatement, parseUnNumbers } from "@/lib/guias/dg";
+import { DG_HANDLING_LINE, LITHIUM_BOX_CENTER, lithiumSectionIIStatements, parseLithiumTypes, parseUnNumbers } from "@/lib/guias/dg";
 import { planUn } from "@/lib/guias/dg/un";
 import type { GuiaPrintOptions, GuiaRecord } from "@/lib/guias/files";
 import { formatFlightDate, sheetDate, signerName } from "@/lib/sheets/layout";
@@ -214,8 +214,9 @@ export function handlingForPrint(
   const has = (value: string) => lines.some((line) => line.toLowerCase().includes(value.toLowerCase()));
   if (dangerousGoods && !has(DG_HANDLING_LINE)) lines.push(DG_HANDLING_LINE);
   if (cargoOnly && !has(CARGO_AIRCRAFT_ONLY_LINE)) lines.push(CARGO_AIRCRAFT_ONLY_LINE);
-  const statement = lithiumSectionIIStatement(lithiumPi);
-  if (statement && !has(statement)) lines.push(statement);
+  for (const statement of lithiumSectionIIStatements(lithiumPi)) {
+    if (!has(statement)) lines.push(statement);
+  }
   return lines.join("\n");
 }
 
@@ -867,7 +868,12 @@ export async function renderLithiumLetter(document: GuiaRecord, company: Company
     t(doc, 58, 719, shipperAddress, 10);
     t(doc, 404, 750, date, 11);
     tc(doc, 294, 770, name, 8);
-    tc(doc, 66.5, 392, "X", 12, "Helvetica-Bold");
+    // An X in the box of every battery type checked on the guía. With none checked the boxes stay empty.
+    for (const code of parseLithiumTypes(document.lithiumPi)) {
+      const box = LITHIUM_BOX_CENTER[code];
+      // Two strokes rather than a letter, so the mark looks the same in every viewer.
+      doc.save().lineWidth(1.7).strokeColor("#000000").moveTo(box.x - 4.6, box.y - 4.2).lineTo(box.x + 4.6, box.y + 4.2).moveTo(box.x + 4.6, box.y - 4.2).lineTo(box.x - 4.6, box.y + 4.2).stroke().restore();
+    }
   });
 }
 

@@ -13,7 +13,7 @@ import { loadCompany } from "@/lib/guias/company";
 import { guiaAwbFolder, publishRenderedPdf, saveDocumentLog } from "@/lib/guias/document-log";
 import { ensureGuiaClient, guiaBillToName } from "@/lib/guias/guia-client";
 import { type GuiaValues, type ReviewField } from "@/lib/guias/extract";
-import { formatUnNumbers, isLithiumPi } from "@/lib/guias/dg";
+import { formatUnNumbers, parseLithiumTypes } from "@/lib/guias/dg";
 import { checkFlights } from "@/lib/guias/flight-check";
 import { safeGuiaReturn } from "@/lib/guias/upload-rules";
 import { rememberGuiaParties } from "@/lib/guias/parties";
@@ -63,7 +63,7 @@ function valuesFromForm(formData: FormData): GuiaValues {
     dg: text(formData.get("dg")) === "1" ? "1" : "",
     unNumbers: text(formData.get("dg")) === "1" ? formatUnNumbers(text(formData.get("unNumbers"))) : "",
     bup: text(formData.get("bup")) === "1" ? "1" : "",
-    lithiumPi: isLithiumPi(text(formData.get("lithiumPi"))) ? text(formData.get("lithiumPi")) : "",
+    lithiumPi: parseLithiumTypes(formData.getAll("lithiumPi").map((item) => String(item)).join(",")).join(","),
     issuingCompany: company === "ack" || company === "" ? "ack" : "",
   };
 }

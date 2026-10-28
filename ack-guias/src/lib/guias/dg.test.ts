@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { aesItnList, goodsForPrint, handlingForPrint, NO_EEI_GOODS, unRequiresCargoAircraftOnly } from "@/lib/guias/corte";
-import { DG_HANDLING_LINE, formatUnNumbers, hasLithiumUn, isLithiumPi, lithiumSectionIIStatement, onlyLithiumUn, parseUnNumbers } from "@/lib/guias/dg";
+import { DG_HANDLING_LINE, formatUnNumbers, hasLithiumTypes, hasLithiumUn, isLithiumPi, LITHIUM_BOX_CENTER, LITHIUM_TYPES, lithiumSectionIIStatement, lithiumSectionIIStatements, onlyLithiumUn, parseLithiumTypes, parseUnNumbers } from "@/lib/guias/dg";
 
 test("UN numbers are read from however they are typed, once each", () => {
   assert.deepEqual(parseUnNumbers("UN3481, un1950 3481"), ["3481", "1950"]);
@@ -85,3 +85,26 @@ test("Handling Information says the DGD line once and Cargo Aircraft Only only w
   assert.equal(unRequiresCargoAircraftOnly(""), false);
 });
 
+
+test("the battery types checked on a guía are read from a comma list and keep the order of the document", () => {
+  assert.deepEqual(parseLithiumTypes("970, 966 ,bogus,966,968IB"), ["966", "970", "968IB"]);
+  assert.deepEqual(parseLithiumTypes(""), []);
+  assert.deepEqual(parseLithiumTypes(null), []);
+  assert.equal(isLithiumPi("965IB"), false);
+  assert.equal(isLithiumPi("965IB,967"), true);
+  assert.equal(hasLithiumTypes("968IB"), true);
+  assert.deepEqual(lithiumSectionIIStatements("970,967,968IB"), [
+    "Lithium ion batteries in compliance with Section II of PI967",
+    "Lithium metal batteries in compliance with Section II of PI970",
+  ]);
+  assert.deepEqual(lithiumSectionIIStatements("965IB"), []);
+  // One box on the letter for each type.
+  assert.deepEqual(Object.keys(LITHIUM_BOX_CENTER).sort(), LITHIUM_TYPES.map((type) => type.code).sort());
+});
+
+test("Handling Information names every Section II type checked", () => {
+  const lines = handlingForPrint("", false, "967,970").split("\n");
+  assert.ok(lines.includes("Lithium ion batteries in compliance with Section II of PI967"));
+  assert.ok(lines.includes("Lithium metal batteries in compliance with Section II of PI970"));
+  assert.ok(!handlingForPrint("", true, "965IB", "UN3480").includes("Section II"));
+});

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { GuiaLookupInput, type LookupType } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LITHIUM_SECTION_II, onlyLithiumUn } from "@/lib/guias/dg";
+import { isLithiumPi, LITHIUM_TYPES, onlyLithiumUn, parseLithiumTypes } from "@/lib/guias/dg";
 import type { GuiaValues } from "@/lib/guias/extract";
 import { saveGuia, saveNewGuia } from "@/server/guia-actions";
 
@@ -88,6 +88,7 @@ export function GuiaForm({
   const [extractError, setExtractError] = useState("");
 
   const reviewSet = useMemo(() => new Set(flags), [flags]);
+  const lithiumChecked: string[] = parseLithiumTypes(draft.lithiumPi);
 
   function update(key: keyof GuiaValues, value: string) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -264,28 +265,40 @@ export function GuiaForm({
               ) : null}
             </div>
           ) : null}
-          <div className="space-y-1.5">
-            <Label htmlFor="lithiumPi">Baterías de litio Sección II (sin DGD)</Label>
-            <select
-              id="lithiumPi"
-              name="lithiumPi"
-              value={draft.lithiumPi}
-              onChange={(event) => update("lithiumPi", event.target.value)}
-              className="block h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="">No</option>
-              {LITHIUM_SECTION_II.map((entry) => (
-                <option key={entry.pi} value={entry.pi}>
-                  {entry.label}
-                </option>
-              ))}
-            </select>
-            {draft.lithiumPi ? (
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Baterías de litio (marcan el Lithium Battery Letter)</legend>
+            {(["II", "IB"] as const).map((section) => (
+              <div key={section} className="space-y-1">
+                <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">{section === "II" ? "Sección II (sin DGD)" : "Sección IB (lleva DGD)"}</p>
+                <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+                  {LITHIUM_TYPES.filter((type) => type.section === section).map((type) => (
+                    <label key={type.code} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        name="lithiumPi"
+                        value={type.code}
+                        checked={lithiumChecked.includes(type.code)}
+                        onChange={(event) =>
+                          update(
+                            "lithiumPi",
+                            LITHIUM_TYPES.filter((item) => (item.code === type.code ? event.target.checked : lithiumChecked.includes(item.code)))
+                              .map((item) => item.code)
+                              .join(","),
+                          )
+                        }
+                      />
+                      {type.short}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {isLithiumPi(draft.lithiumPi) ? (
               <p className="text-xs text-muted-foreground">
-                No DGD. Prints in Handling Information: Lithium {LITHIUM_SECTION_II.find((entry) => entry.pi === draft.lithiumPi)?.ion ? "ion" : "metal"} batteries in compliance with Section II of PI{draft.lithiumPi}.
+                Sección II no lleva DGD. Cada tipo de Sección II marcado sale en Handling Information como Lithium ion/metal batteries in compliance with Section II of PI…, y todos van marcados en el Lithium Battery Letter.
               </p>
             ) : null}
-          </div>
+          </fieldset>
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" name="bup" value="1" checked={draft.bup === "1"} onChange={(event) => update("bup", event.target.checked ? "1" : "")} />
             BUP (unit load device)

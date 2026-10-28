@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import type { CompanyView } from "@/lib/guias/company-profile";
 import { companyLogo, plain } from "@/lib/guias/corte";
-import { hasLithiumUn, isLithiumPi, lithiumSectionIIStatement } from "@/lib/guias/dg";
+import { hasLithiumTypes, hasLithiumUn, isLithiumPi, lithiumSectionIIStatements } from "@/lib/guias/dg";
 import type { GuiaPrintOptions, GuiaRecord } from "@/lib/guias/files";
 import { SECURITY_LETTER_COPIES } from "@/lib/guias/magaya-docs";
 import { formatFlightDate } from "@/lib/sheets/layout";
@@ -31,7 +31,7 @@ export type ChecklistInput = {
  */
 export function checklistRows(input: ChecklistInput): ChecklistRow[] {
   const sectionII = isLithiumPi(input.lithiumPi);
-  const lithium = sectionII || hasLithiumUn(input.unNumbers) || /lithium|litio/i.test(input.goods);
+  const lithium = hasLithiumTypes(input.lithiumPi) || hasLithiumUn(input.unNumbers) || /lithium|litio/i.test(input.goods);
   const rows: ChecklistRow[] = [
     {
       source: "auto",
@@ -43,7 +43,7 @@ export function checklistRows(input: ChecklistInput): ChecklistRow[] {
     rows.push({
       source: "auto",
       title: "Lithium battery letter",
-      note: sectionII ? `${lithiumSectionIIStatement(input.lithiumPi)}. No DGD for Section II` : "Lithium batteries in the shipment",
+      note: sectionII ? `${lithiumSectionIIStatements(input.lithiumPi).join("; ")}. No DGD for Section II` : "Lithium batteries in the shipment",
     });
   }
   if (input.dangerousGoods) {
