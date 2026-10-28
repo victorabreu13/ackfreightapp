@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import AwbDriverPicker from "../components/AwbDriverPicker";
@@ -62,6 +63,9 @@ const BILL_TYPE_LABELS: Record<DriverPayType, string> = {
 
 export default function DispatchDetailScreen({ route, navigation }: any) {
   const initialRequest: TripRequest = route.params.request;
+  // On a phone the AWB number gets its own line, and the buttons wrap under it, so nothing runs off the screen.
+  const { width } = useWindowDimensions();
+  const narrow = width < 700;
   const [request, setRequest] = useState(initialRequest);
   const [drivers, setDrivers] = useState<UserProfile[]>([]);
   const [assigningIndex, setAssigningIndex] = useState<number | null>(null);
@@ -353,7 +357,7 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
           const priority = line.priority ?? "Normal";
           return (
             <View key={i} style={styles.awbAssignRow}>
-              <Text style={styles.awbAssignLabel}>{line.awbNumber}</Text>
+              <Text style={[styles.awbAssignLabel, narrow && styles.awbAssignLabelNarrow]}>{line.awbNumber}</Text>
               {savingPriorityIndex === i ? (
                 <ActivityIndicator style={styles.priorityButton} />
               ) : (
@@ -419,7 +423,7 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
       </Text>
       {request.awbLines.map((line, i) => (
         <View key={i} style={styles.awbAssignRow}>
-          <Text style={styles.awbAssignLabel}>{line.awbNumber}</Text>
+          <Text style={[styles.awbAssignLabel, narrow && styles.awbAssignLabelNarrow]}>{line.awbNumber}</Text>
           {editingKgIndex === i ? (
             <View style={styles.kgEditRow}>
               <TextInput
@@ -641,11 +645,14 @@ const styles = StyleSheet.create({
   kgValueText: { fontSize: 13, color: "#1d4ed8", fontWeight: "600" },
   awbAssignRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "center",
+    rowGap: 8,
     marginBottom: 8,
   },
   awbAssignLabel: { fontSize: 14, fontWeight: "700", color: "#111", flex: 1, marginRight: 10 },
+  awbAssignLabelNarrow: { flexBasis: "100%", flexGrow: 0, flexShrink: 0, marginRight: 0 },
   priorityButton: {
     backgroundColor: "#f5f6fa",
     borderRadius: 8,
