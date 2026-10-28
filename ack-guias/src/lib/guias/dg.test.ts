@@ -53,14 +53,14 @@ test("the AES ITN prints in the Nature of Goods after the last line, and with no
   const line = (nature: string) => [{ nature, sortOrder: 0 }];
   assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), ""), `WIDGETS ${NO_EEI_GOODS} PMC 40106 R7=01 PC`);
   assert.equal(goodsForPrint(line("WIDGETS"), null), `WIDGETS ${NO_EEI_GOODS}`);
-  assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), "X20261021165293"), "WIDGETS PMC 40106 R7=01 PC\nITN: X20261021165293");
+  assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), "X20261021165293"), "WIDGETS PMC 40106 R7=01 PC\n\nITN: X20261021165293");
   const several = "X20261023351371, X20261023351509, X20261023351662, X20261023351717";
-  assert.equal(goodsForPrint([{ nature: "WIDGETS", sortOrder: 0 }, { nature: "PI967 PMC 40106", sortOrder: 1 }], `AES ITN: ${several}`), "WIDGETS\nPI967 PMC 40106\nITN: X20261023351371\nX20261023351509\nX20261023351662\nX20261023351717");
+  assert.equal(goodsForPrint([{ nature: "WIDGETS", sortOrder: 0 }, { nature: "PI967 PMC 40106", sortOrder: 1 }], `AES ITN: ${several}`), "WIDGETS\nPI967 PMC 40106\n\nITN: X20261023351371\n\nX20261023351509\n\nX20261023351662\n\nX20261023351717");
   // Typed with AES in front of each number, the word is dropped: ITN: appears once and only the numbers follow.
   const typed = "AES X20261023351371, AES X20261023351509, AES ITN: X20261023351662, ITN: X20261023351717";
-  assert.equal(goodsForPrint(line("PI967"), typed), "PI967\nITN: X20261023351371\nX20261023351509\nX20261023351662\nX20261023351717");
+  assert.equal(goodsForPrint(line("PI967"), typed), "PI967\n\nITN: X20261023351371\n\nX20261023351509\n\nX20261023351662\n\nX20261023351717");
   assert.deepEqual(aesItnList("x1; X2\nX1,  AES ITN: X3 ,"), ["x1", "X2", "X3"]);
-  assert.equal(goodsForPrint(line("WIDGETS AES ITN: X1 PMC 40106"), "X1, X2"), "WIDGETS AES ITN: X1 PMC 40106\nITN: X2");
+  assert.equal(goodsForPrint(line("WIDGETS AES ITN: X1 PMC 40106"), "X1, X2"), "WIDGETS AES ITN: X1 PMC 40106\n\nITN: X2");
   assert.equal(goodsForPrint(line("WIDGETS AES ITN: X20261021165293 PMC 40106"), "X20261021165293"), "WIDGETS AES ITN: X20261021165293 PMC 40106");
   assert.ok(!goodsForPrint(line("WIDGETS"), "X20261021165293").includes("NO EEI"));
   assert.equal(goodsForPrint(line(`WIDGETS ${NO_EEI_GOODS} PMC 40106`), ""), `WIDGETS ${NO_EEI_GOODS} PMC 40106`);
@@ -104,22 +104,35 @@ test("the battery types checked on a guía are read from a comma list and keep t
 test("the Nature of Goods runs description, lithium types, AES ITN and then the BUP elements, each on its own line", () => {
   const line = (nature: string) => [{ nature, sortOrder: 0 }];
   const printed = goodsForPrint(line("ELECTRONICS PMC 40106"), "AES X1, AES X2", "967,970", "ULD AKE 123 - 20 PCS, ULD PMC 456 - 15 PCS");
+  // A blank line between every entry.
   assert.deepEqual(printed.split("\n"), [
     "ELECTRONICS PMC 40106",
+    "",
     "Lithium ion batteries in compliance with Section II of PI967",
+    "",
     "Lithium metal batteries in compliance with Section II of PI970",
+    "",
     "ITN: X1",
+    "",
     "X2",
+    "",
     "ULD AKE 123 - 20 PCS",
+    "",
     "ULD PMC 456 - 15 PCS",
   ]);
   // A statement the description already makes is not repeated, and Section IB has none.
-  assert.equal(goodsForPrint(line("LITHIUM ION BATTERIES IN COMPLIANCE WITH SECTION II OF PI967"), "X1", "967,965IB"), "LITHIUM ION BATTERIES IN COMPLIANCE WITH SECTION II OF PI967\nITN: X1");
-  // With no ITN the exemption goes before the PMC code, the BUP elements stay last.
-  assert.equal(
-    goodsForPrint(line("WIDGETS PMC 40106"), "", "970", "ULD A - 5 PCS"),
-    `WIDGETS ${NO_EEI_GOODS} PMC 40106\nLithium metal batteries in compliance with Section II of PI970\nULD A - 5 PCS`,
+  assert.deepEqual(
+    goodsForPrint(line("LITHIUM ION BATTERIES IN COMPLIANCE WITH SECTION II OF PI967"), "X1", "967,965IB").split("\n"),
+    ["LITHIUM ION BATTERIES IN COMPLIANCE WITH SECTION II OF PI967", "", "ITN: X1"],
   );
+  // With no ITN the exemption goes before the PMC code, the BUP elements stay last.
+  assert.deepEqual(goodsForPrint(line("WIDGETS PMC 40106"), "", "970", "ULD A - 5 PCS").split("\n"), [
+    `WIDGETS ${NO_EEI_GOODS} PMC 40106`,
+    "",
+    "Lithium metal batteries in compliance with Section II of PI970",
+    "",
+    "ULD A - 5 PCS",
+  ]);
   assert.deepEqual(bupItemList("ULD A - 5 PCS,  ULD B - 6 PCS; \n ,ULD C"), ["ULD A - 5 PCS", "ULD B - 6 PCS", "ULD C"]);
-  assert.equal(goodsForPrint(line("WIDGETS"), "X1", null, ""), "WIDGETS\nITN: X1");
+  assert.deepEqual(goodsForPrint(line("WIDGETS"), "X1", null, "").split("\n"), ["WIDGETS", "", "ITN: X1"]);
 });

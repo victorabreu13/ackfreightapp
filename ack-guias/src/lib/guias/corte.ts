@@ -244,21 +244,23 @@ export function goodsForPrint(
     .filter(Boolean)
     .join("\n");
   if (!goods) return goods;
+  // Every part below goes on its own line with a blank line between them.
+  const parts: string[] = [];
   for (const statement of lithiumSectionIIStatements(lithiumPi)) {
     const pi = statement.match(/PI(\d{3})$/)?.[1] ?? "";
-    if (!new RegExp(`section\\s+ii\\s+of\\s+pi\\s?${pi}`, "i").test(goods)) goods = `${goods}\n${statement}`;
+    if (!new RegExp(`section\\s+ii\\s+of\\s+pi\\s?${pi}`, "i").test(goods)) parts.push(statement);
   }
   const tokens = aesItnList(aesItn);
   if (tokens.length) {
     const missing = tokens.filter((token) => !goods.toLowerCase().includes(token.toLowerCase()));
-    // "ITN:" once, with the first number, and the others each on the next line.
-    if (missing.length) goods = `${goods}\nITN: ${missing.join("\n")}`;
+    // "ITN:" once, with the first number, and the others each on a line of their own.
+    missing.forEach((token, index) => parts.push(index === 0 ? `ITN: ${token}` : token));
   } else if (!/NO\s+EEI/i.test(goods) && !/AES\s*ITN/i.test(goods)) {
     const pmc = [...goods.matchAll(/\s+PMC\s*\d/g)].pop();
     goods = pmc?.index != null ? `${goods.slice(0, pmc.index)} ${NO_EEI_GOODS}${goods.slice(pmc.index)}` : `${goods} ${NO_EEI_GOODS}`;
   }
-  const items = bupItemList(bupItems);
-  return items.length ? `${goods}\n${items.join("\n")}` : goods;
+  parts.push(...bupItemList(bupItems));
+  return [goods, ...parts].join("\n\n");
 }
 
 function wrapMeasured(doc: Doc, text: string, size: number, width: number, font: string): string[] {

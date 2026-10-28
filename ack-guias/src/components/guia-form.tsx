@@ -313,7 +313,7 @@ export function GuiaForm({
                 rows={3}
                 value={draft.bupItems}
                 onChange={(event) => update("bupItems", event.target.value)}
-                placeholder="ULD AKE 12345 - 20 PCS, ULD PMC 40106 - 15 PCS"
+                placeholder="AKE 12345 - 20 PCS, PMC 40106 - 15 PCS"
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
               <p className="text-xs text-muted-foreground">
