@@ -37,9 +37,7 @@ export function GuiaRowMenu({ id, label, issued, canDelete }: { id: string; labe
   }
 
   const completeMessage = `¿Marcar la guía ${label} como completada?\n\nSale de la pantalla Guías. Sigue en Documentos.`;
-  const deleteMessage = issued
-    ? `¿Eliminar la guía ${label}?\n\nYa está emitida: el número AWB NO vuelve al stock y no se puede deshacer. Sus archivos en Drive y en Documentos se quedan.`
-    : `¿Eliminar la guía ${label}?\n\nNo se puede deshacer. Si tiene un número AWB reservado, vuelve al stock.`;
+  const deleteMessage = `¿Eliminar la guía ${label}?\n\nSe borra también de Documentos con todos sus documentos y el número AWB vuelve al stock.${issued ? "\nYa está emitida." : ""}\nNo se puede deshacer. Las copias que ya están en Google Drive no se tocan.`;
 
   return (
     <div className="inline-block text-left">

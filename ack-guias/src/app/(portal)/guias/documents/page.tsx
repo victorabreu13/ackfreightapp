@@ -12,6 +12,7 @@ import { GUIA_FILE_KINDS } from "@/lib/guias/files";
 import { canDeleteGuiaUpload } from "@/lib/guias/upload-rules";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
 import { importGuiaDocument, retryGuiaDocument } from "@/server/guia-document-actions";
+import { OrphanRemoveButton } from "@/components/orphan-remove-button";
 
 /** Client folders per page. */
 const PAGE_SIZE = 10;
@@ -56,6 +57,7 @@ export default async function GuiaDocumentsPage({
   const retried = one(params, "retried");
   const uploadError = one(params, "uploadError");
   const uploadFlag = one(params, "upload");
+  const removed = one(params, "removed");
 
   let rows: LoggedDocument[] = [];
   let clients: string[] = [];
@@ -115,6 +117,7 @@ export default async function GuiaDocumentsPage({
             : "Every PDF Guías generates is saved here and uploaded to Drive under ACK Guías / client / AWB. Files the team uploads on a guía are listed too, under type Archivo. A failed upload stays on this list so it can be retried."}
         </p>
       </div>
+      {removed ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{removed}</p> : null}
       {uploadFlag === "deleted" ? <p className="text-sm text-muted-foreground">Archivo eliminado.</p> : null}
       {uploadError ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{uploadError}</p> : null}
       {imported === "1" ? <p className="text-sm text-muted-foreground">Imported and uploaded to Drive.</p> : null}
@@ -236,6 +239,12 @@ export default async function GuiaDocumentsPage({
                         {guia.documents.length} {guia.documents.length === 1 ? "documento" : "documentos"}
                       </span>
                     </summary>
+                    {!guia.guiaId && admin ? (
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground">
+                        <span>La guía ya no existe en el sistema.</span>
+                        <OrphanRemoveButton awb={guia.awb} count={guia.documents.length} />
+                      </div>
+                    ) : null}
                     <div className="overflow-x-auto border-t border-border">
                       <table className="w-full min-w-[900px] text-left text-sm">
                         <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">

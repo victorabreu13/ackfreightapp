@@ -101,3 +101,25 @@ export async function retryGuiaDocument(formData: FormData) {
   }
   documentsRedirect("retried=1");
 }
+
+/**
+ * Removes from Documentos the documents of an AWB whose guía no longer exists, and gives its number back to stock.
+ * Admin only. It does nothing for an AWB that a guía still uses.
+ */
+export async function removeOrphanDocuments(formData: FormData) {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (!isAdmin(user)) documentsRedirect(`importError=${encodeURIComponent("Only an admin can remove documents")}`);
+  const awb = text(formData.get("awb"));
+  if (!awb) documentsRedirect(`importError=${encodeURIComponent("Falta el AWB")}`);
+  const inUse = await prisma.airWaybillDocument.findFirst({ where: { awb }, select: { id: true } });
+  if (inUse) documentsRedirect(`importError=${encodeURIComponent(`La guía ${awb} todavía existe. Elimínala desde la lista de Guías.`)}`);
+  const [removed, stock] = await prisma.$transaction([
+    prisma.guiaDocument.deleteMany({ where: { guiaId: null, awb } }),
+    prisma.awbStockNumber.updateMany({ where: { awb, documentId: null, status: { not: "available" } }, data: { status: "available" } }),
+  ]);
+  revalidatePath("/guias/documents");
+  documentsRedirect(
+    `removed=${encodeURIComponent(`${awb}: ${removed.count} ${removed.count === 1 ? "documento eliminado" : "documentos eliminados"}.${stock.count ? " El número AWB volvió al stock." : ""}`)}`,
+  );
+}

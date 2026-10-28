@@ -439,8 +439,8 @@ export async function setGuiaCompleted(formData: FormData) {
 }
 
 /**
- * Deletes a guía from the system. A draft gives its reserved AWB number back to stock. An issued guía can only be
- * deleted by an Admin, and its number is not returned: it was used. Its files in Drive and in Documentos stay.
+ * Deletes a guía from the system, its documents in Documentos with it, and gives its AWB number back to stock.
+ * An issued guía can only be deleted by an Admin. Copies already saved in Google Drive are not touched.
  */
 export async function deleteGuia(formData: FormData) {
   const user = await requireGuiaTeam();
@@ -451,17 +451,16 @@ export async function deleteGuia(formData: FormData) {
   if (guia.status === "issued" && !isAdmin(user)) {
     redirect(`/guias?error=${encodeURIComponent(`Solo un Admin puede eliminar una guía emitida (${label}).`)}`);
   }
-  if (guia.status === "draft" && guia.awb) {
-    try {
-      await releaseDraftAwb(id, "ack");
-    } catch (error) {
-      redirect(`/guias?error=${encodeURIComponent(issueErrorInSpanish(error))}`);
-    }
-  }
-  await prisma.airWaybillDocument.delete({ where: { id } });
+  const [returned] = await prisma.$transaction([
+    // The number goes back to stock, reserved or already issued.
+    prisma.awbStockNumber.updateMany({ where: { documentId: id }, data: { documentId: null, status: "available" } }),
+    // Its documents leave Documentos, the stored files with them.
+    prisma.guiaDocument.deleteMany({ where: { guiaId: id } }),
+    prisma.airWaybillDocument.delete({ where: { id } }),
+  ]);
   revalidatePath("/guias");
   revalidatePath("/guias/documents");
-  redirect(`/guias?notice=${encodeURIComponent(`Guía ${label} eliminada.${guia.status === "draft" && guia.awb ? " El número AWB volvió al stock." : ""}`)}`);
+  redirect(`/guias?notice=${encodeURIComponent(`Guía ${label} eliminada, con sus documentos.${returned.count ? " El número AWB volvió al stock." : ""}`)}`);
 }
 
 export async function saveGuiaToDrive(formData: FormData) {
