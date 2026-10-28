@@ -149,6 +149,8 @@ model AirWaybillDocument {
   unNumbers        String?
   /// Moves as a BUP (unit load device). The shipment checklist then lists the CCSF and the CCSP.
   bup              Boolean      @default(false)
+  /// For a BUP: the elements and pieces, one per line, printed in the Nature of Goods under the AES ITN.
+  bupItems         String?      @db.Text
   /// Packing instruction (965 to 970) of lithium batteries shipped under Section II. No DGD, and the AWB names the PI.
   lithiumPi        String?
   /// Last flight status seen by the checker, like DEPARTED or DELAYED. Null until the first check.

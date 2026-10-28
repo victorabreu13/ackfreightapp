@@ -295,7 +295,7 @@ export function GuiaForm({
             ))}
             {isLithiumPi(draft.lithiumPi) ? (
               <p className="text-xs text-muted-foreground">
-                Sección II no lleva DGD. Cada tipo de Sección II marcado sale en Handling Information como Lithium ion/metal batteries in compliance with Section II of PI…, y todos van marcados en el Lithium Battery Letter.
+                Sección II no lleva DGD. Cada tipo de Sección II marcado sale en el Nature of Goods, después de la descripción y antes del ITN, como Lithium ion/metal batteries in compliance with Section II of PI…, y todos van marcados en el Lithium Battery Letter.
               </p>
             ) : null}
           </fieldset>
@@ -303,7 +303,24 @@ export function GuiaForm({
             <input type="checkbox" name="bup" value="1" checked={draft.bup === "1"} onChange={(event) => update("bup", event.target.checked ? "1" : "")} />
             BUP (unit load device)
           </label>
-          {draft.bup === "1" ? <p className="text-xs text-muted-foreground">The shipment checklist will list the CCSF and the CCSP.</p> : null}
+          {draft.bup === "1" ? (
+            <div className="space-y-1.5">
+              <p className="text-xs text-muted-foreground">The shipment checklist will list the CCSF, the CCSP and the ULD Distribution.</p>
+              <Label htmlFor="bupItems">Elementos y piezas del BUP</Label>
+              <textarea
+                id="bupItems"
+                name="bupItems"
+                rows={3}
+                value={draft.bupItems}
+                onChange={(event) => update("bupItems", event.target.value)}
+                placeholder="ULD AKE 12345 - 20 PCS, ULD PMC 40106 - 15 PCS"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Separa con comas: cada elemento sale en su propia línea del Nature of Goods, debajo de los AES ITN.
+              </p>
+            </div>
+          ) : null}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="issuingCompany">Issuing company</Label>

@@ -63,6 +63,7 @@ function valuesFromForm(formData: FormData): GuiaValues {
     dg: text(formData.get("dg")) === "1" ? "1" : "",
     unNumbers: text(formData.get("dg")) === "1" ? formatUnNumbers(text(formData.get("unNumbers"))) : "",
     bup: text(formData.get("bup")) === "1" ? "1" : "",
+    bupItems: text(formData.get("bup")) === "1" ? text(formData.get("bupItems")) : "",
     lithiumPi: parseLithiumTypes(formData.getAll("lithiumPi").map((item) => String(item)).join(",")).join(","),
     issuingCompany: company === "ack" || company === "" ? "ack" : "",
   };
@@ -123,6 +124,7 @@ function documentData(values: GuiaValues, review: ReviewField[], snippets: Recor
     dgDeclarable: values.dg === "1",
     unNumbers: blank(values.unNumbers),
     bup: values.bup === "1",
+    bupItems: blank(values.bupItems),
     lithiumPi: blank(values.lithiumPi),
     reviewJson: JSON.stringify(review),
     snippetJson: JSON.stringify(snippets),

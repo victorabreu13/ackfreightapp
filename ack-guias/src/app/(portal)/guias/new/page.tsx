@@ -30,6 +30,7 @@ const blank: GuiaValues = {
   dg: "",
   unNumbers: "",
   bup: "",
+  bupItems: "",
   lithiumPi: "",
   issuingCompany: "ack",
 };

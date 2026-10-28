@@ -46,6 +46,7 @@ function valuesOf(document: {
   dgDeclarable: boolean;
   unNumbers: string | null;
   bup: boolean;
+  bupItems: string | null;
   lithiumPi: string | null;
   agentKey: string;
   lines: Array<{ pieces: number | null; chargeableWeight: number | null; grossWeight: number | null; rate: number | null; nature: string | null }>;
@@ -74,6 +75,7 @@ function valuesOf(document: {
     dg: document.dgDeclarable ? "1" : "",
     unNumbers: document.unNumbers || "",
     bup: document.bup ? "1" : "",
+    bupItems: document.bupItems || "",
     lithiumPi: document.lithiumPi || "",
     issuingCompany: "ack",
   };

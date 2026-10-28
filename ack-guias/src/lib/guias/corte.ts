@@ -198,7 +198,6 @@ export function unRequiresCargoAircraftOnly(unNumbers: string | null | undefined
 export function handlingForPrint(
   entered: string | null | undefined,
   dangerousGoods = false,
-  lithiumPi: string | null | undefined = null,
   unNumbers: string | null | undefined = null,
 ): string {
   const user = plain(entered);
@@ -215,35 +214,51 @@ export function handlingForPrint(
   const has = (value: string) => lines.some((line) => line.toLowerCase().includes(value.toLowerCase()));
   if (dangerousGoods && !has(DG_HANDLING_LINE)) lines.push(DG_HANDLING_LINE);
   if (cargoOnly && !has(CARGO_AIRCRAFT_ONLY_LINE)) lines.push(CARGO_AIRCRAFT_ONLY_LINE);
-  for (const statement of lithiumSectionIIStatements(lithiumPi)) {
-    if (!has(statement)) lines.push(statement);
-  }
   return lines.join("\n");
 }
 
+/** The elements and pieces of a BUP, separated by commas, semicolons or line breaks. Each one goes on its own line. */
+export function bupItemList(value: string | null | undefined): string[] {
+  return (value ?? "")
+    .split(/[,;\n]+/)
+    .map((part) => part.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
 /**
- * The goods as entered. With an AES ITN, "ITN: …" follows the last line of the description, once, with every number
- * on its own line. With no
- * ITN the exemption is added: just before the PMC code when the goods carry one, as the team types it, otherwise at
- * the end. Goods that already carry the ITN, or say NO EEI, are left alone.
+ * The Nature of Goods, top to bottom: the description as entered; a line for each Section II lithium battery type
+ * checked on the guía, unless the description already says it; "ITN: …" once with every AES ITN number on its own
+ * line, or with no ITN the NO EEI exemption (just before the PMC code when the goods carry one, as the team types it,
+ * otherwise at the end); and last the elements and pieces of a BUP, each on its own line. Goods that already carry
+ * the ITN, or say NO EEI, are left alone.
  */
-export function goodsForPrint(lines: Array<{ nature?: string | null; sortOrder?: number }>, aesItn?: string | null): string {
-  const goods = [...lines]
+export function goodsForPrint(
+  lines: Array<{ nature?: string | null; sortOrder?: number }>,
+  aesItn?: string | null,
+  lithiumPi?: string | null,
+  bupItems?: string | null,
+): string {
+  let goods = [...lines]
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     .map((line) => plain(line.nature))
     .filter(Boolean)
     .join("\n");
   if (!goods) return goods;
+  for (const statement of lithiumSectionIIStatements(lithiumPi)) {
+    const pi = statement.match(/PI(\d{3})$/)?.[1] ?? "";
+    if (!new RegExp(`section\\s+ii\\s+of\\s+pi\\s?${pi}`, "i").test(goods)) goods = `${goods}\n${statement}`;
+  }
   const tokens = aesItnList(aesItn);
   if (tokens.length) {
     const missing = tokens.filter((token) => !goods.toLowerCase().includes(token.toLowerCase()));
     // "ITN:" once, with the first number, and the others each on the next line.
-    return missing.length ? `${goods}\nITN: ${missing.join("\n")}` : goods;
+    if (missing.length) goods = `${goods}\nITN: ${missing.join("\n")}`;
+  } else if (!/NO\s+EEI/i.test(goods) && !/AES\s*ITN/i.test(goods)) {
+    const pmc = [...goods.matchAll(/\s+PMC\s*\d/g)].pop();
+    goods = pmc?.index != null ? `${goods.slice(0, pmc.index)} ${NO_EEI_GOODS}${goods.slice(pmc.index)}` : `${goods} ${NO_EEI_GOODS}`;
   }
-  if (/NO\s+EEI/i.test(goods) || /AES\s*ITN/i.test(goods)) return goods;
-  const pmc = [...goods.matchAll(/\s+PMC\s*\d/g)].pop();
-  if (pmc?.index != null) return `${goods.slice(0, pmc.index)} ${NO_EEI_GOODS}${goods.slice(pmc.index)}`;
-  return `${goods} ${NO_EEI_GOODS}`;
+  const items = bupItemList(bupItems);
+  return items.length ? `${goods}\n${items.join("\n")}` : goods;
 }
 
 function wrapMeasured(doc: Doc, text: string, size: number, width: number, font: string): string[] {
@@ -422,8 +437,8 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
   const rate = first?.rate ?? null;
   const lineTotal = first?.total ?? (rate != null && chargeable != null ? rate * chargeable : null);
   const prepaid = (document.chgsCode || "PP").toUpperCase().startsWith("C") ? "" : money(document.weightCharge ?? lineTotal);
-  const natureText = goodsForPrint(goods, document.aesItn);
-  const handlingText = handlingForPrint(document.handling, document.dgDeclarable, document.lithiumPi, document.dgDeclarable ? document.unNumbers : null);
+  const natureText = goodsForPrint(goods, document.aesItn, document.lithiumPi, document.bup ? document.bupItems : null);
+  const handlingText = handlingForPrint(document.handling, document.dgDeclarable, document.dgDeclarable ? document.unNumbers : null);
   const accounting = plain(document.accountingInfo) || ((document.chgsCode || "PP").toUpperCase().startsWith("C") ? "FREIGHT COLLECT" : "FREIGHT PREPAID");
   const tel = [phone ? `TEL: ${phone}` : "", email].filter(Boolean).join("   ");
   const countryLine = address.find((line) => /UNITED STATES/i.test(line)) ?? "";

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { aesItnList, goodsForPrint, handlingForPrint, NO_EEI_GOODS, unRequiresCargoAircraftOnly } from "@/lib/guias/corte";
+import { aesItnList, bupItemList, goodsForPrint, handlingForPrint, NO_EEI_GOODS, unRequiresCargoAircraftOnly } from "@/lib/guias/corte";
 import { DG_HANDLING_LINE, formatUnNumbers, hasLithiumTypes, hasLithiumUn, isLithiumPi, LITHIUM_BOX_CENTER, LITHIUM_TYPES, lithiumSectionIIStatement, lithiumSectionIIStatements, onlyLithiumUn, parseLithiumTypes, parseUnNumbers } from "@/lib/guias/dg";
 
 test("UN numbers are read from however they are typed, once each", () => {
@@ -28,18 +28,17 @@ test("Handling Information gets the DGD line only for dangerous goods, and only 
   assert.ok(!typed.includes("AES ITN"));
 });
 
-test("Section II lithium batteries have no DGD line, and the AWB names the packing instruction", () => {
+test("Section II lithium batteries have no DGD line, and the AWB names the packing instruction in the goods", () => {
   assert.equal(lithiumSectionIIStatement("967"), "Lithium ion batteries in compliance with Section II of PI967");
   assert.equal(lithiumSectionIIStatement("970"), "Lithium metal batteries in compliance with Section II of PI970");
   assert.equal(lithiumSectionIIStatement(""), "");
   assert.equal(lithiumSectionIIStatement("999"), "");
-  const text = handlingForPrint("", false, "967");
-  assert.ok(!text.includes(DG_HANDLING_LINE));
-  assert.ok(text.includes("Lithium ion batteries in compliance with Section II of PI967"));
-  assert.ok(!text.includes("NO EEI"));
-  const both = handlingForPrint("", true, "970");
-  assert.ok(both.includes(DG_HANDLING_LINE) && both.includes("Section II of PI970"));
-  assert.ok(handlingForPrint("", false, null).indexOf("Section II") < 0);
+  // The statements are in the Nature of Goods and not in Handling Information.
+  assert.ok(!handlingForPrint("", false).includes("Section II"));
+  const goods = goodsForPrint([{ nature: "LAPTOPS", sortOrder: 0 }], "", "967");
+  assert.ok(goods.includes("Lithium ion batteries in compliance with Section II of PI967"));
+  assert.ok(!goods.includes(DG_HANDLING_LINE));
+  assert.ok(!goodsForPrint([{ nature: "LAPTOPS", sortOrder: 0 }], "", null).includes("Section II"));
 });
 
 test("a UN list of only lithium batteries is recognised so the form can warn", () => {
@@ -75,12 +74,12 @@ const lines = (text: string) => text.split("\n");
 test("Handling Information says the DGD line once and Cargo Aircraft Only only when a UN number requires it", () => {
   const typed = "DANGEROUS GOODS AS PER ATTACHED SHIPPER'S DECLARATION\nCARGO AIRCRAFT ONLY\nNotificar a pmorales@pacifiko.com\nDangerous Goods as per associated DGD";
   // UN1950 flies on passenger aircraft in the table, UN3480 does not.
-  assert.deepEqual(lines(handlingForPrint(typed, true, null, "UN1950")), ["Notificar a pmorales@pacifiko.com", "Dangerous Goods as per associated DGD"]);
-  assert.deepEqual(lines(handlingForPrint(typed, true, null, "UN3480")), ["Notificar a pmorales@pacifiko.com", "Dangerous Goods as per associated DGD", "CARGO AIRCRAFT ONLY"]);
+  assert.deepEqual(lines(handlingForPrint(typed, true, "UN1950")), ["Notificar a pmorales@pacifiko.com", "Dangerous Goods as per associated DGD"]);
+  assert.deepEqual(lines(handlingForPrint(typed, true, "UN3480")), ["Notificar a pmorales@pacifiko.com", "Dangerous Goods as per associated DGD", "CARGO AIRCRAFT ONLY"]);
   // A UN number that is not in the table, or none at all, keeps what was typed.
-  assert.ok(lines(handlingForPrint(typed, true, null, "UN3556")).includes("CARGO AIRCRAFT ONLY"));
-  assert.deepEqual(lines(handlingForPrint("KEEP DRY\nCARGO AIRCRAFT ONLY", false, null, null)), ["KEEP DRY", "CARGO AIRCRAFT ONLY"]);
-  assert.deepEqual(lines(handlingForPrint("KEEP DRY", false, null, "UN3480")), ["KEEP DRY", "CARGO AIRCRAFT ONLY"]);
+  assert.ok(lines(handlingForPrint(typed, true, "UN3556")).includes("CARGO AIRCRAFT ONLY"));
+  assert.deepEqual(lines(handlingForPrint("KEEP DRY\nCARGO AIRCRAFT ONLY", false, null)), ["KEEP DRY", "CARGO AIRCRAFT ONLY"]);
+  assert.deepEqual(lines(handlingForPrint("KEEP DRY", false, "UN3480")), ["KEEP DRY", "CARGO AIRCRAFT ONLY"]);
   assert.equal(unRequiresCargoAircraftOnly("UN1950, UN3480"), true);
   assert.equal(unRequiresCargoAircraftOnly(""), false);
 });
@@ -102,9 +101,25 @@ test("the battery types checked on a guía are read from a comma list and keep t
   assert.deepEqual(Object.keys(LITHIUM_BOX_CENTER).sort(), LITHIUM_TYPES.map((type) => type.code).sort());
 });
 
-test("Handling Information names every Section II type checked", () => {
-  const lines = handlingForPrint("", false, "967,970").split("\n");
-  assert.ok(lines.includes("Lithium ion batteries in compliance with Section II of PI967"));
-  assert.ok(lines.includes("Lithium metal batteries in compliance with Section II of PI970"));
-  assert.ok(!handlingForPrint("", true, "965IB", "UN3480").includes("Section II"));
+test("the Nature of Goods runs description, lithium types, AES ITN and then the BUP elements, each on its own line", () => {
+  const line = (nature: string) => [{ nature, sortOrder: 0 }];
+  const printed = goodsForPrint(line("ELECTRONICS PMC 40106"), "AES X1, AES X2", "967,970", "ULD AKE 123 - 20 PCS, ULD PMC 456 - 15 PCS");
+  assert.deepEqual(printed.split("\n"), [
+    "ELECTRONICS PMC 40106",
+    "Lithium ion batteries in compliance with Section II of PI967",
+    "Lithium metal batteries in compliance with Section II of PI970",
+    "ITN: X1",
+    "X2",
+    "ULD AKE 123 - 20 PCS",
+    "ULD PMC 456 - 15 PCS",
+  ]);
+  // A statement the description already makes is not repeated, and Section IB has none.
+  assert.equal(goodsForPrint(line("LITHIUM ION BATTERIES IN COMPLIANCE WITH SECTION II OF PI967"), "X1", "967,965IB"), "LITHIUM ION BATTERIES IN COMPLIANCE WITH SECTION II OF PI967\nITN: X1");
+  // With no ITN the exemption goes before the PMC code, the BUP elements stay last.
+  assert.equal(
+    goodsForPrint(line("WIDGETS PMC 40106"), "", "970", "ULD A - 5 PCS"),
+    `WIDGETS ${NO_EEI_GOODS} PMC 40106\nLithium metal batteries in compliance with Section II of PI970\nULD A - 5 PCS`,
+  );
+  assert.deepEqual(bupItemList("ULD A - 5 PCS,  ULD B - 6 PCS; \n ,ULD C"), ["ULD A - 5 PCS", "ULD B - 6 PCS", "ULD C"]);
+  assert.equal(goodsForPrint(line("WIDGETS"), "X1", null, ""), "WIDGETS\nITN: X1");
 });
