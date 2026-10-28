@@ -4,6 +4,7 @@ import { GuiaEyebrow } from "@/components/guia-eyebrow";
 import { DeleteUploadButton } from "@/components/guia-uploads";
 import { MigrationPending } from "@/components/migration-pending";
 import { canManageGuias, canReadGuias, isAdmin, isCompanyAccounting } from "@/lib/access";
+import { miamiDate } from "@/lib/awb/document";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { filterLoggedDocuments, formatNy, GUIA_FILE_LABELS, groupDocumentsByClient, UPLOAD_KIND, UPLOAD_LABEL, type LoggedDocument } from "@/lib/guias/documents-index";
@@ -96,6 +97,12 @@ export default async function GuiaDocumentsPage({
   const page = Math.min(requestedPage, pages);
   const visible = folders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const guiaFiltered = Boolean(filters.awb?.trim());
+  // The day each guía was issued, as printed on its AWB. A draft has none yet.
+  const guiaIds = visible.flatMap((folder) => folder.guias.map((guia) => guia.guiaId)).filter((id): id is string => Boolean(id));
+  const issuedRows = guiaIds.length
+    ? await prisma.airWaybillDocument.findMany({ where: { id: { in: guiaIds } }, select: { id: true, status: true, executedOn: true, updatedAt: true } })
+    : [];
+  const issuedOn = new Map(issuedRows.map((row) => [row.id, row.status === "issued" ? row.executedOn?.trim() || miamiDate(row.updatedAt) : "Borrador"]));
 
   return (
     <div className="space-y-6">
@@ -216,6 +223,9 @@ export default async function GuiaDocumentsPage({
                 {folder.guias.map((guia) => (
                   <details key={guia.key} open={guiaFiltered || folder.guias.length === 1} className="rounded-md border border-border bg-background">
                     <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 px-3 py-2">
+                      <span className="w-28 shrink-0 text-sm text-muted-foreground" title="Fecha en que se emitió la guía">
+                        {(guia.guiaId && issuedOn.get(guia.guiaId)) || "—"}
+                      </span>
                       <span className="font-medium">{guia.awb}</span>
                       {guia.guiaId ? (
                         <Link href={`/guias/${guia.guiaId}`} className="text-sm underline-offset-2 hover:underline">
