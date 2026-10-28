@@ -85,3 +85,14 @@ test("the DGD parties keep the name and the address and drop the contact details
   assert.deepEqual(dgParty("  ACME   CORP ", "1 A ST\nPhone 12345"), { name: "ACME CORP", address: "1 A ST" });
   assert.deepEqual(dgParty(null, undefined), { name: "", address: "" });
 });
+
+test("a contact at the end of an address line is cut and the address stays", () => {
+  assert.equal(
+    cleanDgAddress("8504 NW 70TH ST, MEDLEY,\nFL 33166, UNITED STATES. CONTACT: PABLO MORALES, EMAIL: PMORALES@PACIFIKO.COM"),
+    "8504 NW 70TH ST, MEDLEY,\nFL 33166, UNITED STATES",
+  );
+  assert.equal(cleanDgAddress("CALLE 5, SUITE 12 PH 2, TEL: 305 555 1234"), "CALLE 5, SUITE 12 PH 2");
+  assert.equal(cleanDgAddress("AV LAS ACACIAS PISO 3. Attn Maria Perez"), "AV LAS ACACIAS PISO 3");
+  assert.equal(cleanDgAddress("RIF: J502525904\nCALLE REAL DE PARIATA\nVENEZUELA"), "RIF: J502525904\nCALLE REAL DE PARIATA\nVENEZUELA");
+  assert.equal(cleanDgAddress("1 MAIN ST\nEmail: ops@acme.com"), "1 MAIN ST");
+});

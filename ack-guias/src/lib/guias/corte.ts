@@ -5,6 +5,7 @@ import PDFDocument from "pdfkit";
 import { cityForAirport, codeForPlace, countryForAirport } from "@/lib/awb/airports";
 import { tsaIacFor, type CompanyView } from "@/lib/guias/company-profile";
 import { DG_HANDLING_LINE, LITHIUM_BOX_CENTER, lithiumSectionIIStatements, parseLithiumTypes, parseUnNumbers } from "@/lib/guias/dg";
+import { addressOnly } from "@/lib/guias/dg/party-text";
 import { planUn } from "@/lib/guias/dg/un";
 import type { GuiaPrintOptions, GuiaRecord } from "@/lib/guias/files";
 import { formatFlightDate, sheetDate, signerName } from "@/lib/sheets/layout";
@@ -721,8 +722,9 @@ export async function renderCorteDo(document: GuiaRecord, company: CompanyView, 
   const name = headName(company);
   const logo = companyLogo(company);
   const header = [name, ...headerAddress(company.address), company.phone.trim() ? `Phone: ${company.phone.trim()}` : "", company.opsEmail.trim() ? `Email: ${company.opsEmail.trim()}` : ""].filter(Boolean);
-  const shipper = [plain(document.shipperName), ...headerAddress(document.shipperAddress ?? "")].filter(Boolean);
-  const consignee = [plain(document.consigneeName), ...headerAddress(document.consigneeAddress ?? "")].filter(Boolean);
+  // The delivery order shows each party's name and address only, with no contact person, phone or email.
+  const shipper = [plain(document.shipperName), ...headerAddress(addressOnly(document.shipperAddress))].filter(Boolean);
+  const consignee = [plain(document.consigneeName), ...headerAddress(addressOnly(document.consigneeAddress))].filter(Boolean);
   const carrier = plain(document.carrierName);
   const origin = codeForPlace(document.departure || "MIA") || "MIA";
   const dest = codeForPlace(document.destination || "") || plain(document.destination).toUpperCase();
@@ -764,13 +766,15 @@ export async function renderCorteDo(document: GuiaRecord, company: CompanyView, 
     t(doc, 410, 68, "Date:", 7, "Helvetica", GREY);
     t(doc, 410, 80, date, 7);
     const x = [28, 158, 292, 425];
-    block(doc, x[0], 100, "Pickup From:", shipper);
-    block(doc, x[1], 100, "Delivering Carrier:", trucker ? [trucker] : []);
-    block(doc, x[2], 100, "Deliver To:", deliver);
-    block(doc, x[3], 100, "Return To:", []);
-    block(doc, x[0], 198, "Shipper (Name and Address):", shipper);
-    block(doc, x[1], 198, "Consignee (Name and Address):", consignee);
-    block(doc, x[3], 198, "Bill To Party:", bill);
+    // Each block wraps inside its own column, so a long address goes on the next line instead of under the next field.
+    const widths = [x[1] - x[0] - 8, x[2] - x[1] - 8, x[3] - x[2] - 8, 575 - 28 - x[3]];
+    block(doc, x[0], 100, "Pickup From:", shipper, widths[0]);
+    block(doc, x[1], 100, "Delivering Carrier:", trucker ? [trucker] : [], widths[1]);
+    block(doc, x[2], 100, "Deliver To:", deliver, widths[2]);
+    block(doc, x[3], 100, "Return To:", [], widths[3]);
+    block(doc, x[0], 198, "Shipper (Name and Address):", shipper, widths[0]);
+    block(doc, x[1], 198, "Consignee (Name and Address):", consignee, widths[1]);
+    block(doc, x[3], 198, "Bill To Party:", bill, widths[3]);
     const grid = [
       [["BOL / AWB / Document Number:", awb], ["Carrier:", carrier], ["Port of Loading:", portOf(origin)], ["Departure Date:", flightDate]],
       [["House Number:", plain(document.hawb)], ["Flight / Voyage:", flight], ["Port of Discharge:", dest], ["Arrival Date:", ""]],
@@ -821,9 +825,10 @@ export async function renderCorteDo(document: GuiaRecord, company: CompanyView, 
   });
 }
 
-function block(doc: Doc, x: number, y: number, label: string, rows: string[]) {
+function block(doc: Doc, x: number, y: number, label: string, rows: string[], width = 1000) {
   t(doc, x, y, label, 7, "Helvetica", GREY);
-  rows.forEach((row, index) => t(doc, x, y + 10 + index * 9, row, 7));
+  const lines = rows.flatMap((row) => wrapMeasured(doc, row, 7, width, "Helvetica"));
+  lines.forEach((row, index) => t(doc, x, y + 10 + index * 9, row, 7));
 }
 
 function deliverTo(origin: string, carrierAddress: string): string[] {
