@@ -21,6 +21,7 @@ const linking = {
       AdminHome: "admin-home",
       Today: "today",
       Search: "search",
+      Duplicates: "duplicates",
       LiveMap: "live-map",
       NewRequests: "new-requests",
       Drivers: "drivers",

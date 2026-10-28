@@ -8,6 +8,7 @@ import ClientsScreen from "../screens/ClientsScreen";
 import DriversScreen from "../screens/DriversScreen";
 import LiveMapScreen from "../screens/LiveMapScreen";
 import SearchScreen from "../screens/SearchScreen";
+import DuplicatesScreen from "../screens/DuplicatesScreen";
 import NewRequestsScreen from "../screens/NewRequestsScreen";
 import TodayScreen from "../screens/TodayScreen";
 import ToInvoiceScreen from "../screens/ToInvoiceScreen";
@@ -68,6 +69,7 @@ export default function RootNavigator() {
         <Stack.Screen name="AdminHome" component={AdminHomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Today" component={TodayScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Search" component={SearchScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Duplicates" component={DuplicatesScreen} options={{ headerShown: false }} />
         <Stack.Screen name="LiveMap" component={LiveMapScreen} options={{ headerShown: false }} />
         <Stack.Screen name="NewRequests" component={NewRequestsScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Drivers" component={DriversScreen} options={{ headerShown: false }} />

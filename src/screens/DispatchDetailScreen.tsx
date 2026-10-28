@@ -1,4 +1,5 @@
 import { goBackOrHome } from "../navigation/goBackOrHome";
+import { deleteTrip } from "../services/trips";
 import { StagePill } from "../components/DispatchUI";
 import { tripStage } from "../utils/tripStatus";
 import React, { useEffect, useState } from "react";
@@ -71,6 +72,13 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
   const [assigningIndex, setAssigningIndex] = useState<number | null>(null);
   const [removingIndex, setRemovingIndex] = useState<number | null>(null);
   const [completingIndex, setCompletingIndex] = useState<number | null>(null);
+  const [dupPrompt, setDupPrompt] = useState<{
+    awbIndex: number;
+    awbNumber: string;
+    tripLogId: string;
+    where: string;
+  } | null>(null);
+  const [dupBusy, setDupBusy] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
   const [editingKgIndex, setEditingKgIndex] = useState<number | null>(null);
   const [editKgValue, setEditKgValue] = useState("");
@@ -277,6 +285,60 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
     );
   };
 
+  const runComplete = async (awbIndex: number, onDuplicate?: "merge") => {
+    await adminCompleteAwbLines(request.id, [awbIndex], onDuplicate);
+    setRequest((prev) => {
+      const awbLines = prev.awbLines.map((l, i) => (i === awbIndex ? { ...l, status: "completed" as const } : l));
+      return { ...prev, awbLines, ...computeTripRequestRollup(awbLines) };
+    });
+  };
+
+  // The AWB is already in another trip log: ask whether to merge with that entry or delete it.
+  const handleCompleteError = (awbIndex: number, e: any) => {
+    const d = e?.details;
+    if (d && d.kind === "duplicate-awb") {
+      setDupPrompt({
+        awbIndex,
+        awbNumber: String(d.awbNumber),
+        tripLogId: String(d.tripLogId),
+        where: [d.driverName || "a driver", d.date || "an unknown date", `${d.from || "?"} → ${d.to || "?"}`].join(" · "),
+      });
+      return;
+    }
+    notify("Couldn't complete AWB", e?.message ?? "Something went wrong. Please try again.");
+  };
+
+  const mergeDuplicateEntry = async () => {
+    if (!dupPrompt) return;
+    const { awbIndex } = dupPrompt;
+    setDupBusy(true);
+    try {
+      await runComplete(awbIndex, "merge");
+      setDupPrompt(null);
+    } catch (e: any) {
+      setDupPrompt(null);
+      handleCompleteError(awbIndex, e);
+    } finally {
+      setDupBusy(false);
+    }
+  };
+
+  const deleteDuplicateEntry = async () => {
+    if (!dupPrompt) return;
+    const { awbIndex, tripLogId } = dupPrompt;
+    setDupBusy(true);
+    try {
+      await deleteTrip(tripLogId);
+      await runComplete(awbIndex);
+      setDupPrompt(null);
+    } catch (e: any) {
+      setDupPrompt(null);
+      handleCompleteError(awbIndex, e);
+    } finally {
+      setDupBusy(false);
+    }
+  };
+
   const handleCompleteAwb = (awbIndex: number) => {
     const line = request.awbLines[awbIndex];
     confirmAction(
@@ -288,15 +350,9 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
       async () => {
         setCompletingIndex(awbIndex);
         try {
-          await adminCompleteAwbLines(request.id, [awbIndex]);
-          setRequest((prev) => {
-            const awbLines = prev.awbLines.map((l, i) =>
-              i === awbIndex ? { ...l, status: "completed" as const } : l
-            );
-            return { ...prev, awbLines, ...computeTripRequestRollup(awbLines) };
-          });
+          await runComplete(awbIndex);
         } catch (e: any) {
-          notify("Couldn't complete AWB", e?.message ?? "Something went wrong. Please try again.");
+          handleCompleteError(awbIndex, e);
         } finally {
           setCompletingIndex(null);
         }
@@ -583,6 +639,30 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
         )}
       </View>
 
+      <Modal visible={dupPrompt !== null} transparent animationType="fade" onRequestClose={() => setDupPrompt(null)}>
+        <View style={styles.dupOverlay}>
+          <View style={styles.dupBox}>
+            <Text style={styles.dupTitle}>This AWB is duplicated</Text>
+            <Text style={styles.dupText}>
+              AWB {dupPrompt?.awbNumber} is already logged on another trip:{"\n"}
+              {dupPrompt?.where}
+            </Text>
+            <TouchableOpacity style={styles.dupPrimary} onPress={mergeDuplicateEntry} disabled={dupBusy}>
+              <Text style={styles.dupPrimaryText}>Merge entries</Text>
+              <Text style={styles.dupHint}>Complete this AWB using the existing entry, no second one</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.dupDanger} onPress={deleteDuplicateEntry} disabled={dupBusy}>
+              <Text style={styles.dupDangerText}>Delete the other entry</Text>
+              <Text style={styles.dupHint}>Removes it (restorable in Deleted Trips) and completes this one</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setDupPrompt(null)} disabled={dupBusy}>
+              <Text style={styles.dupCancel}>Cancel</Text>
+            </TouchableOpacity>
+            {dupBusy && <ActivityIndicator style={{ marginTop: 8 }} />}
+          </View>
+        </View>
+      </Modal>
+
       <Modal
         visible={priorityModalIndex !== null}
         transparent
@@ -669,6 +749,16 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   completeButtonText: { color: "#15803d", fontWeight: "700", fontSize: 13 },
+  dupOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 20 },
+  dupBox: { backgroundColor: "#fff", borderRadius: 14, padding: 18, width: "100%", maxWidth: 420 },
+  dupTitle: { fontSize: 18, fontWeight: "800", color: "#111", marginBottom: 6 },
+  dupText: { fontSize: 13.5, color: "#475569", lineHeight: 20, marginBottom: 14 },
+  dupPrimary: { backgroundColor: "#e8edff", borderRadius: 10, padding: 12, marginBottom: 10 },
+  dupPrimaryText: { color: "#1d4ed8", fontWeight: "800", fontSize: 15 },
+  dupDanger: { backgroundColor: "#fdecea", borderRadius: 10, padding: 12, marginBottom: 12 },
+  dupDangerText: { color: "#c0392b", fontWeight: "800", fontSize: 15 },
+  dupHint: { color: "#64748b", fontSize: 12, marginTop: 2 },
+  dupCancel: { color: "#64748b", fontWeight: "700", fontSize: 15, textAlign: "center", paddingVertical: 4 },
   removeButton: {
     backgroundColor: "#fdecea",
     borderRadius: 8,

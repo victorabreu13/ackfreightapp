@@ -319,7 +319,7 @@ export async function removeAwbLine(requestId: string, awbIndex: number): Promis
 }
 
 const adminCompleteAwbLinesFn = httpsCallable<
-  { requestId: string; awbIndexes: number[] },
+  { requestId: string; awbIndexes: number[]; onDuplicate?: "merge" },
   { success: boolean }
 >(functions, "adminCompleteAwbLines");
 
@@ -327,9 +327,10 @@ const adminCompleteAwbLinesFn = httpsCallable<
 // trip for that driver (ULD numbers left blank).
 export async function adminCompleteAwbLines(
   requestId: string,
-  awbIndexes: number[]
+  awbIndexes: number[],
+  onDuplicate?: "merge"
 ): Promise<void> {
-  await callWithFreshToken(adminCompleteAwbLinesFn, { requestId, awbIndexes });
+  await callWithFreshToken(adminCompleteAwbLinesFn, { requestId, awbIndexes, onDuplicate });
 }
 
 const updateAwbDocumentFn = httpsCallable<
@@ -399,6 +400,25 @@ export async function updateTripDetails(
   details: { tripDate: string; pickupTime: string; from: string; to: string }
 ): Promise<{ changed: boolean; emailed: boolean }> {
   return callWithFreshToken(updateTripDetailsFn, { requestId, ...details });
+}
+
+const mergeDuplicateRequestsFn = httpsCallable<
+  { keepRequestId: string; mergeRequestId: string },
+  {
+    success: boolean;
+    copied: string[];
+    importFeeAdded: number;
+    conflicts: string[];
+    removedFromDuplicate: number;
+    duplicateCancelled: boolean;
+    leftInDuplicate: number;
+  }
+>(functions, "mergeDuplicateRequests");
+
+// Admin-only: join two trip requests that carry the same AWB. The documents the kept
+// request is missing are copied from the other, and the duplicate AWB leaves it.
+export async function mergeDuplicateRequests(keepRequestId: string, mergeRequestId: string) {
+  return callWithFreshToken(mergeDuplicateRequestsFn, { keepRequestId, mergeRequestId });
 }
 
 const checkAwbInUseFn = httpsCallable<

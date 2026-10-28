@@ -21,6 +21,7 @@ export interface AdminMenuItem {
 export const ADMIN_MENU: AdminMenuItem[] = [
   { route: "Today", label: "Today", icon: "📋" },
   { route: "Search", label: "Search", icon: "🔎" },
+  { route: "Duplicates", label: "Duplicate AWBs", icon: "🧩" },
   { route: "LiveMap", label: "Live Map", icon: "🗺️" },
   { route: "Dispatch", label: "Trips", icon: "🚚" },
   { route: "NewRequests", label: "New Requests", icon: "📥" },

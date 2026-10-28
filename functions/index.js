@@ -35,6 +35,7 @@ const JSZip = require("jszip");
 const { documentsForRequest, safeName, zipEntryNames } = require("./zipDocs");
 const { mergeToPdf } = require("./mergeDocs");
 const { diffTripDetails, validateTripDetails } = require("./tripEdit");
+const { applyPatches, planMerge } = require("./mergeRequests");
 const { MAX_TRAIL_POINTS, shouldRecordPoint, stampPoint, stampTransitions } = require("./trail");
 const { quoteForRequest, uldCountForLines } = require("./quote");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
@@ -1305,6 +1306,8 @@ exports.adminCompleteAwbLines = onCall({ invoker: "public" }, async (request) =>
   const adminSnap = await db.collection("users").doc(request.auth.uid).get();
   const adminName = String(adminSnap.data()?.name || request.auth.token.email || "an admin");
 
+  // onDuplicate === "merge": an AWB already in a trip log is completed with that log.
+  const mergeDuplicates = (request.data || {}).onDuplicate === "merge";
   const preSnap = await ref.get();
   if (!preSnap.exists) throw new HttpsError("not-found", "Trip request not found.");
   // AWBs whose driver already has an unlinked log for this request are completed
@@ -1314,12 +1317,26 @@ exports.adminCompleteAwbLines = onCall({ invoker: "public" }, async (request) =>
     const line = (preSnap.data().awbLines || [])[i];
     const dup = line && line.awbNumber ? await findDuplicateTripAwb(db, { awbNumber: line.awbNumber }) : null;
     if (!dup) continue;
-    if (line.assignedDriverId && dup.data.driverId === line.assignedDriverId && isFromRequestNote(dup.data.notes)) {
+    if (
+      mergeDuplicates ||
+      (line.assignedDriverId && dup.data.driverId === line.assignedDriverId && isFromRequestNote(dup.data.notes))
+    ) {
       reuseByIndex[i] = dup.id;
     } else {
+      // details let the app ask the admin: merge with that entry, or delete it.
       throw new HttpsError(
         "failed-precondition",
-        `AWB ${dup.label} duplicated — it's already logged on another trip (${describeTrip(dup.data)}).`
+        `AWB ${dup.label} duplicated — it's already logged on another trip (${describeTrip(dup.data)}).`,
+        {
+          kind: "duplicate-awb",
+          awbIndex: i,
+          awbNumber: dup.label,
+          tripLogId: dup.id,
+          driverName: dup.data.driverName || "",
+          date: dup.data.date || "",
+          from: dup.data.from || "",
+          to: dup.data.to || "",
+        }
       );
     }
   }
@@ -1787,6 +1804,86 @@ function driverNameOnRequest(lines, uid) {
   const line = (lines || []).find((l) => l.assignedDriverId === uid);
   return (line && line.assignedDriverName) || "";
 }
+
+// Admin joins two trip requests that carry the same AWB: the documents one is
+// missing (AWB, Letter of Authorization, Delivery Order, import fee files) are
+// copied in from the other, then the duplicate AWB leaves the other request, or the
+// whole request is cancelled when nothing else is left on it. An AWB that already
+// started is never removed.
+exports.mergeDuplicateRequests = onCall({ invoker: "public", timeoutSeconds: 120 }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const { keepRequestId, mergeRequestId } = request.data || {};
+  if (!keepRequestId || !mergeRequestId || keepRequestId === mergeRequestId) {
+    throw new HttpsError("invalid-argument", "Pick two different trip requests.");
+  }
+  const db = admin.firestore();
+  const keepRef = db.collection("tripRequests").doc(keepRequestId);
+  const otherRef = db.collection("tripRequests").doc(mergeRequestId);
+  const adminSnap = await db.collection("users").doc(request.auth.uid).get();
+  const adminName = String(adminSnap.data()?.name || request.auth.token.email || "admin");
+
+  let plan;
+  await db.runTransaction(async (tx) => {
+    const [keepSnap, otherSnap] = await Promise.all([tx.get(keepRef), tx.get(otherRef)]);
+    if (!keepSnap.exists || !otherSnap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const keep = keepSnap.data();
+    const other = otherSnap.data();
+    if (keep.status === "cancelled" || other.status === "cancelled") {
+      throw new HttpsError("failed-precondition", "A cancelled trip request can't be merged.");
+    }
+    if (keep.customerId !== other.customerId) {
+      throw new HttpsError("failed-precondition", "These trip requests belong to different customers, so they can't be merged.");
+    }
+    plan = planMerge(keep, other);
+    if (plan.pairs.length === 0) {
+      throw new HttpsError("failed-precondition", "These trip requests have no AWB in common.");
+    }
+    const copiedList = plan.pairs
+      .flatMap((p) => p.copied.map((c) => p.awbNumber + ": " + c))
+      .concat(plan.feeToAdd.map((f) => "Import fee: " + String(f.name || "file")));
+    tx.update(keepRef, {
+      awbLines: applyPatches(keep.awbLines || [], plan.pairs),
+      importFeeFiles: [...(keep.importFeeFiles || []), ...plan.feeToAdd],
+      updatedAt: Date.now(),
+      mergedFrom: admin.firestore.FieldValue.arrayUnion({
+        requestId: mergeRequestId,
+        at: Date.now(),
+        by: adminName,
+        awbs: plan.pairs.map((p) => p.awbNumber),
+        copied: copiedList,
+      }),
+    });
+  });
+
+  // The duplicate AWBs leave the other request (only those that haven't started).
+  const otherLines = ((await otherRef.get()).data() || {}).awbLines || [];
+  const removable = plan.pairs.filter((p) => p.removable).map((p) => p.otherIndex);
+  let duplicateCancelled = false;
+  if (removable.length > 0 && removable.length === otherLines.length) {
+    await otherRef.update({
+      status: "cancelled",
+      mergedInto: keepRequestId,
+      awbKeys: [],
+      updatedAt: Date.now(),
+    });
+    duplicateCancelled = true;
+  } else {
+    // Highest first, so removing one doesn't shift the position of the next.
+    for (const awbIndex of [...removable].sort((a, b) => b - a)) {
+      await exports.removeAwbLine.run({ auth: request.auth, data: { requestId: mergeRequestId, awbIndex } });
+    }
+  }
+  return {
+    success: true,
+    copied: plan.pairs.flatMap((p) => p.copied.map((c) => p.awbNumber + ": " + c)),
+    importFeeAdded: plan.feeToAdd.length,
+    conflicts: plan.pairs.flatMap((p) => p.conflicts.map((c) => p.awbNumber + ": " + c)),
+    removedFromDuplicate: duplicateCancelled ? otherLines.length : removable.length,
+    duplicateCancelled,
+    leftInDuplicate: plan.pairs.filter((p) => !p.removable).length,
+  };
+});
 
 exports.markAwbPickedUp = onCall({ invoker: "public" }, async (request) => {
   let trailStamp = null;
