@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { GuiaAccountingView } from "@/components/guia-accounting";
 import { GuiaBilling } from "@/components/guia-billing";
 import { GuiaForm } from "@/components/guia-form";
-import { DgdUpload } from "@/components/dgd-upload";
+import { CategoryUpload } from "@/components/category-upload";
 import { setGuiaCompleted } from "@/server/guia-actions";
 import { GuiaUploads } from "@/components/guia-uploads";
 import { MigrationPending } from "@/components/migration-pending";
@@ -17,7 +17,7 @@ import { linkReceiptToGuia, refreshGuiaFromReceipts, unlinkReceiptFromGuia } fro
 import { loadCompany } from "@/lib/guias/company";
 import { missingProfileMessages } from "@/lib/guias/company-profile";
 import { GUIA_FILE_LABELS, formatNy } from "@/lib/guias/documents-index";
-import { canDeleteGuiaUpload, isDgdUpload, UPLOAD_KIND } from "@/lib/guias/upload-rules";
+import { canDeleteGuiaUpload, isCategoryUpload, UPLOAD_KIND } from "@/lib/guias/upload-rules";
 import { guiaValuesOf as valuesOf } from "@/lib/guias/guia-data";
 import { GUIA_FILE_KINDS, guiaFileName } from "@/lib/guias/files";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
@@ -84,7 +84,8 @@ export default async function GuiaDetailPage({
     canDownload: Boolean(file.driveFileId),
     canDelete: canDeleteGuiaUpload(user, file.generatedBy),
   }));
-  const dgdFiles = uploadRows.filter((file) => isDgdUpload(file.fileName));
+  const dgdFiles = uploadRows.filter((file) => isCategoryUpload("dgd", file.fileName));
+  const invoiceFiles = uploadRows.filter((file) => isCategoryUpload("invoice", file.fileName));
   const pieces = document.lines.reduce((sum, line) => sum + (line.pieces ?? 0), 0);
   const chargeableKg = document.lines.reduce((sum, line) => sum + (line.chargeableWeight ?? 0), 0);
   const linked = document.guiaClient?.agentKey === document.agentKey ? document.guiaClient : null;
@@ -534,7 +535,49 @@ export default async function GuiaDetailPage({
               </div>
             );
           })}
-          {document.dgDeclarable ? <DgdUpload guiaId={document.id} files={dgdFiles} /> : null}
+          {document.dgDeclarable ? (
+            <CategoryUpload guiaId={document.id} category="dgd" title="DGD firmado" missing="Falta: dos copias firmadas por el shipper" files={dgdFiles} buttonLabel="Subir DGD firmado" />
+          ) : null}
+          <CategoryUpload
+            guiaId={document.id}
+            category="invoice"
+            title="Facturas o manifiestos"
+            missing="Sube las facturas o los manifiestos del cliente"
+            files={invoiceFiles}
+            multiple
+            buttonLabel="Subir facturas o manifiestos"
+          />
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-input px-3 py-3 text-sm">
+              <span>
+                <span className="font-medium">Warehouse receipt</span>
+                <span className="ml-3 text-xs text-muted-foreground">
+                  {linkedReceipts.length ? `${linkedReceipts.length} ${linkedReceipts.length === 1 ? "receipt" : "receipts"}` : "Se guarda aquí cuando se crea y se liga en Warehouse receipts"}
+                </span>
+              </span>
+              {canManageGuias(user) ? (
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/guias/warehouse/new">Nuevo warehouse receipt</Link>
+                </Button>
+              ) : null}
+            </div>
+            {linkedReceipts.map((receipt) => (
+              <div key={receipt.id} className="flex flex-wrap items-center gap-3 px-1 text-xs text-muted-foreground">
+                <span>WAREHOUSE RECEIPT {receiptNumber(receipt.seq)}.pdf</span>
+                <a className="underline-offset-2 hover:underline" href={`/api/guias/warehouse/${receipt.id}/pdf`} target="_blank" rel="noreferrer">
+                  Abrir
+                </a>
+                <a className="underline-offset-2 hover:underline" href={`/api/guias/warehouse/${receipt.id}/pdf?download=1`}>
+                  Descargar
+                </a>
+                {canManageGuias(user) ? (
+                  <Link className="underline-offset-2 hover:underline" href={`/guias/warehouse/${receipt.id}`}>
+                    Editar
+                  </Link>
+                ) : null}
+              </div>
+            ))}
+          </div>
         </div>
         <p className="text-xs text-muted-foreground">
           Todos los documentos downloads one zip: the shipment checklist, the 12-page AWB, delivery order, pickup order, TSA letter with the company logo, TSA unknown-shipper letter, CCSF certificate, CCSP certification and the lithium battery letter. ACK prints the ACK logo and letterhead. Delivery and pickup need a trucker. The AWB and labels wait until the number is issued. The cargo labels and the folder label are printed on their own and are not in that zip. Opening a file also uploads it to Drive under ACK Guías / client / AWB.

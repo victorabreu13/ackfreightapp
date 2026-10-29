@@ -7,6 +7,7 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { numberOrNull } from "@/lib/guias/guia-data";
 import { pickupNumber, receiptNumber } from "@/lib/guias/wr";
+import { removeReceiptFromGuia, storeReceiptInGuia } from "@/lib/guias/wr-store";
 import { syncGuiaFromReceipts } from "@/lib/guias/wr-sync";
 
 function text(value: FormDataEntryValue | null): string {
@@ -112,9 +113,15 @@ export async function saveWarehouseReceipt(formData: FormData) {
     });
     receiptId = created.id;
   }
-  if (guiaId) await syncGuiaFromReceipts(guiaId);
+  if (guiaId) {
+    await syncGuiaFromReceipts(guiaId);
+    await storeReceiptInGuia(receiptId, user.email);
+  }
   revalidatePath("/guias/warehouse");
-  if (guiaId) revalidatePath(`/guias/${guiaId}`);
+  if (guiaId) {
+    revalidatePath(`/guias/${guiaId}`);
+    revalidatePath("/guias/documents");
+  }
   redirect(`/guias/warehouse/${receiptId}?saved=1`);
 }
 
@@ -125,8 +132,10 @@ export async function deleteWarehouseReceipt(formData: FormData) {
   if (!found) listBack("No se encontró el warehouse receipt.", "error");
   await prisma.warehouseReceipt.delete({ where: { id } });
   if (found.guiaId) {
+    await removeReceiptFromGuia(found.guiaId, found.seq);
     await syncGuiaFromReceipts(found.guiaId);
     revalidatePath(`/guias/${found.guiaId}`);
+    revalidatePath("/guias/documents");
   }
   revalidatePath("/guias/warehouse");
   listBack(`Warehouse receipt ${receiptNumber(found.seq)} eliminado.`);
@@ -134,7 +143,7 @@ export async function deleteWarehouseReceipt(formData: FormData) {
 
 /** Ties a receipt to a guía, and feeds the guía when it is still a draft. */
 export async function linkReceiptToGuia(formData: FormData) {
-  await requireTeam();
+  const user = await requireTeam();
   const guiaId = text(formData.get("guiaId"));
   const receiptId = text(formData.get("receiptId"));
   const back = `/guias/${guiaId}`;
@@ -146,7 +155,9 @@ export async function linkReceiptToGuia(formData: FormData) {
   }
   await prisma.warehouseReceipt.update({ where: { id: receiptId }, data: { guiaId } });
   const synced = await syncGuiaFromReceipts(guiaId);
+  await storeReceiptInGuia(receiptId, user.email);
   revalidatePath(back);
+  revalidatePath("/guias/documents");
   revalidatePath("/guias/warehouse");
   redirect(`${back}?receipts=${encodeURIComponent(synced.skipped ? `${receiptNumber(receipt.seq)} ligado. La guía ya está emitida, no se cambió.` : `${receiptNumber(receipt.seq)} ligado y la guía se actualizó.`)}`);
 }
@@ -155,8 +166,11 @@ export async function unlinkReceiptFromGuia(formData: FormData) {
   await requireTeam();
   const guiaId = text(formData.get("guiaId"));
   const receiptId = text(formData.get("receiptId"));
+  const released = await prisma.warehouseReceipt.findFirst({ where: { id: receiptId, guiaId }, select: { seq: true } });
   await prisma.warehouseReceipt.updateMany({ where: { id: receiptId, guiaId }, data: { guiaId: null } });
+  if (released) await removeReceiptFromGuia(guiaId, released.seq);
   await syncGuiaFromReceipts(guiaId);
+  revalidatePath("/guias/documents");
   revalidatePath(`/guias/${guiaId}`);
   revalidatePath("/guias/warehouse");
   redirect(`/guias/${guiaId}?receipts=${encodeURIComponent("Warehouse receipt soltado de la guía.")}`);

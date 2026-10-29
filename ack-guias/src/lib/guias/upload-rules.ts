@@ -113,3 +113,25 @@ export function dgdUploadName(awb: string | null | undefined, fileName: string):
   if (isDgdUpload(fileName)) return fileName;
   return `DGD ${(awb ?? "").trim() || "DRAFT"} - ${fileName}`.slice(0, 180);
 }
+
+/** The outside files of a guía that have a field of their own in its Documents. Each is told apart by how its name starts. */
+export const UPLOAD_CATEGORIES = {
+  dgd: { prefix: "DGD", test: /^dgd\b/i },
+  invoice: { prefix: "FACTURA-MANIFIESTO", test: /^(factura|manifiesto|invoice|manifest)/i },
+} as const;
+
+export type UploadCategory = keyof typeof UPLOAD_CATEGORIES;
+
+export function isUploadCategory(value: string): value is UploadCategory {
+  return value in UPLOAD_CATEGORIES;
+}
+
+export function isCategoryUpload(category: UploadCategory, fileName: string): boolean {
+  return UPLOAD_CATEGORIES[category].test.test(fileName.trim());
+}
+
+/** "FACTURA-MANIFIESTO 045-53981966 - scan.pdf". A name that already starts the way the field does is kept. */
+export function categoryUploadName(category: UploadCategory, awb: string | null | undefined, fileName: string): string {
+  if (isCategoryUpload(category, fileName)) return fileName;
+  return `${UPLOAD_CATEGORIES[category].prefix} ${(awb ?? "").trim() || "DRAFT"} - ${fileName}`.slice(0, 180);
+}

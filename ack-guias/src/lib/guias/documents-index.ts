@@ -19,6 +19,12 @@ export const GUIA_FILE_LABELS: Record<GuiaFileKind, string> = {
 
 export const UPLOAD_LABEL = "Archivo";
 
+/** The name of a kind of logged document, for the kinds that are not one of the guía files. */
+export function documentKindLabel(kind: string): string {
+  if (kind === "warehouse-receipt") return "Warehouse receipt";
+  return (GUIA_FILE_LABELS as Record<string, string>)[kind] ?? kind;
+}
+
 export type LoggedDocument = {
   id: string;
   guiaId: string | null;

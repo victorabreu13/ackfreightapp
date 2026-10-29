@@ -11,3 +11,16 @@ test("the signed DGD is an upload named DGD with the AWB number", () => {
   assert.equal(isDgdUpload("Packing list.pdf"), false);
   assert.equal(isDgdUpload("DGDX.pdf"), false);
 });
+
+test("the invoices and manifests of a guía are told apart by their name", async () => {
+  const { categoryUploadName, isCategoryUpload, isUploadCategory } = await import("@/lib/guias/upload-rules");
+  assert.equal(categoryUploadName("invoice", "045-53981966", "scan 001.pdf"), "FACTURA-MANIFIESTO 045-53981966 - scan 001.pdf");
+  assert.equal(categoryUploadName("invoice", "", "scan.pdf"), "FACTURA-MANIFIESTO DRAFT - scan.pdf");
+  assert.equal(categoryUploadName("invoice", "045-1", "Factura 55.pdf"), "Factura 55.pdf");
+  assert.equal(categoryUploadName("dgd", "045-1", "scan.pdf"), "DGD 045-1 - scan.pdf");
+  assert.equal(isCategoryUpload("invoice", "manifest.xlsx"), true);
+  assert.equal(isCategoryUpload("invoice", "DGD 045-1 - scan.pdf"), false);
+  assert.equal(isCategoryUpload("dgd", "FACTURA-MANIFIESTO 045-1 - a.pdf"), false);
+  assert.equal(isUploadCategory("invoice"), true);
+  assert.equal(isUploadCategory("other"), false);
+});

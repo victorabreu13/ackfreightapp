@@ -6,38 +6,70 @@ import { DeleteUploadButton, type GuiaUploadRow } from "@/components/guia-upload
 import { MAX_UPLOAD_BYTES } from "@/lib/guias/upload-rules";
 import { uploadGuiaFiles } from "@/server/guia-upload-actions";
 
-/** The DGD comes signed from the shipper, so it is not generated here: this row takes the signed file. */
-export function DgdUpload({ guiaId, files }: { guiaId: string; files: GuiaUploadRow[] }) {
+/**
+ * A field of the guía's Documents for files that come from outside, such as the signed DGD or the invoices and
+ * manifests. The files are saved with the field's name in front of them, so they are told apart wherever they are
+ * listed, and they show here under the field.
+ */
+export function CategoryUpload({
+  guiaId,
+  category,
+  title,
+  missing,
+  files,
+  multiple = false,
+  buttonLabel,
+}: {
+  guiaId: string;
+  category: "dgd" | "invoice";
+  title: string;
+  /** What the field says while nothing is uploaded. */
+  missing: string;
+  files: GuiaUploadRow[];
+  multiple?: boolean;
+  buttonLabel: string;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, startTransition] = useTransition();
   const done = files.length > 0;
 
   function send(list: FileList | null) {
-    const file = list?.[0];
-    if (!file) return;
-    if (file.size <= 0) return setError("El archivo está vacío.");
-    if (file.size > MAX_UPLOAD_BYTES) return setError("El archivo supera 20 MB.");
+    const chosen = list ? [...list] : [];
+    if (chosen.length === 0) return;
+    for (const file of chosen) {
+      if (file.size <= 0) return setError(`«${file.name}» está vacío.`);
+      if (file.size > MAX_UPLOAD_BYTES) return setError(`«${file.name}» supera 20 MB.`);
+    }
     setError(null);
     const data = new FormData();
     data.set("id", guiaId);
-    data.set("dgd", "1");
-    data.append("files", file);
+    data.set("category", category);
+    for (const file of chosen) data.append("files", file);
     startTransition(() => {
       void uploadGuiaFiles(data);
     });
   }
 
   return (
-    <div className="flex flex-col gap-1 sm:col-span-2">
+    <div className="flex flex-col gap-1">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-input px-3 py-3 text-sm">
         <span>
-          <span className="font-medium">DGD firmado</span>
-          <span className="ml-3 text-xs text-muted-foreground">{done ? "Subido" : "Falta: dos copias firmadas por el shipper"}</span>
+          <span className="font-medium">{title}</span>
+          <span className="ml-3 text-xs text-muted-foreground">{done ? `${files.length} ${files.length === 1 ? "archivo" : "archivos"}` : missing}</span>
         </span>
-        <input ref={inputRef} type="file" className="hidden" onChange={(event) => { send(event.target.files); event.target.value = ""; }} />
+        <input
+          ref={inputRef}
+          type="file"
+          multiple={multiple}
+          className="hidden"
+          onChange={(event) => {
+            send(event.target.files);
+            event.target.value = "";
+          }}
+        />
         <Button type="button" variant="outline" size="sm" disabled={submitting} onClick={() => inputRef.current?.click()}>
-          {submitting ? "Subiendo…" : done ? "Subir otro" : "Subir DGD firmado"}
+          {submitting ? "Subiendo…" : done ? "Subir otro" : buttonLabel}
         </Button>
       </div>
       {error ? <p className="px-1 text-xs text-stuck">{error}</p> : null}

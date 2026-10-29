@@ -7,7 +7,7 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { guiaAwbFolder } from "@/lib/guias/document-log";
 import { guiaBillToName } from "@/lib/guias/guia-client";
-import { acceptUpload, dgdUploadName, safeGuiaReturn } from "@/lib/guias/upload-rules";
+import { acceptUpload, categoryUploadName, isUploadCategory, safeGuiaReturn } from "@/lib/guias/upload-rules";
 import { deleteUploadedFile, storeGuiaUpload } from "@/lib/guias/uploads";
 
 function text(value: FormDataEntryValue | null): string {
@@ -35,10 +35,13 @@ export async function uploadGuiaFiles(formData: FormData) {
   if (files.length === 0) {
     redirect(withQuery(back, `uploadError=${encodeURIComponent("Elige al menos un archivo.")}`));
   }
+  // A field of the guía's Documents sends its files with its name, and they are saved with that name in front.
+  const requested = text(formData.get("category"));
+  const category = isUploadCategory(requested) ? requested : formData.get("dgd") === "1" ? "dgd" : null;
   const errors: string[] = [];
   let saved = 0;
   for (const file of files) {
-    const accepted = acceptUpload({ name: formData.get("dgd") === "1" ? dgdUploadName(document.awb, file.name) : file.name, type: file.type, byteLength: file.size });
+    const accepted = acceptUpload({ name: category ? categoryUploadName(category, document.awb, file.name) : file.name, type: file.type, byteLength: file.size });
     if (!accepted.ok) {
       errors.push(accepted.error);
       continue;

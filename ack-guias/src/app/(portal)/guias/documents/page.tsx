@@ -7,7 +7,7 @@ import { canManageGuias, canReadGuias, isAdmin, isCompanyAccounting } from "@/li
 import { miamiDate } from "@/lib/awb/document";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { filterLoggedDocuments, formatNy, GUIA_FILE_LABELS, groupDocumentsByClient, UPLOAD_KIND, UPLOAD_LABEL, type LoggedDocument } from "@/lib/guias/documents-index";
+import { documentKindLabel, filterLoggedDocuments, formatNy, GUIA_FILE_LABELS, groupDocumentsByClient, UPLOAD_KIND, UPLOAD_LABEL, type LoggedDocument } from "@/lib/guias/documents-index";
 import { GUIA_FILE_KINDS } from "@/lib/guias/files";
 import { canDeleteGuiaUpload } from "@/lib/guias/upload-rules";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
@@ -260,7 +260,7 @@ export default async function GuiaDocumentsPage({
                         </thead>
                         <tbody>
                           {guia.documents.map((row) => {
-                            const label = row.kind === UPLOAD_KIND ? UPLOAD_LABEL : (GUIA_FILE_LABELS[row.kind as keyof typeof GUIA_FILE_LABELS] ?? row.kind);
+                            const label = row.kind === UPLOAD_KIND ? UPLOAD_LABEL : documentKindLabel(row.kind);
                             return (
                               <tr key={row.id} className="border-b border-border last:border-0 align-top">
                                 <td className="px-3 py-2">{label}</td>
