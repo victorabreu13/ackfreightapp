@@ -29,7 +29,7 @@ export default async function WarehouseReceiptPage({
   });
   if (!receipt) notFound();
   const requests = await prisma.pickupRequest.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
-  const pickups = requests.map((request) => ({ id: request.id, label: `${pickupNumber(request.seq)} · ${request.clientLabel} · ${request.shipperName}` }));
+  const pickups = requests.map((request) => ({ id: request.id, label: `${pickupNumber(request.seq)} · ${request.clientLabel} · ${request.shipperName}`, number: pickupNumber(request.seq) }));
   const initial: ReceiptFormValues = {
     id: receipt.id,
     warehouse: receipt.warehouse,

@@ -63,3 +63,10 @@ test("the receipt PDF has the receipt and the cargo acceptance checklist", async
   assert.equal(pdf.subarray(0, 5).toString("latin1"), "%PDF-");
   assert.equal((pdf.toString("latin1").match(/\/Type \/Page\b(?!s)/g) ?? []).length, 2);
 });
+
+test("a driver is the same whatever the spelling of the name or the carrier", async () => {
+  const { driverKey } = await import("@/lib/guias/drivers");
+  assert.equal(driverKey("Kay Air Delivery."), driverKey("KAY AIR  DELIVERY"));
+  assert.equal(driverKey("José Pérez"), "JOSE PEREZ");
+  assert.equal(driverKey(null), "");
+});

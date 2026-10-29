@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { canManageGuias } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { rememberDriver } from "@/lib/guias/drivers";
 import { numberOrNull } from "@/lib/guias/guia-data";
 import { pickupNumber, receiptNumber } from "@/lib/guias/wr";
 import { removeReceiptFromGuia, storeReceiptInGuia } from "@/lib/guias/wr-store";
@@ -112,6 +113,12 @@ export async function saveWarehouseReceipt(formData: FormData) {
       data: { ...data, createdBy: user.email, receivedBy: data.receivedBy ?? (user.name || user.email), guiaId, lines: { create: lines } },
     });
     receiptId = created.id;
+  }
+  // The driver is remembered for the next receipt. A failure there never stops the receipt from saving.
+  try {
+    await rememberDriver({ carrier: data.carrier, name: data.driver, license: data.driverLicense });
+  } catch (error) {
+    console.error("driver directory", error);
   }
   if (guiaId) {
     await syncGuiaFromReceipts(guiaId);

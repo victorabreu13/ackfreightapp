@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DriverFields } from "@/components/driver-fields";
 import { GuiaLookupInput } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +18,7 @@ function num(value: string): number | null {
 }
 
 /** The warehouse receipt form: the header, the lines with their measures, and the totals the receipt will show. */
-export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFormValues; pickups: Array<{ id: string; label: string }> }) {
+export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFormValues; pickups: Array<{ id: string; label: string; number: string }> }) {
   const [values, setValues] = useState(initial);
   const set = <K extends keyof ReceiptFormValues>(key: K, value: ReceiptFormValues[K]) => setValues((current) => ({ ...current, [key]: value }));
   const setLine = (index: number, key: keyof ReceiptFormLine, value: string) =>
@@ -36,7 +37,10 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
             id="pickupRequestId"
             name="pickupRequestId"
             value={values.pickupRequestId}
-            onChange={(event) => set("pickupRequestId", event.target.value)}
+            onChange={(event) => {
+              const chosen = pickups.find((pickup) => pickup.id === event.target.value);
+              setValues((current) => ({ ...current, pickupRequestId: event.target.value, pickupNumber: chosen ? chosen.number : current.pickupNumber }));
+            }}
             className="block h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           >
             <option value="">Sin pickup</option>
@@ -83,15 +87,17 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
           <textarea name="consigneeAddress" rows={3} value={values.consigneeAddress} onChange={(event) => set("consigneeAddress", event.target.value)} className={AREA} placeholder="Dirección" />
         </div>
         <div className="grid grid-cols-2 gap-3">
+          <DriverFields
+            carrier={values.carrier}
+            driver={values.driver}
+            license={values.driverLicense}
+            onChange={(next) => setValues((current) => ({ ...current, carrier: next.carrier, driver: next.driver, driverLicense: next.license }))}
+          />
           {(
             [
-              ["carrier", "Carrier"],
-              ["driver", "Driver"],
-              ["driverLicense", "Driver License"],
               ["supplier", "Supplier"],
               ["invoiceNumber", "Invoice Number"],
               ["poNumber", "PO Number"],
-              ["pickupNumber", "Pick Up Number"],
               ["proNumber", "PRO Number"],
             ] as const
           ).map(([key, label]) => (
@@ -100,6 +106,20 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
               <Input id={key} name={key} value={values[key]} onChange={(event) => set(key, event.target.value)} />
             </div>
           ))}
+          <div className="col-span-2 space-y-1.5">
+            <Label htmlFor="pickupNumber">Pick Up Number</Label>
+            <Input
+              id="pickupNumber"
+              name="pickupNumber"
+              value={values.pickupNumber}
+              readOnly={Boolean(values.pickupRequestId)}
+              onChange={(event) => set("pickupNumber", event.target.value)}
+              className={values.pickupRequestId ? "bg-muted" : ""}
+            />
+            <p className="text-xs text-muted-foreground">
+              {values.pickupRequestId ? "Lo da el pickup request (PU-0001, PU-0002…). No se escribe a mano." : "Se llena solo al elegir un pickup request. Sin pickup puedes escribir el número de otro sistema."}
+            </p>
+          </div>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="warehouse">Warehouse</Label>

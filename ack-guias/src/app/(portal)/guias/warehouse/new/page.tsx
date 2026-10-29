@@ -14,7 +14,7 @@ export default async function NewWarehouseReceiptPage({ searchParams }: { search
   const params = await searchParams;
   const error = Array.isArray(params.error) ? params.error[0] : params.error;
   const requests = await prisma.pickupRequest.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
-  const pickups = requests.map((request) => ({ id: request.id, label: `${pickupNumber(request.seq)} · ${request.clientLabel} · ${request.shipperName}` }));
+  const pickups = requests.map((request) => ({ id: request.id, label: `${pickupNumber(request.seq)} · ${request.clientLabel} · ${request.shipperName}`, number: pickupNumber(request.seq) }));
   return (
     <div className="space-y-4">
       <div>

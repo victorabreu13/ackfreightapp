@@ -508,3 +508,18 @@ model WarehouseReceiptLine {
 
   @@index([receiptId])
 }
+
+/// The drivers who deliver cargo to the warehouse, with their trucking company and license. A receipt remembers them.
+model TruckDriver {
+  id         String   @id @default(cuid())
+  carrier    String
+  name       String
+  license    String?
+  phone      String?
+  carrierKey String
+  nameKey    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([carrierKey, nameKey])
+}
