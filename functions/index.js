@@ -29,7 +29,8 @@ const {
   tripAwbEntries,
   tripAwbKeys,
 } = require("./awbLogic");
-const { intakeAuthorized, rateLimitDecision, validateIntakePayload } = require("./intake");
+const { intakeAuthorized, rateLimitDecision, safeEqual, validateIntakePayload } = require("./intake");
+const { matchCustomer, requestDocId, sniffFile, validateGuiasPayload } = require("./guiasIntake");
 const { encodeSignatureStrokes, proofsForRequest } = require("./proofs");
 const JSZip = require("jszip");
 const { documentsForRequest, safeName, zipEntryNames } = require("./zipDocs");
@@ -71,6 +72,8 @@ const GMAIL_APP_PASSWORD = defineSecret("GMAIL_APP_PASSWORD");
 // value; it is not a client key. reCAPTCHA is optional via RECAPTCHA_SECRET
 // on the function's environment (see README).
 const INTAKE_SHARED_SECRET = defineSecret("INTAKE_SHARED_SECRET");
+// Shared with ACK Guías (the air waybill app); it sends trip requests with this header.
+const GUIAS_SHARED_SECRET = defineSecret("GUIAS_SHARED_SECRET");
 const GOOGLE_MAPS_ROUTES_API_KEY = defineSecret("GOOGLE_MAPS_ROUTES_API_KEY");
 
 // Switch back to "sandbox" any time to test again — the sandbox secrets
@@ -2901,6 +2904,151 @@ async function verifyRecaptcha(token, secret) {
 
 // Public intake for ackfreight.com. Creates a pending lead for dispatch.
 // Does not create a trip request until an admin approves it.
+// ACK Guías (the air waybill app) sends a trip request here: a pickup order was
+// created, or the cargo is ready for delivery. Protected by a shared secret that only
+// ACK Guías and this function know. Sending the same order twice never makes two trip
+// requests (the id comes from the order), and the customer must already exist in
+// ACK Freight (found by email, else by name).
+exports.guiasTripRequest = onRequest(
+  {
+    secrets: [GUIAS_SHARED_SECRET],
+    invoker: "public",
+    cors: false,
+    memory: "1GiB",
+    timeoutSeconds: 120,
+    maxInstances: 5,
+  },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).json({ error: "POST only" });
+      return;
+    }
+    let expected = "";
+    try {
+      expected = GUIAS_SHARED_SECRET.value() || "";
+    } catch (err) {
+      expected = "";
+    }
+    if (!expected || !safeEqual(req.get("x-guias-secret"), expected)) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const checked = validateGuiasPayload(req.body);
+    if (!checked.ok) {
+      res.status(400).json({ error: checked.error });
+      return;
+    }
+    const v = checked.value;
+    const db = admin.firestore();
+
+    const customerSnap = await db.collection("users").where("role", "==", "customer").get();
+    const match = matchCustomer(
+      customerSnap.docs.map((d) => ({ id: d.id, data: d.data() })),
+      { email: v.clientEmail, name: v.clientName }
+    );
+    if (!match.ok) {
+      res.status(422).json({
+        error: "customer_not_found",
+        message:
+          "ACK Freight has no single customer for " + (v.clientName || v.clientEmail) + " (" + match.reason + "). Create or fix the customer in ACK Freight, then send it again.",
+      });
+      return;
+    }
+    const customerId = match.customer.id;
+    const customer = match.customer.data;
+
+    const requestId = requestDocId(v.kind, v.externalId);
+    const ref = db.collection("tripRequests").doc(requestId);
+    if ((await ref.get()).exists) {
+      res.status(200).json({ id: requestId, created: false });
+      return;
+    }
+
+    // Documents go to this customer's folder for the request, like the ones uploaded in the app.
+    const bucket = admin.storage().bucket();
+    const awbLines = [];
+    const skipped = [];
+    for (let li = 0; li < v.awbLines.length; li++) {
+      const line = v.awbLines[li];
+      const files = { awbFile: null, loaFile: null, doFile: null };
+      for (const doc of line.documents) {
+        const buffer = Buffer.from(doc.contentBase64, "base64");
+        const kind = sniffFile(buffer);
+        if (!kind) {
+          skipped.push(doc.name);
+          continue;
+        }
+        const token = crypto.randomUUID();
+        const path = "tripRequestDocs/" + customerId + "/" + requestId + "/" + doc.slot + "-" + li + "-" + Date.now() + "-" + safeName(doc.name);
+        await bucket.file(path).save(buffer, {
+          metadata: {
+            contentType: kind === "pdf" ? "application/pdf" : kind === "png" ? "image/png" : "image/jpeg",
+            metadata: { firebaseStorageDownloadTokens: token },
+          },
+        });
+        files[doc.slot === "awb" ? "awbFile" : doc.slot === "loa" ? "loaFile" : "doFile"] = {
+          url: "https://firebasestorage.googleapis.com/v0/b/" + bucket.name + "/o/" + encodeURIComponent(path) + "?alt=media&token=" + token,
+          name: doc.name,
+        };
+      }
+      awbLines.push({
+        awbNumber: line.awbNumber,
+        qtyPieces: line.qtyPieces,
+        type: line.type,
+        kilograms: line.kilograms,
+        lengthIn: null,
+        widthIn: null,
+        heightIn: null,
+        hazmat: line.hazmat,
+        unNumber: line.unNumber,
+        hazmatClass: line.hazmatClass,
+        ...files,
+        assignedDriverId: null,
+        assignedDriverName: null,
+        status: "submitted",
+        priority: "Normal",
+      });
+    }
+
+    const now = Date.now();
+    const label = v.kind === "pickup" ? "Pickup order" : "Cargo ready for delivery";
+    try {
+      await ref.create({
+        customerId,
+        customerName: customer.name || v.clientName,
+        customerEmail: customer.email || v.clientEmail,
+        submittedAt: now,
+        tripDate: v.tripDate || todayDateString(),
+        from: v.from,
+        pickupTime: v.pickupTime || "08:00",
+        to: v.to,
+        personRequesting: v.personRequesting,
+        notes: ("From ACK Guías · " + label + " " + v.externalId + (v.notes ? "\n" + v.notes : "")).slice(0, 2000),
+        awbLines,
+        importFeeFiles: [],
+        assignedDriverIds: [],
+        assignedDriverNames: [],
+        status: "submitted",
+        source: "ack-guias",
+        externalRef: { system: "ack-guias", kind: v.kind, id: v.externalId },
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch (err) {
+      // Another copy of the same order got there first.
+      if (err && (err.code === 6 || /already exists/i.test(String(err.message)))) {
+        res.status(200).json({ id: requestId, created: false });
+        return;
+      }
+      logger.error("guiasTripRequest failed:", err);
+      res.status(500).json({ error: "Couldn't create the trip request." });
+      return;
+    }
+    res.status(201).json({ id: requestId, created: true, skippedDocuments: skipped });
+  }
+);
+
 exports.websiteIntake = onRequest(
   { secrets: [INTAKE_SHARED_SECRET], invoker: "public", cors: false },
   async (req, res) => {

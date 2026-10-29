@@ -84,6 +84,7 @@ function validateIntakePayload(body) {
 }
 
 module.exports = {
+  safeEqual,
   WINDOW_MS,
   MAX_PER_WINDOW,
   intakeAuthorized,
