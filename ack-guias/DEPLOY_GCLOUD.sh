@@ -59,7 +59,7 @@ write_secret() {
 runtime_secrets() {
   local secrets="DATABASE_URL=DATABASE_URL:latest,AUTH_SECRET=AUTH_SECRET:latest,GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest,GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest"
   local optional
-  for optional in GOOGLE_DRIVE_SA_JSON QBO_CLIENT_ID QBO_CLIENT_SECRET QBO_TOKEN_KEY AERODATABOX_API_KEY SMTP_USER SMTP_PASSWORD FLIGHT_CHECK_SECRET; do
+  for optional in GOOGLE_DRIVE_SA_JSON QBO_CLIENT_ID QBO_CLIENT_SECRET QBO_TOKEN_KEY AERODATABOX_API_KEY SMTP_USER SMTP_PASSWORD FLIGHT_CHECK_SECRET ACK_FREIGHT_INTAKE_SECRET; do
     if secret_exists "$optional"; then
       # The runtime account has to be allowed to read each secret it is given, or the revision does not start.
       bind_secret "$optional"

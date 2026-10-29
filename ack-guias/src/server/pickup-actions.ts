@@ -10,6 +10,7 @@ import { assignAwbToGuia } from "@/lib/guias/assign-awb";
 import { createDraftGuia, EMPTY_GUIA_VALUES } from "@/lib/guias/draft-guia";
 import { numberOrNull } from "@/lib/guias/guia-data";
 import { pickupNumber } from "@/lib/guias/wr";
+import { sendPickupToAckFreight } from "@/lib/guias/ack-freight-send";
 
 function text(value: FormDataEntryValue | null): string {
   return String(value ?? "").trim();
@@ -95,10 +96,41 @@ export async function savePickupRequest(formData: FormData) {
       assignError = issueErrorInSpanish(error);
     }
   }
+  // The pickup order also becomes a trip request in ACK Freight. A failure there never undoes the pickup.
+  const ack = await sendPickupToAckFreight({
+    number: pickupNumber(request.seq),
+    clientLabel: client,
+    shipperName: shipper,
+    shipperAddress: data.shipperAddress,
+    contactName: data.contactName,
+    contactPhone: data.contactPhone,
+    contactEmail: data.contactEmail,
+    consigneeName: data.consigneeName,
+    destination: data.destination,
+    pieces: data.pieces,
+    weightKg: weight,
+    description: data.description,
+    pickupDate: data.pickupDate,
+    readyTime: data.readyTime,
+    truckerName: data.truckerName,
+    truckerPhone: data.truckerPhone,
+    driverName: data.driverName,
+    notes: data.notes,
+    awb: assigned,
+  });
+  const ackNote =
+    ack.state === "skipped"
+      ? ""
+      : ack.state === "failed"
+        ? ` No se pudo crear el trip request en ACK Freight: ${ack.message}`
+        : ` ${ack.message}`;
   revalidatePath("/guias/pickups");
   revalidatePath("/guias");
-  if (assignError) back(`Pickup ${pickupNumber(request.seq)} creado con su borrador de guía, pero no se asignó el AWB. ${assignError}`, "error");
-  back(`Pickup ${pickupNumber(request.seq)} creado. Su borrador de guía ya está en Guías${assigned ? ` con el AWB ${assigned}` : ""}.`);
+  if (assignError) back(`Pickup ${pickupNumber(request.seq)} creado con su borrador de guía, pero no se asignó el AWB. ${assignError}${ackNote}`, "error");
+  back(
+    `Pickup ${pickupNumber(request.seq)} creado. Su borrador de guía ya está en Guías${assigned ? ` con el AWB ${assigned}` : ""}.${ackNote}`,
+    ack.state === "failed" ? "error" : "notice",
+  );
 }
 
 /** Deletes the request. The draft guía it started stays, since it may already have been worked on. */

@@ -21,6 +21,7 @@ import { canDeleteGuiaUpload, isCategoryUpload, UPLOAD_KIND } from "@/lib/guias/
 import { guiaValuesOf as valuesOf } from "@/lib/guias/guia-data";
 import { GUIA_FILE_KINDS, guiaFileName } from "@/lib/guias/files";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
+import { requestAckTripRequest } from "@/server/ack-freight-actions";
 import { FLIGHT_STATUS_LABEL, isFlightStatus } from "@/lib/guias/flight-status";
 import { assignGuiaAwb, checkGuiaFlight, issueGuia, releaseGuiaAwb, saveGuiaToDrive } from "@/server/guia-actions";
 
@@ -206,6 +207,17 @@ export default async function GuiaDetailPage({
       </div>
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
       {one(query, "saved") ? <p className="text-sm text-muted-foreground">Saved.</p> : null}
+      {one(query, "ack") ? (
+        <p
+          className={
+            one(query, "ack") === "failed"
+              ? "rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck"
+              : "rounded-md bg-[#e7f6ec] px-3 py-2 text-sm text-[#14532d]"
+          }
+        >
+          {one(query, "ackMsg") ?? ""}
+        </p>
+      ) : null}
       {one(query, "flight") === "ok" ? <p className="text-sm text-muted-foreground">Estatus del vuelo revisado.</p> : null}
       {one(query, "flight") && one(query, "flight") !== "ok" ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">Vuelo: {one(query, "flight")}</p> : null}
       {one(query, "assigned") ? <p className="text-sm text-muted-foreground">AWB asignado. El borrador y los labels ya salen con ese número.</p> : null}
@@ -241,6 +253,19 @@ export default async function GuiaDetailPage({
       ) : null}
 
       <GuiaBilling {...billing} />
+
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-4">
+        <div>
+          <h2 className="font-display text-2xl">Trip request en ACK Freight</h2>
+          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+            Cuando la carga esté lista: crea el trip request de entrega (del warehouse a la aerolínea) en ACK Freight, con el AWB, el pickup order y el delivery order de esta guía. Si ya se pidió, no se duplica.
+          </p>
+        </div>
+        <form action={requestAckTripRequest}>
+          <input type="hidden" name="id" value={document.id} />
+          <Button type="submit">Solicitar trip request</Button>
+        </form>
+      </section>
 
       {document.status !== "issued" ? (
         <section className="space-y-3 rounded-lg border border-border bg-card p-4">
