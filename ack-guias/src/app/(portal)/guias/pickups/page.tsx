@@ -21,6 +21,9 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
   const params = await searchParams;
   const notice = one(params, "notice");
   const error = one(params, "error");
+  const prefixes = await prisma.airlinePrefix.findMany({ orderBy: { prefix: "asc" }, take: 200 });
+  const stock = await prisma.awbStockNumber.groupBy({ by: ["prefix"], where: { status: "available", agentKey: "ack" }, _count: true });
+  const awbOptions = prefixes.map((row) => ({ prefix: row.prefix, airline: row.airline, left: stock.find((item) => item.prefix === row.prefix)?._count ?? 0 }));
   const requests = await prisma.pickupRequest.findMany({
     orderBy: { createdAt: "desc" },
     take: 100,
@@ -39,7 +42,7 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
       {notice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{notice}</p> : null}
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
 
-      <PickupForm />
+      <PickupForm awbOptions={awbOptions} />
 
       <section className="overflow-x-auto rounded-lg border border-border bg-card">
         <table className="w-full min-w-[900px] text-left text-sm">

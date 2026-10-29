@@ -8,6 +8,7 @@ import { assignDraftAwb, issueErrorInSpanish, issueWaybillAtomic, releaseDraftAw
 import { canManageGuias, isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { assignAwbToGuia } from "@/lib/guias/assign-awb";
 import { resolveCarrier } from "@/lib/guias/carriers";
 import { blank, documentData, lineData } from "@/lib/guias/guia-data";
 import { loadCompany } from "@/lib/guias/company";
@@ -124,7 +125,7 @@ export async function saveNewGuia(formData: FormData) {
   const wantedPrefix = text(formData.get("assignPrefix"));
   if (wantedAwb || wantedPrefix) {
     try {
-      await assignAwbTo(created.id, wantedAwb, wantedPrefix);
+      await assignAwbToGuia(created.id, wantedAwb, wantedPrefix);
     } catch (error) {
       revalidatePath("/guias");
       redirect(`/guias/${created.id}?error=${encodeURIComponent(`La guía se guardó, pero no se asignó el AWB. ${issueErrorInSpanish(error)}`)}`);
@@ -229,19 +230,6 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
   return firstError;
 }
 
-/** The carrier block and routing that come from the airline prefix. Used when the number is assigned and again at issue. */
-async function carrierData(agent: { accountNo: string | null }, destination: string | null, awbPrefix: string, carrierId: string | null = null) {
-  const carrier = await resolveCarrier({ carrierId, awbPrefix });
-  return {
-    carrierName: carrier.name,
-    carrierAddress: carrier.address,
-    to1: routingTo(destination) || null,
-    by1: carrier.name,
-    destCountry: destinationCountry(destination) || null,
-    accountNo: agent.accountNo,
-  };
-}
-
 /**
  * Saves the carrier picked in the form and prints it as the first carrier. With none picked nothing changes, unless one
  * was picked before: then the airline prefix of the AWB decides again.
@@ -262,26 +250,12 @@ async function applyCarrier(id: string, carrierId: string, before: string | null
   });
 }
 
-async function assignAwbTo(id: string, manualAwb: string, prefix: string) {
-  const existing = await prisma.airWaybillDocument.findUnique({ where: { id } });
-  const agent = await prisma.issuingAgent.findUnique({ where: { key: "ack" } });
-  if (!existing || existing.product !== "guia" || !agent) throw new Error("Waybill not found");
-  const awbPrefix = manualAwb.replace(/\D/g, "").slice(0, 3) || prefix.replace(/\D/g, "");
-  await assignDraftAwb({
-    documentId: id,
-    agentKey: agent.key,
-    manualAwb: manualAwb || null,
-    prefix,
-    data: await carrierData(agent, existing.destination, awbPrefix, existing.carrierId),
-  });
-}
-
 /** Reserves an AWB number for a draft now, so its drafts and labels already carry it. */
 export async function assignGuiaAwb(formData: FormData) {
   await requireGuiaTeam();
   const id = text(formData.get("id"));
   try {
-    await assignAwbTo(id, text(formData.get("manualAwb")), text(formData.get("prefix")));
+    await assignAwbToGuia(id, text(formData.get("manualAwb")), text(formData.get("prefix")));
   } catch (error) {
     redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorInSpanish(error))}`);
   }

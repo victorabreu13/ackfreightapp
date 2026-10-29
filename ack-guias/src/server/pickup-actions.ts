@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { canManageGuias } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { issueErrorInSpanish } from "@/lib/awb/issue";
+import { assignAwbToGuia } from "@/lib/guias/assign-awb";
 import { createDraftGuia, EMPTY_GUIA_VALUES } from "@/lib/guias/draft-guia";
 import { numberOrNull } from "@/lib/guias/guia-data";
 import { pickupNumber } from "@/lib/guias/wr";
@@ -80,9 +82,23 @@ export async function savePickupRequest(formData: FormData) {
     { createdBy: user.email, truckerName: data.truckerName ?? "", truckerPhone: data.truckerPhone ?? "", driverName: data.driverName ?? "" },
   );
   await prisma.pickupRequest.update({ where: { id: request.id }, data: { guiaId: draft.id } });
+  // The AWB number, when one was asked for, is reserved for the draft right away.
+  const wantedAwb = text(formData.get("assignAwb"));
+  const wantedPrefix = text(formData.get("assignPrefix"));
+  let assigned = "";
+  let assignError = "";
+  if (wantedAwb || wantedPrefix) {
+    try {
+      await assignAwbToGuia(draft.id, wantedAwb, wantedPrefix);
+      assigned = (await prisma.airWaybillDocument.findUnique({ where: { id: draft.id }, select: { awb: true } }))?.awb ?? "";
+    } catch (error) {
+      assignError = issueErrorInSpanish(error);
+    }
+  }
   revalidatePath("/guias/pickups");
   revalidatePath("/guias");
-  back(`Pickup ${pickupNumber(request.seq)} creado. Su borrador de guía ya está en Guías.`);
+  if (assignError) back(`Pickup ${pickupNumber(request.seq)} creado con su borrador de guía, pero no se asignó el AWB. ${assignError}`, "error");
+  back(`Pickup ${pickupNumber(request.seq)} creado. Su borrador de guía ya está en Guías${assigned ? ` con el AWB ${assigned}` : ""}.`);
 }
 
 /** Deletes the request. The draft guía it started stays, since it may already have been worked on. */
