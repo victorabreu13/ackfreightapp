@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { GuiaEyebrow } from "@/components/guia-eyebrow";
-import { EMPTY_RECEIPT, WarehouseReceiptForm } from "@/components/warehouse-receipt-form";
+import { WarehouseReceiptForm } from "@/components/warehouse-receipt-form";
+import { EMPTY_RECEIPT } from "@/lib/guias/wr-form";
 import { canManageGuias } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";

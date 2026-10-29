@@ -6,75 +6,8 @@ import { GuiaLookupInput } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { receiptTotals } from "@/lib/guias/wr";
+import { EMPTY_RECEIPT_LINE, type ReceiptFormLine, type ReceiptFormValues } from "@/lib/guias/wr-form";
 import { saveWarehouseReceipt } from "@/server/wr-actions";
-
-export type ReceiptFormLine = {
-  pieces: string;
-  packageType: string;
-  length: string;
-  width: string;
-  height: string;
-  weightKg: string;
-  location: string;
-  description: string;
-  notes: string;
-  pcTracking: string;
-};
-
-export type ReceiptFormValues = {
-  id?: string;
-  warehouse: string;
-  receivedBy: string;
-  client: string;
-  shipper: string;
-  shipperAddress: string;
-  consignee: string;
-  consigneeAddress: string;
-  carrier: string;
-  driver: string;
-  driverLicense: string;
-  supplier: string;
-  invoiceNumber: string;
-  poNumber: string;
-  pickupNumber: string;
-  trackingNumber: string;
-  proNumber: string;
-  htPallet: boolean;
-  palletType: string;
-  dangerousGood: string;
-  sealedDrum: string;
-  notes: string;
-  pickupRequestId: string;
-  lines: ReceiptFormLine[];
-};
-
-export const EMPTY_RECEIPT_LINE: ReceiptFormLine = { pieces: "1", packageType: "", length: "", width: "", height: "", weightKg: "", location: "", description: "", notes: "", pcTracking: "" };
-
-export const EMPTY_RECEIPT: ReceiptFormValues = {
-  warehouse: "Warehouse 2 - Site 1",
-  receivedBy: "",
-  client: "",
-  shipper: "",
-  shipperAddress: "",
-  consignee: "",
-  consigneeAddress: "",
-  carrier: "",
-  driver: "",
-  driverLicense: "",
-  supplier: "",
-  invoiceNumber: "",
-  poNumber: "",
-  pickupNumber: "",
-  trackingNumber: "",
-  proNumber: "",
-  htPallet: false,
-  palletType: "",
-  dangerousGood: "",
-  sealedDrum: "",
-  notes: "",
-  pickupRequestId: "",
-  lines: [{ ...EMPTY_RECEIPT_LINE }],
-};
 
 const AREA = "block w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { GuiaEyebrow } from "@/components/guia-eyebrow";
-import { WarehouseReceiptForm, type ReceiptFormValues } from "@/components/warehouse-receipt-form";
+import { WarehouseReceiptForm } from "@/components/warehouse-receipt-form";
+import type { ReceiptFormValues } from "@/lib/guias/wr-form";
 import { canManageGuias } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
