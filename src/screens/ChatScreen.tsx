@@ -76,7 +76,7 @@ export default function ChatScreen({ route, navigation }: any) {
 
   const mySide = isAdmin ? "admin" : "driver";
   const list = (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}>
+    <View style={styles.flex}>
       {messages === null ? (
         <ActivityIndicator style={{ marginTop: 40 }} />
       ) : (
@@ -117,10 +117,11 @@ export default function ChatScreen({ route, navigation }: any) {
           {sending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.sendText}>Send</Text>}
         </TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 
-  if (isAdmin) {
+  // The website keeps the admin menu around the chat; phones get a full-screen chat.
+  if (isAdmin && Platform.OS === "web") {
     return (
       <AdminShell navigation={navigation} active="Inbox" title={title} subtitle="Messages" scroll={false}>
         <View style={styles.adminWrap}>{list}</View>
@@ -128,7 +129,7 @@ export default function ChatScreen({ route, navigation }: any) {
     );
   }
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => goBackOrHome(navigation)}>
           <Text style={styles.back}>‹ Back</Text>
@@ -137,7 +138,7 @@ export default function ChatScreen({ route, navigation }: any) {
         <View style={{ width: 50 }} />
       </View>
       {list}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
   textMine: { color: "#fff" },
   time: { fontSize: 10.5, color: "#94a3b8", marginTop: 3, alignSelf: "flex-end" },
   timeMine: { color: "#c7d7ff" },
-  composer: { flexDirection: "row", alignItems: "flex-end", gap: 8, padding: 10, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#e5e7eb" },
+  composer: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingTop: 10, paddingHorizontal: 10, paddingBottom: Platform.OS === "ios" ? 24 : 10, backgroundColor: "#fff", borderTopWidth: 1, borderTopColor: "#e5e7eb" },
   input: { flex: 1, maxHeight: 120, backgroundColor: "#f5f6fa", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15 },
   sendButton: { backgroundColor: "#1d4ed8", borderRadius: 18, paddingVertical: 10, paddingHorizontal: 18, minWidth: 64, alignItems: "center" },
   sendOff: { opacity: 0.45 },
