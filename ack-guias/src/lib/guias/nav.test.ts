@@ -7,7 +7,7 @@ const labels = (role: string) => menuFor(role).map((item) => (isNavGroup(item) ?
 test("the menu is Guías, Documentos, AWB Status and three groups", () => {
   assert.deepEqual(
     GUIAS_MENU.map((item) => item.label),
-    ["Guías", "Documentos", "AWB Status", "Clientes", "Recursos", "Settings"],
+    ["Guías", "Documentos", "AWB Status", "Operaciones", "Clientes", "Recursos", "Settings"],
   );
 });
 
@@ -30,16 +30,17 @@ test("each role sees only its own links, and an empty group is left out", () => 
     "Guías",
     "Documentos",
     "AWB Status",
+    "Operaciones: Pickup requests | Warehouse receipts",
     "Clientes: Clientes y tarifas | Directorio",
     "Recursos: AWB stock | Carriers | Custom Labels | Labels DG | Templates",
     "Settings: Company | Usuarios",
   ]);
-  assert.deepEqual(labels("OPERATIONS"), ["Guías", "Documentos", "AWB Status", "Clientes: Directorio", "Recursos: AWB stock | Carriers | Custom Labels | Labels DG | Templates"]);
+  assert.deepEqual(labels("OPERATIONS"), ["Guías", "Documentos", "AWB Status", "Operaciones: Pickup requests | Warehouse receipts", "Clientes: Directorio", "Recursos: AWB stock | Carriers | Custom Labels | Labels DG | Templates"]);
   assert.deepEqual(labels("ACCOUNTING"), ["Guías", "Documentos", "AWB Status", "Recursos: Templates"]);
   assert.deepEqual(labels("VIEWER"), ["Guías", "Documentos", "AWB Status", "Recursos: Templates"]);
 });
 
 test("the flat list still has every page of the menu", () => {
-  assert.equal(GUIAS_NAV.length, 12);
+  assert.equal(GUIAS_NAV.length, 14);
   assert.ok(GUIAS_NAV.some((link) => link.href === "/guias/users"));
 });

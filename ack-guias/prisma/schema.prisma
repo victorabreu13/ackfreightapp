@@ -201,6 +201,8 @@ model AirWaybillDocument {
   qboRealmId       String?
   qboClaimedAt     DateTime?
   lines            AwbGoodsLine[]
+  warehouseReceipts WarehouseReceipt[]
+  pickupRequests   PickupRequest[]
   stock            AwbStockNumber?
   driveFiles       GuiaDriveFile[]
   loggedDocuments  GuiaDocument[]
@@ -409,4 +411,100 @@ model QuickBooksConnection {
   updatedAt        DateTime     @updatedAt
 
   @@unique([realmId])
+}
+
+/// A request to pick up cargo at the shipper. Generating it creates the draft guía and the pickup order.
+model PickupRequest {
+  id             String              @id @default(cuid())
+  /// Shown as PU-0001.
+  seq            Int                 @unique @default(autoincrement())
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  createdBy      String
+  clientLabel    String
+  shipperName    String
+  shipperAddress String              @db.Text
+  contactName    String?
+  contactPhone   String?
+  contactEmail   String?
+  consigneeName  String?
+  consigneeAddress String?           @db.Text
+  destination    String?
+  pieces         Int?
+  weightKg       Float?
+  description    String?             @db.Text
+  /// The day and the time the cargo is ready, as typed.
+  pickupDate     String?
+  readyTime      String?
+  truckerName    String?
+  truckerPhone   String?
+  driverName     String?
+  notes          String?             @db.Text
+  guiaId         String?
+  guia           AirWaybillDocument? @relation(fields: [guiaId], references: [id], onDelete: SetNull)
+  receipts       WarehouseReceipt[]
+
+  @@index([guiaId])
+}
+
+/// Cargo received in the warehouse. Several receipts can feed one guía.
+model WarehouseReceipt {
+  id               String              @id @default(cuid())
+  /// Shown as K5500.
+  seq              Int                 @unique @default(autoincrement())
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  createdBy        String
+  receivedAt       DateTime            @default(now())
+  warehouse        String              @default("Warehouse 2 - Site 1")
+  receivedBy       String?
+  clientLabel      String?
+  shipperName      String?
+  shipperAddress   String?             @db.Text
+  consigneeName    String?
+  consigneeAddress String?             @db.Text
+  carrier          String?
+  driver           String?
+  driverLicense    String?
+  supplier         String?
+  invoiceNumber    String?
+  poNumber         String?
+  pickupNumber     String?
+  /// Tracking number or AWB number.
+  trackingNumber   String?
+  proNumber        String?
+  htPallet         Boolean             @default(false)
+  palletType       String?
+  /// Such as "HAZMAT - UN 3481". Empty when the cargo is not dangerous.
+  dangerousGood    String?
+  sealedDrum       String?
+  notes            String?             @db.Text
+  guiaId           String?
+  guia             AirWaybillDocument? @relation(fields: [guiaId], references: [id], onDelete: SetNull)
+  pickupRequestId  String?
+  pickupRequest    PickupRequest?      @relation(fields: [pickupRequestId], references: [id], onDelete: SetNull)
+  lines            WarehouseReceiptLine[]
+
+  @@index([guiaId])
+  @@index([pickupRequestId])
+}
+
+/// One handling unit of a receipt: the pieces on it, its measures in inches and its weight in kg.
+model WarehouseReceiptLine {
+  id          String           @id @default(cuid())
+  receiptId   String
+  receipt     WarehouseReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  sortOrder   Int              @default(0)
+  pieces      Int              @default(1)
+  packageType String?
+  length      Float?
+  width       Float?
+  height      Float?
+  weightKg    Float?
+  location    String?
+  description String?          @db.Text
+  notes       String?          @db.Text
+  pcTracking  String?
+
+  @@index([receiptId])
 }

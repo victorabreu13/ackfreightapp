@@ -12,11 +12,13 @@ import { canEditAgreedRate, canInvoiceGuia, canManageGuias, canReadGuias, guiaWh
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { loadCarrierOptions } from "@/lib/guias/carriers";
+import { receiptNumber, receiptTotals } from "@/lib/guias/wr";
+import { linkReceiptToGuia, refreshGuiaFromReceipts, unlinkReceiptFromGuia } from "@/server/wr-actions";
 import { loadCompany } from "@/lib/guias/company";
 import { missingProfileMessages } from "@/lib/guias/company-profile";
 import { GUIA_FILE_LABELS, formatNy } from "@/lib/guias/documents-index";
 import { canDeleteGuiaUpload, isDgdUpload, UPLOAD_KIND } from "@/lib/guias/upload-rules";
-import type { GuiaValues } from "@/lib/guias/extract";
+import { guiaValuesOf as valuesOf } from "@/lib/guias/guia-data";
 import { GUIA_FILE_KINDS, guiaFileName } from "@/lib/guias/files";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
 import { FLIGHT_STATUS_LABEL, isFlightStatus } from "@/lib/guias/flight-status";
@@ -25,60 +27,6 @@ import { assignGuiaAwb, checkGuiaFlight, issueGuia, releaseGuiaAwb, saveGuiaToDr
 function one(params: Record<string, string | string[] | undefined>, key: string) {
   const value = params[key];
   return Array.isArray(value) ? value[0] : value;
-}
-
-function valuesOf(document: {
-  clientLabel: string | null;
-  guiaClient?: { name: string } | null;
-  shipperName: string | null;
-  shipperAddress: string | null;
-  consigneeName: string | null;
-  consigneeAddress: string | null;
-  notifyName: string | null;
-  notifyAddress: string | null;
-  departure: string | null;
-  destination: string | null;
-  flightNumber: string | null;
-  flightDate: string | null;
-  handling: string | null;
-  aesItn: string | null;
-  hawb: string | null;
-  dgDeclarable: boolean;
-  unNumbers: string | null;
-  bup: boolean;
-  bupItems: string | null;
-  lithiumPi: string | null;
-  agentKey: string;
-  lines: Array<{ pieces: number | null; chargeableWeight: number | null; grossWeight: number | null; rate: number | null; nature: string | null }>;
-}): GuiaValues {
-  const line = document.lines[0];
-  return {
-    client: document.clientLabel || document.guiaClient?.name || "",
-    shipper: document.shipperName || "",
-    shipperAddress: document.shipperAddress || "",
-    consignee: document.consigneeName || "",
-    consigneeAddress: document.consigneeAddress || "",
-    notify: document.notifyName || "",
-    notifyAddress: document.notifyAddress || "",
-    origin: document.departure || "",
-    destination: document.destination || "",
-    flightNumber: document.flightNumber || "",
-    flightDate: document.flightDate || "",
-    pieces: line?.pieces ? String(line.pieces) : "",
-    chargeableKg: line?.chargeableWeight ? String(line.chargeableWeight) : "",
-    rate: line?.rate != null ? String(line.rate) : "",
-    grossKg: line?.grossWeight ? String(line.grossWeight) : "",
-    goods: line?.nature || "",
-    handling: document.handling || "",
-    aesItn: document.aesItn || "",
-    hawb: document.hawb || "",
-    dg: document.dgDeclarable ? "1" : "",
-    unNumbers: document.unNumbers || "",
-    bup: document.bup ? "1" : "",
-    bupItems: document.bupItems || "",
-    lithiumPi: document.lithiumPi || "",
-    issuingCompany: "ack",
-  };
 }
 
 export default async function GuiaDetailPage({
@@ -118,6 +66,11 @@ export default async function GuiaDetailPage({
   }
   if (!document || document.product !== "guia") notFound();
   const carrierOptions = await loadCarrierOptions();
+  const [linkedReceipts, freeReceipts] = await Promise.all([
+    prisma.warehouseReceipt.findMany({ where: { guiaId: id }, orderBy: { seq: "asc" }, include: { lines: true } }),
+    prisma.warehouseReceipt.findMany({ where: { guiaId: null }, orderBy: { seq: "desc" }, take: 50, select: { id: true, seq: true, clientLabel: true, shipperName: true } }),
+  ]);
+  const receiptsNotice = one(query, "receipts");
   const uploadRows = uploads.map((file) => ({
     id: file.id,
     fileName: file.fileName,
@@ -440,6 +393,83 @@ export default async function GuiaDetailPage({
         carrierOptions={carrierOptions}
         carrierId={document.carrierId || ""}
       />
+
+      {canManageGuias(user) ? (
+        <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <div>
+            <h2 className="font-display text-2xl">Warehouse receipts</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              La carga recibida en la bodega para esta guía. {document.status === "issued" ? "La guía ya está emitida: ligar o soltar un receipt no la modifica." : "Mientras sea borrador, toma de sus receipts las piezas, los pesos, el shipper, el consignee y la mercancía."}
+            </p>
+          </div>
+          {receiptsNotice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{receiptsNotice}</p> : null}
+          {linkedReceipts.length ? (
+            <ul className="space-y-2 text-sm">
+              {linkedReceipts.map((receipt) => {
+                const totals = receiptTotals(receipt.lines.map((line) => ({ pieces: line.pieces, length: line.length, width: line.width, height: line.height, weightKg: line.weightKg })));
+                return (
+                  <li key={receipt.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+                    <span>
+                      <Link href={`/guias/warehouse/${receipt.id}`} className="font-medium underline-offset-2 hover:underline">
+                        {receiptNumber(receipt.seq)}
+                      </Link>
+                      <span className="ml-3 text-muted-foreground">
+                        {totals.pieces} pzas · {totals.weightKg.toFixed(2)} kg · {totals.volumeWeightKg.toFixed(2)} VKg
+                      </span>
+                    </span>
+                    <span className="flex items-center gap-3">
+                      <a href={`/api/guias/warehouse/${receipt.id}/pdf`} target="_blank" rel="noreferrer" className="text-xs underline-offset-2 hover:underline">
+                        PDF
+                      </a>
+                      <form action={unlinkReceiptFromGuia}>
+                        <input type="hidden" name="guiaId" value={document.id} />
+                        <input type="hidden" name="receiptId" value={receipt.id} />
+                        <button type="submit" className="text-xs text-stuck underline-offset-2 hover:underline">
+                          Soltar
+                        </button>
+                      </form>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">Esta guía todavía no tiene warehouse receipts.</p>
+          )}
+          <div className="flex flex-wrap items-end gap-3">
+            {freeReceipts.length ? (
+              <form action={linkReceiptToGuia} className="flex flex-wrap items-end gap-2">
+                <input type="hidden" name="guiaId" value={document.id} />
+                <label className="space-y-1 text-sm">
+                  <span className="text-muted-foreground">Ligar un receipt sin guía</span>
+                  <select name="receiptId" required className="block h-10 rounded-md border border-input bg-background px-3 text-sm">
+                    <option value="">Elige</option>
+                    {freeReceipts.map((receipt) => (
+                      <option key={receipt.id} value={receipt.id}>
+                        {receiptNumber(receipt.seq)} · {receipt.clientLabel || receipt.shipperName || "sin cliente"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button type="submit" variant="outline">
+                  Ligar
+                </Button>
+              </form>
+            ) : null}
+            {linkedReceipts.length ? (
+              <form action={refreshGuiaFromReceipts}>
+                <input type="hidden" name="guiaId" value={document.id} />
+                <Button type="submit" variant="outline">
+                  Actualizar la guía desde sus receipts
+                </Button>
+              </form>
+            ) : null}
+            <Button asChild variant="outline">
+              <Link href="/guias/warehouse/new">Nuevo warehouse receipt</Link>
+            </Button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="space-y-4 rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-end justify-between gap-3">

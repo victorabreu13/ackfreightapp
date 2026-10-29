@@ -16,6 +16,13 @@ export const GUIAS_MENU: NavItem[] = [
   { href: "/guias/documents", label: "Documentos", team: true, accounting: true, viewer: true },
   { href: "/guias/awb-status", label: "AWB Status", team: true, accounting: true, viewer: true },
   {
+    label: "Operaciones",
+    links: [
+      { href: "/guias/pickups", label: "Pickup requests", team: true },
+      { href: "/guias/warehouse", label: "Warehouse receipts", team: true },
+    ],
+  },
+  {
     label: "Clientes",
     links: [
       { href: "/guias/clients", label: "Clientes y tarifas", admin: true },

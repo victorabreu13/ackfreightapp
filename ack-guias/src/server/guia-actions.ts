@@ -9,6 +9,7 @@ import { canManageGuias, isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { resolveCarrier } from "@/lib/guias/carriers";
+import { blank, documentData, lineData } from "@/lib/guias/guia-data";
 import { loadCompany } from "@/lib/guias/company";
 import { guiaAwbFolder, publishRenderedPdf, saveDocumentLog } from "@/lib/guias/document-log";
 import { ensureGuiaClient, guiaBillToName } from "@/lib/guias/guia-client";
@@ -25,10 +26,6 @@ const CLIENT_REQUIRED = "Escribe el cliente de la guía.";
 
 function text(value: FormDataEntryValue | null): string {
   return String(value ?? "").trim();
-}
-
-function blank(value: string): string | null {
-  return value || null;
 }
 
 async function requireGuiaTeam() {
@@ -82,53 +79,6 @@ function snippetsFromForm(formData: FormData): Record<string, string> {
   } catch {
     return {};
   }
-}
-
-function numberOrNull(value: string): number | null {
-  if (!value) return null;
-  const parsed = Number(value.replace(/,/g, ""));
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function lineData(values: GuiaValues) {
-  const pieces = numberOrNull(values.pieces);
-  return {
-    pieces: pieces == null ? null : Math.round(pieces),
-    chargeableWeight: numberOrNull(values.chargeableKg),
-    rate: numberOrNull(values.rate),
-    grossWeight: numberOrNull(values.grossKg),
-    nature: blank(values.goods),
-    kgLb: "K",
-    sortOrder: 0,
-  };
-}
-
-function documentData(values: GuiaValues, review: ReviewField[], snippets: Record<string, string>, guiaClientId: string | null) {
-  return {
-    agentKey: "ack",
-    guiaClientId,
-    clientLabel: blank(values.client),
-    shipperName: blank(values.shipper),
-    shipperAddress: blank(values.shipperAddress),
-    consigneeName: blank(values.consignee),
-    consigneeAddress: blank(values.consigneeAddress),
-    notifyName: blank(values.notify),
-    notifyAddress: blank(values.notifyAddress),
-    departure: blank(values.origin),
-    destination: blank(values.destination),
-    flightNumber: blank(values.flightNumber),
-    flightDate: blank(values.flightDate),
-    handling: blank(values.handling),
-    aesItn: blank(values.aesItn),
-    hawb: blank(values.hawb),
-    dgDeclarable: values.dg === "1",
-    unNumbers: blank(values.unNumbers),
-    bup: values.bup === "1",
-    bupItems: blank(values.bupItems),
-    lithiumPi: blank(values.lithiumPi),
-    reviewJson: JSON.stringify(review),
-    snippetJson: JSON.stringify(snippets),
-  };
 }
 
 /** The directory is a convenience. A failure there never blocks saving the guía. */
