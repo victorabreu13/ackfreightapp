@@ -36,6 +36,7 @@ const { documentsForRequest, safeName, zipEntryNames } = require("./zipDocs");
 const { mergeToPdf } = require("./mergeDocs");
 const { diffTripDetails, validateTripDetails } = require("./tripEdit");
 const { applyPatches, planMerge } = require("./mergeRequests");
+const { cleanMessageText, messageTargets, previewText } = require("./messages");
 const { MAX_TRAIL_POINTS, shouldRecordPoint, stampPoint, stampTransitions } = require("./trail");
 const { quoteForRequest, uldCountForLines } = require("./quote");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
@@ -1883,6 +1884,96 @@ exports.mergeDuplicateRequests = onCall({ invoker: "public", timeoutSeconds: 120
     duplicateCancelled,
     leftInDuplicate: plan.pairs.filter((p) => !p.removable).length,
   };
+});
+
+// Internal messages between admins and drivers (never drivers to each other).
+// One thread per driver, shared by every admin: conversations/{driverId} holds the
+// summary and unread counts, conversations/{driverId}/messages the messages. Only
+// these functions write them. The recipient gets a push that opens the chat.
+exports.sendMessage = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const uid = request.auth.uid;
+  const db = admin.firestore();
+  const callerSnap = await db.collection("users").doc(uid).get();
+  const caller = callerSnap.data() || {};
+  const role = caller.role;
+
+  const cleaned = cleanMessageText((request.data || {}).text);
+  if (!cleaned.ok) throw new HttpsError("invalid-argument", cleaned.message);
+  const targets = messageTargets(role, uid, request.data);
+  if (!targets.ok) throw new HttpsError(role === "driver" ? "permission-denied" : "invalid-argument", targets.message);
+  if (role === "driver" && caller.active === false) {
+    throw new HttpsError("permission-denied", "Your account is inactive.");
+  }
+
+  const senderName = String(caller.name || request.auth.token.email || (role === "admin" ? "ACK Freight" : "Driver"));
+  const now = Date.now();
+  const preview = previewText(cleaned.text);
+  const FieldValue = admin.firestore.FieldValue;
+
+  // Only real drivers can have a thread.
+  const driverDocs = await Promise.all(targets.driverIds.map((id) => db.collection("users").doc(id).get()));
+  const drivers = driverDocs.filter((d) => d.exists && d.data().role === "driver");
+  if (drivers.length === 0) throw new HttpsError("not-found", "No driver to message.");
+
+  for (const driverDoc of drivers) {
+    const driverId = driverDoc.id;
+    const driver = driverDoc.data();
+    const convoRef = db.collection("conversations").doc(driverId);
+    await convoRef.collection("messages").add({
+      text: cleaned.text,
+      senderId: uid,
+      senderName,
+      senderRole: role,
+      createdAt: now,
+    });
+    await convoRef.set(
+      {
+        driverId,
+        driverName: String(driver.name || ""),
+        lastMessage: preview,
+        lastAt: now,
+        lastSenderRole: role,
+        lastSenderName: senderName,
+        [role === "admin" ? "unreadForDriver" : "unreadForAdmin"]: FieldValue.increment(1),
+      },
+      { merge: true }
+    );
+    if (role === "admin") {
+      await sendExpoPush([driver.pushToken], senderName, preview, {
+        type: "message",
+        driverId,
+        driverName: String(driver.name || ""),
+      });
+    }
+  }
+
+  if (role === "driver") {
+    const admins = await db.collection("users").where("role", "==", "admin").get();
+    await sendExpoPush(
+      admins.docs.map((d) => d.data().pushToken),
+      senderName,
+      preview,
+      { type: "message", driverId: uid, driverName: senderName }
+    );
+  }
+  return { success: true, sent: drivers.length };
+});
+
+// Opening a chat clears that side's unread count (admins share one count per thread).
+exports.markMessagesRead = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const db = admin.firestore();
+  const role = ((await db.collection("users").doc(request.auth.uid).get()).data() || {}).role;
+  const { driverId } = request.data || {};
+  if (role === "driver") {
+    await db.collection("conversations").doc(request.auth.uid).set({ unreadForDriver: 0 }, { merge: true });
+  } else if (role === "admin" && driverId) {
+    await db.collection("conversations").doc(String(driverId)).set({ unreadForAdmin: 0 }, { merge: true });
+  } else {
+    throw new HttpsError("permission-denied", "Not allowed.");
+  }
+  return { success: true };
 });
 
 exports.markAwbPickedUp = onCall({ invoker: "public" }, async (request) => {

@@ -8,6 +8,7 @@ import AutoReload from "./src/components/AutoReload";
 import NativeAutoUpdate from "./src/components/NativeAutoUpdate";
 import { AuthProvider } from "./src/context/AuthContext";
 import { navigationRef } from "./src/navigation/navigationRef";
+import NotificationRouter from "./src/components/NotificationRouter";
 import RootNavigator from "./src/navigation/RootNavigator";
 
 // Gives the web build real URL/history integration so the browser's own
@@ -22,6 +23,8 @@ const linking = {
       Today: "today",
       Search: "search",
       Duplicates: "duplicates",
+      Inbox: "inbox",
+      Chat: "chat",
       LiveMap: "live-map",
       NewRequests: "new-requests",
       Drivers: "drivers",
@@ -60,6 +63,7 @@ export default function App() {
         {Platform.OS === "web" && <AppHeader />}
         <NavigationContainer ref={navigationRef} linking={linking}>
           <StatusBar style="dark" />
+          <NotificationRouter />
           <RootNavigator />
         </NavigationContainer>
       </View>

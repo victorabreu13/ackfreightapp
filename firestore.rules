@@ -408,6 +408,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Messages between admins and one driver. The thread id is the driver's uid.
+    // Read-only for the client; only Cloud Functions write (they send the push).
+    match /conversations/{driverId} {
+      allow read: if isSignedIn() && (isAdmin() || request.auth.uid == driverId);
+      allow write: if false;
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (isAdmin() || request.auth.uid == driverId);
+        allow write: if false;
+      }
+    }
+
     match /tripRequests/{requestId} {
       allow create: if isSignedIn() && (
         isAdmin() ||

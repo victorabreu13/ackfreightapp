@@ -110,6 +110,27 @@ export interface RequestFile {
 
 // Where the driver was when an AWB was started / picked up / completed. "device" is
 // the phone's own GPS fix; "last ping" is the last live location the server had.
+// Internal chat between admins and one driver (conversations/{driverId}).
+export interface Conversation {
+  driverId: string;
+  driverName: string;
+  lastMessage: string;
+  lastAt: number;
+  lastSenderRole: "admin" | "driver";
+  lastSenderName?: string;
+  unreadForDriver?: number;
+  unreadForAdmin?: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  text: string;
+  senderId: string;
+  senderName: string;
+  senderRole: "admin" | "driver";
+  createdAt: number;
+}
+
 export interface LocationStamp {
   lat: number;
   lng: number;

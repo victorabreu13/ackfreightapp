@@ -9,6 +9,8 @@ import DriversScreen from "../screens/DriversScreen";
 import LiveMapScreen from "../screens/LiveMapScreen";
 import SearchScreen from "../screens/SearchScreen";
 import DuplicatesScreen from "../screens/DuplicatesScreen";
+import ChatScreen from "../screens/ChatScreen";
+import InboxScreen from "../screens/InboxScreen";
 import NewRequestsScreen from "../screens/NewRequestsScreen";
 import TodayScreen from "../screens/TodayScreen";
 import ToInvoiceScreen from "../screens/ToInvoiceScreen";
@@ -70,6 +72,8 @@ export default function RootNavigator() {
         <Stack.Screen name="Today" component={TodayScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Search" component={SearchScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Duplicates" component={DuplicatesScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Inbox" component={InboxScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
         <Stack.Screen name="LiveMap" component={LiveMapScreen} options={{ headerShown: false }} />
         <Stack.Screen name="NewRequests" component={NewRequestsScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Drivers" component={DriversScreen} options={{ headerShown: false }} />
@@ -175,6 +179,7 @@ export default function RootNavigator() {
         component={DriverHomeScreen}
         options={{ headerShown: false }}
       />
+      <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
       <Stack.Screen
         name="JobBoard"
         component={JobBoardScreen}

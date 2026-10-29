@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import { useUnreadMessages } from "../hooks/useUnreadMessages";
 import { registerForPushNotifications, syncBadgeCount } from "../services/notifications";
 import { setOnDuty } from "../services/users";
 import { notify } from "../utils/alert";
@@ -25,6 +26,12 @@ const TILES = [
     description: "Manually log a trip you just drove",
   },
   {
+    key: "Chat",
+    icon: "💬",
+    label: "Messages",
+    description: "Chat with dispatch",
+  },
+  {
     key: "TripHistory",
     icon: "📜",
     label: "Trip History",
@@ -42,6 +49,7 @@ export default function DriverHomeScreen({ navigation }: any) {
   const { user, profile, signOut } = useAuth();
   const [onDuty, setOnDutyState] = useState(profile?.onDuty === true);
   const [savingDuty, setSavingDuty] = useState(false);
+  const unread = useUnreadMessages();
 
   useEffect(() => {
     setOnDutyState(profile?.onDuty === true);
@@ -96,6 +104,11 @@ export default function DriverHomeScreen({ navigation }: any) {
             style={styles.tile}
             onPress={() => navigation.navigate(tile.key)}
           >
+            {tile.key === "Chat" && unread > 0 && (
+              <View style={styles.tileBadge}>
+                <Text style={styles.tileBadgeText}>{unread}</Text>
+              </View>
+            )}
             <Text style={styles.tileIcon}>{tile.icon}</Text>
             <Text style={styles.tileLabel}>{tile.label}</Text>
             <Text style={styles.tileDescription}>{tile.description}</Text>
@@ -118,6 +131,8 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: 24, fontWeight: "800", color: "#111" },
   subGreeting: { fontSize: 14, color: "#666" },
+  tileBadge: { position: "absolute", top: 10, right: 10, backgroundColor: "#16a34a", borderRadius: 12, minWidth: 24, height: 24, paddingHorizontal: 7, alignItems: "center", justifyContent: "center" },
+  tileBadgeText: { color: "#fff", fontSize: 13, fontWeight: "800" },
   signOut: { color: "#c0392b", fontSize: 15, fontWeight: "600" },
   dutyCard: {
     flexDirection: "row",

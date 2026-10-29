@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import { useUnreadMessages } from "../hooks/useUnreadMessages";
 import { registerForPushNotifications } from "../services/notifications";
 
 // Phone-only admin home: just the four things admins do on the go. The fuller
@@ -9,12 +10,14 @@ const BUTTONS = [
   { route: "Dispatch", icon: "🚚", label: "Trips", hint: "Review, assign and complete trips" },
   { route: "DispatchNewRequest", icon: "➕", label: "New Trip", hint: "Create a trip request for a customer" },
   { route: "Search", icon: "🔎", label: "Search", hint: "Find any AWB, customer or driver" },
+  { route: "Inbox", icon: "💬", label: "Messages", hint: "Chat with your drivers" },
   { route: "LiveMap", icon: "🗺️", label: "Live Map", hint: "See where every driver is" },
   { route: "ManageUsers", icon: "👤", label: "Users", hint: "Roles, logins and driver accounts" },
 ] as const;
 
 export default function AdminHomeScreen({ navigation }: any) {
   const { signOut } = useAuth();
+  const unread = useUnreadMessages();
 
   useEffect(() => {
     registerForPushNotifications();
@@ -36,6 +39,11 @@ export default function AdminHomeScreen({ navigation }: any) {
             <Text style={styles.label}>{b.label}</Text>
             <Text style={styles.hint}>{b.hint}</Text>
           </View>
+          {b.route === "Inbox" && unread > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unread}</Text>
+            </View>
+          )}
           <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
       ))}
@@ -72,5 +80,7 @@ const styles = StyleSheet.create({
   icon: { fontSize: 34, marginRight: 16 },
   label: { fontSize: 20, fontWeight: "800", color: "#111" },
   hint: { fontSize: 13, color: "#888", marginTop: 2 },
+  badge: { backgroundColor: "#16a34a", borderRadius: 12, minWidth: 24, height: 24, paddingHorizontal: 7, alignItems: "center", justifyContent: "center" },
+  badgeText: { color: "#fff", fontSize: 13, fontWeight: "800" },
   chevron: { fontSize: 28, color: "#bbb", marginLeft: 8 },
 });

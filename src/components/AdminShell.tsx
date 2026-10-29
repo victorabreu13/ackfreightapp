@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../context/AuthContext";
+import { useUnreadMessages } from "../hooks/useUnreadMessages";
 
 export interface AdminMenuItem {
   route: string | null; // null = not built yet (shown disabled)
@@ -21,6 +22,7 @@ export interface AdminMenuItem {
 export const ADMIN_MENU: AdminMenuItem[] = [
   { route: "Today", label: "Today", icon: "📋" },
   { route: "Search", label: "Search", icon: "🔎" },
+  { route: "Inbox", label: "Messages", icon: "💬" },
   { route: "Duplicates", label: "Duplicate AWBs", icon: "🧩" },
   { route: "LiveMap", label: "Live Map", icon: "🗺️" },
   { route: "Dispatch", label: "Trips", icon: "🚚" },
@@ -52,12 +54,14 @@ export default function AdminShell({
   title,
   subtitle,
   right,
-  badges = {},
+  badges: badgesProp = {},
   scroll = true,
   children,
 }: Props) {
   const { width } = useWindowDimensions();
   const { signOut, profile } = useAuth();
+  const unreadMessages = useUnreadMessages();
+  const badges: Partial<Record<string, number>> = { ...badgesProp, Inbox: unreadMessages || undefined };
   const wide = width >= WIDE_BREAKPOINT;
 
   const go = (route: string | null) => {
