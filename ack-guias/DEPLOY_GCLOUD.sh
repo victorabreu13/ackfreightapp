@@ -254,6 +254,7 @@ cmd_deploy() {
     --project="$PROJECT_ID" \
     --region="$REGION" \
     --source=. \
+    --clear-base-image \
     --service-account="${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
     --add-cloudsql-instances="$INSTANCE_CONNECTION" \
     --set-secrets="$secrets" \
