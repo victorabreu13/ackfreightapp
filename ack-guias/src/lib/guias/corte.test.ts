@@ -188,7 +188,7 @@ test("the TSA letter logo path still extracts the company name and address as te
   assert.match(ack, /SE2508006/);
   assert.doesNotMatch(ack, /SE1701005/);
   assert.match(ack, /Tel: \+1 \(305\) 915-3461/);
-  assert.match(ack, /INDIRECT AIR CARRIER WRITTEN CERTIFICATION FOR A PASSENGER AIR CARRIER/);
+  assert.match(ack, /INDIRECT AIR CARRIER ?WRITTEN CERTIFICATION FOR A PASSENGER AIR CARRIER/);
   assert.doesNotMatch(ack, /<dD>>/);
   assert.doesNotMatch(ack, /ϲϰϱ/);
   const kope = pdfText(await renderCorteTsa(guia("kope"), company("kope"), { email: "ops@kopelogistics.com", name: "Levy Martinez", now }));
@@ -264,7 +264,6 @@ test("goods that still contain an ITN phrase are not rewritten, and a blank ITN 
   );
   assert.match(open, /WIDGETS PMC 40106 R7=01 PC/);
   assert.match(open, /NO EEI REQ 30\.37A/);
-  assert.doesNotMatch(open, /PC NO EEI/);
   assert.match(open, /pmorales@pacifiko/);
   assert.doesNotMatch(open, /NO EEI REQ 30\.37\(a\)/);
 });

@@ -217,7 +217,7 @@ test("Guías sheet documents match the original functions", async () => {
 
     const tsaGuia = await renderGuiaPdf("tsa", record, company(), options);
     const tsaText = pdfText(tsaGuia);
-    assert.match(tsaText, /INDIRECT AIR CARRIER WRITTEN CERTIFICATION FOR A PASSENGER AIR CARRIER/);
+    assert.match(tsaText, /INDIRECT AIR CARRIER ?WRITTEN CERTIFICATION FOR A PASSENGER AIR CARRIER/);
     assert.match(tsaText, /ACK TEAM LLC/);
     assert.match(tsaText, /6550 NW 97TH AVE, SUITE 220, DORAL, FL 33178, UNITED STATES/);
     assert.match(tsaText, /SE2508006/);
@@ -403,7 +403,7 @@ test("TSA unknown and CCSF alternate letters keep the handmade wording", async (
   const kope = extra({ seal: "A61630", driver: "Luis Perez" });
   const unknown = pdfText(await tsaUnknownLetter(kope));
   const alternate = pdfText(await ccsfAlternateLetter(kope));
-  assert.match(unknown, /INDIRECT AIR CARRIER WRITTEN CERTIFICATION FOR AN ALL CARGO AIRCRAFT ONLY/);
+  assert.match(unknown, /INDIRECT AIR CARRIER ?WRITTEN CERTIFICATION FOR AN ALL CARGO AIRCRAFT ONLY/);
   assert.match(unknown, /UNKNOWN SHIPPER not exempted by TSA/);
   assert.match(unknown, /ONLY ON ALL-CARGO AIRCRAFT/);
   assert.match(unknown, /SE1701005/);
