@@ -313,7 +313,7 @@ export async function renderMagayaPickup(
       const weight = num(row.kg);
       if (weight) put(doc, `${weight} kg`, 458, y, 9);
       const vkg = num(row.vkg);
-      if (vkg) put(doc, `${vkg} VKg`, 520, y + 12, 9);
+      if (vkg) put(doc, `${vkg} VKg`, 520, y, 9);
     });
 
     put(doc, "Notes", 14, 650, 8, "Helvetica-Bold");
@@ -322,7 +322,7 @@ export async function renderMagayaPickup(
     put(doc, "Volume", 530, 664, 7, "Helvetica", GREY);
     put(doc, pieces ? String(pieces) : "", 400, 676, 11);
     if (kilos) put(doc, `${num(kilos)} Kg`, 450, 676, 11);
-    if (chargeable) put(doc, `${num(chargeable)} VKg`, 520, 690, 11);
+    if (chargeable) put(doc, `${num(chargeable)} VKg`, 520, 676, 11);
 
     put(doc, "IMPORTANT NOTICE — TERMS AND CONDITIONS", 16, 714, 7, "Helvetica-Bold");
     doc.font("Helvetica").fontSize(6).fillColor("#000000").text(terms, 16, 724, { width: 580, height: 28 });
