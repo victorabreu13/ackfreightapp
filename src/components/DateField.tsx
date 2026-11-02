@@ -1,6 +1,7 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import React, { useState } from "react";
 import {
+  Modal,
   Platform,
   StyleProp,
   StyleSheet,
@@ -59,6 +60,7 @@ function fromWebInputValue(raw: string, mode: "date" | "time", base: Date): Date
 // web, and the usual tap-to-open picker on native.
 export default function DateField({ value, mode, onChange, style, label }: Props) {
   const [show, setShow] = useState(false);
+  const [draft, setDraft] = useState(value);
 
   if (Platform.OS === "web") {
     return React.createElement("input", {
@@ -72,26 +74,70 @@ export default function DateField({ value, mode, onChange, style, label }: Props
     });
   }
 
+  const open = () => {
+    setDraft(value);
+    setShow(true);
+  };
+
+  // iOS: the spinner opens in a bottom sheet over the screen, so it can't push
+  // the fields around it (a wheel drawn inline widens whatever row holds the
+  // field). The date only changes when Done is tapped.
+  if (Platform.OS === "ios") {
+    return (
+      <View>
+        <TouchableOpacity style={[styles.button, style]} onPress={open}>
+          <Text style={styles.buttonText}>{label ?? formatLabel(value, mode)}</Text>
+        </TouchableOpacity>
+        <Modal visible={show} transparent animationType="slide" onRequestClose={() => setShow(false)}>
+          <View style={styles.backdrop}>
+            <TouchableOpacity style={styles.backdropTap} activeOpacity={1} onPress={() => setShow(false)} />
+            <View style={styles.sheet}>
+              <View style={styles.sheetBar}>
+                <TouchableOpacity onPress={() => setShow(false)} style={styles.sheetButton}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    onChange(draft);
+                    setShow(false);
+                  }}
+                  style={styles.sheetButton}
+                >
+                  <Text style={styles.doneButtonText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={draft}
+                mode={mode}
+                display="spinner"
+                themeVariant="light"
+                style={styles.spinner}
+                onChange={(_, selected) => {
+                  if (selected) setDraft(selected);
+                }}
+              />
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
+  }
+
   return (
     <View>
-      <TouchableOpacity style={[styles.button, style]} onPress={() => setShow(true)}>
+      <TouchableOpacity style={[styles.button, style]} onPress={open}>
         <Text style={styles.buttonText}>{label ?? formatLabel(value, mode)}</Text>
       </TouchableOpacity>
       {show && (
         <DateTimePicker
           value={value}
           mode={mode}
-          display={Platform.OS === "ios" ? "spinner" : "default"}
+          display="default"
           onChange={(_, selected) => {
-            if (Platform.OS === "android") setShow(false);
+            setShow(false);
             if (selected) onChange(selected);
           }}
         />
-      )}
-      {show && Platform.OS === "ios" && (
-        <TouchableOpacity onPress={() => setShow(false)} style={styles.doneButton}>
-          <Text style={styles.doneButtonText}>Done</Text>
-        </TouchableOpacity>
       )}
     </View>
   );
@@ -126,6 +172,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   buttonText: { fontSize: 15, color: "#111" },
-  doneButton: { alignSelf: "flex-end", padding: 8 },
-  doneButtonText: { color: "#1d4ed8", fontWeight: "700" },
+  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(10,26,58,0.35)" },
+  backdropTap: { flex: 1 },
+  sheet: { backgroundColor: "#fff", borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 24 },
+  sheetBar: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "#e3e7ef" },
+  sheetButton: { paddingVertical: 14, paddingHorizontal: 12 },
+  spinner: { alignSelf: "center", width: "100%" },
+  cancelText: { color: "#666", fontWeight: "600", fontSize: 16 },
+  doneButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 16 },
 });

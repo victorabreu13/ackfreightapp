@@ -376,6 +376,7 @@ const styles = StyleSheet.create({
   filterButtonText: { color: "#333", fontWeight: "600", fontSize: 13 },
   dateFilterRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "flex-end",
     gap: 8,
     marginBottom: 8,
