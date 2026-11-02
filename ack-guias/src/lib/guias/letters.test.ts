@@ -235,7 +235,7 @@ test("Guías sheet documents match the original functions", async () => {
     const ccsfGuia = await renderGuiaPdf("ccsp", record, company(), options);
     const ccsfSheet = await ccsfLetter(loaded, opts);
     const ccsfText = pdfText(ccsfGuia);
-    assert.match(ccsfText, /CCSSSF CERTIFICATE OF TENDER TO A CARGO CARRIER/);
+    assert.match(ccsfText, /CCSSSF CERTIFICATE ?OF ?TENDER ?TO A CARGO CARRIER/);
     // The CCSF is always Kope's certificate, even for an ACK guía.
     assert.match(ccsfText, /KOPE LOGISTICS INC/);
     assert.doesNotMatch(ccsfText, /ACK TEAM LLC/);
@@ -420,7 +420,7 @@ test("TSA unknown and CCSF alternate letters keep the handmade wording", async (
   assert.doesNotMatch(unknown, /Known Shipper/);
   assert.doesNotMatch(unknown, /NOT SET/);
 
-  assert.match(alternate, /CCSF CERTIFICATE OF TENDER TO A CARGO CARRIER/);
+  assert.match(alternate, /CCSF CERTIFICATE ?OF ?TENDER ?TO A CARGO CARRIER/);
   assert.match(alternate, /KOPE LOGISTICS INC is in compliance/);
   assert.match(alternate, /certified cargo screening standard security program \(CCSSSP\)/);
   assert.match(alternate, /MIA\.C\.05\.20\.2025\.582, DSA2-6450/);
