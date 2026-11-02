@@ -262,7 +262,9 @@ test("goods that still contain an ITN phrase are not rewritten, and a blank ITN 
       now,
     }),
   );
-  assert.match(open, /WIDGETS NO EEI REQ 30\.37A PMC 40106 R7=01 PC/);
+  assert.match(open, /WIDGETS PMC 40106 R7=01 PC/);
+  assert.match(open, /NO EEI REQ 30\.37A/);
+  assert.doesNotMatch(open, /PC NO EEI/);
   assert.match(open, /pmorales@pacifiko/);
   assert.doesNotMatch(open, /NO EEI REQ 30\.37\(a\)/);
 });

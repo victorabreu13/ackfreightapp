@@ -51,8 +51,8 @@ test("a UN list of only lithium batteries is recognised so the form can warn", (
 
 test("the AES ITN prints in the Nature of Goods after the last line, and with no ITN the NO EEI exemption goes there instead", () => {
   const line = (nature: string) => [{ nature, sortOrder: 0 }];
-  assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), ""), `WIDGETS ${NO_EEI_GOODS} PMC 40106 R7=01 PC`);
-  assert.equal(goodsForPrint(line("WIDGETS"), null), `WIDGETS ${NO_EEI_GOODS}`);
+  assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), ""), `WIDGETS PMC 40106 R7=01 PC\n\n${NO_EEI_GOODS}`);
+  assert.equal(goodsForPrint(line("WIDGETS"), null), `WIDGETS\n\n${NO_EEI_GOODS}`);
   assert.equal(goodsForPrint(line("WIDGETS PMC 40106 R7=01 PC"), "X20261021165293"), "WIDGETS PMC 40106 R7=01 PC\n\nITN: X20261021165293");
   const several = "X20261023351371, X20261023351509, X20261023351662, X20261023351717";
   assert.equal(goodsForPrint([{ nature: "WIDGETS", sortOrder: 0 }, { nature: "PI967 PMC 40106", sortOrder: 1 }], `AES ITN: ${several}`), "WIDGETS\nPI967 PMC 40106\n\nITN: X20261023351371\n\nX20261023351509\n\nX20261023351662\n\nX20261023351717");
@@ -125,11 +125,13 @@ test("the Nature of Goods runs description, lithium types, AES ITN and then the 
     goodsForPrint(line("LITHIUM ION BATTERIES IN COMPLIANCE WITH SECTION II OF PI967"), "X1", "967,965IB").split("\n"),
     ["LITHIUM ION BATTERIES IN COMPLIANCE WITH SECTION II OF PI967", "", "ITN: X1"],
   );
-  // With no ITN the exemption goes before the PMC code, the BUP elements stay last.
+  // With no ITN the exemption goes on its own line after the lithium statements, the BUP elements stay last.
   assert.deepEqual(goodsForPrint(line("WIDGETS PMC 40106"), "", "970", "ULD A - 5 PCS").split("\n"), [
-    `WIDGETS ${NO_EEI_GOODS} PMC 40106`,
+    "WIDGETS PMC 40106",
     "",
     "Lithium metal batteries in compliance with Section II of PI970",
+    "",
+    NO_EEI_GOODS,
     "",
     "ULD A - 5 PCS",
   ]);

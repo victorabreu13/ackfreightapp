@@ -228,8 +228,7 @@ export function bupItemList(value: string | null | undefined): string[] {
 /**
  * The Nature of Goods, top to bottom: the description as entered; a line for each Section II lithium battery type
  * checked on the guía, unless the description already says it; "ITN: …" once with every AES ITN number on its own
- * line, or with no ITN the NO EEI exemption (just before the PMC code when the goods carry one, as the team types it,
- * otherwise at the end); and last the elements and pieces of a BUP, each on its own line. Goods that already carry
+ * line, or with no ITN the NO EEI exemption on a line of its own, never inside the description; and last the elements and pieces of a BUP, each on its own line. Goods that already carry
  * the ITN, or say NO EEI, are left alone.
  */
 export function goodsForPrint(
@@ -256,8 +255,7 @@ export function goodsForPrint(
     // "ITN:" once, with the first number, and the others each on a line of their own.
     missing.forEach((token, index) => parts.push(index === 0 ? `ITN: ${token}` : token));
   } else if (!/NO\s+EEI/i.test(goods) && !/AES\s*ITN/i.test(goods)) {
-    const pmc = [...goods.matchAll(/\s+PMC\s*\d/g)].pop();
-    goods = pmc?.index != null ? `${goods.slice(0, pmc.index)} ${NO_EEI_GOODS}${goods.slice(pmc.index)}` : `${goods} ${NO_EEI_GOODS}`;
+    parts.push(NO_EEI_GOODS);
   }
   parts.push(...bupItemList(bupItems));
   return [goods, ...parts].join("\n\n");
