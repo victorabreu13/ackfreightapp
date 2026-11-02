@@ -79,7 +79,8 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
                   </td>
                   <td className="px-3 py-2">{request.destination || "—"}</td>
                   <td className="px-3 py-2">
-                    {request.pieces ?? "—"} / {request.weightKg ?? "—"}
+                    {request.pieces ?? "—"}
+                    {request.packageType ? ` ${request.packageType}` : ""} / {request.weightKg ?? "—"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">{[request.pickupDate, request.readyTime].filter(Boolean).join(" ") || "—"}</td>
                   <td className="px-3 py-2">

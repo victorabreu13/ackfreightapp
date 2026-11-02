@@ -415,6 +415,7 @@ export default async function GuiaDetailPage({
         truckerName={document.truckerName || ""}
         truckerPhone={document.truckerPhone || ""}
         driverName={document.driverName || ""}
+        packageType={document.packageType || ""}
         seal={document.seal || ""}
         carrierOptions={carrierOptions}
         carrierId={document.carrierId || ""}

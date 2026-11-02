@@ -9,6 +9,7 @@ import { issueErrorInSpanish } from "@/lib/awb/issue";
 import { assignAwbToGuia } from "@/lib/guias/assign-awb";
 import { createDraftGuia, EMPTY_GUIA_VALUES } from "@/lib/guias/draft-guia";
 import { numberOrNull } from "@/lib/guias/guia-data";
+import { packageTypeFrom } from "@/lib/guias/package-types";
 import { pickupNumber } from "@/lib/guias/wr";
 import { sendPickupToAckFreight } from "@/lib/guias/ack-freight-send";
 
@@ -55,6 +56,7 @@ export async function savePickupRequest(formData: FormData) {
     consigneeAddress: area(formData.get("consigneeAddress")) || null,
     destination: text(formData.get("destination")).toUpperCase() || null,
     pieces: pieces == null ? null : Math.round(pieces),
+    packageType: packageTypeFrom(formData.get("packageType")) || null,
     weightKg: weight,
     description: area(formData.get("description")) || null,
     pickupDate: text(formData.get("pickupDate")) || null,
@@ -80,7 +82,7 @@ export async function savePickupRequest(formData: FormData) {
       chargeableKg: weight == null ? "" : String(weight),
       goods: data.description ?? "",
     },
-    { createdBy: user.email, truckerName: data.truckerName ?? "", truckerPhone: data.truckerPhone ?? "", driverName: data.driverName ?? "" },
+    { createdBy: user.email, truckerName: data.truckerName ?? "", truckerPhone: data.truckerPhone ?? "", driverName: data.driverName ?? "", packageType: data.packageType ?? "" },
   );
   await prisma.pickupRequest.update({ where: { id: request.id }, data: { guiaId: draft.id } });
   // The AWB number, when one was asked for, is reserved for the draft right away.

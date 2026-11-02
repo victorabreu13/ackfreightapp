@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { GuiaLookupInput } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PackageSelect } from "@/components/package-select";
 import { savePickupRequest } from "@/server/pickup-actions";
 
 const AREA = "block w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
@@ -85,11 +86,12 @@ export function PickupForm({ awbOptions = [] }: { awbOptions?: Array<{ prefix: s
             <Input id="contactEmail" name="contactEmail" type="email" />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:col-span-2">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5 md:col-span-2">
           <div className="space-y-1.5">
             <Label htmlFor="pieces">Piezas</Label>
             <Input id="pieces" name="pieces" inputMode="numeric" />
           </div>
+          <PackageSelect />
           <div className="space-y-1.5">
             <Label htmlFor="weightKg">Kilos</Label>
             <Input id="weightKg" name="weightKg" inputMode="decimal" />

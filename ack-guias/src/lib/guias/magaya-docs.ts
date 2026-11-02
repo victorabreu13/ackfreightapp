@@ -293,25 +293,23 @@ export async function renderMagayaPickup(
     put(doc, driver, 14, 262, 9);
     put(doc, "PO number", 212, 278, 8, "Helvetica-Bold");
 
-    doc.save().fillColor(LIGHT).rect(14, 322, 584, 36).fill().restore();
-    const head = (text: string, x: number, y: number) => put(doc, text, x, y, 7, "Helvetica", GREY);
-    head("Pcs", 26, 328);
-    head("Package", 51, 328);
-    head("Dimensions", 118, 328);
-    head("Description", 290, 328);
-    head("Weight", 458, 328);
-    head("Volume", 536, 328);
-    head("Location", 40, 346);
-    head("Invoice Number", 112, 346);
-    head("Notes", 299, 346);
-    head("Volume Weight", 520, 346);
+    // One header line, and each row prints on the same line under it.
+    doc.save().fillColor(LIGHT).rect(14, 322, 584, 20).fill().restore();
+    const head = (text: string, x: number) => put(doc, text, x, 329, 7, "Helvetica", GREY);
+    head("Pcs", 24);
+    head("Package", 56);
+    head("Description", 126);
+    head("Dimensions", 330);
+    head("Weight", 430);
+    head("Volume", 520);
 
     rows.slice(0, 8).forEach((row, index) => {
-      const y = 369 + index * 24;
+      const y = 354 + index * 24;
       put(doc, row.pcs ? String(row.pcs) : "", 24, y, 9);
-      put(doc, row.description, 192, y, 9, "Helvetica", "#000000", 250);
+      put(doc, row.pkg, 56, y, 9, "Helvetica", "#000000", 64);
+      put(doc, row.description, 126, y, 9, "Helvetica", "#000000", 196);
       const weight = num(row.kg);
-      if (weight) put(doc, `${weight} kg`, 458, y, 9);
+      if (weight) put(doc, `${weight} kg`, 430, y, 9);
       const vkg = num(row.vkg);
       if (vkg) put(doc, `${vkg} VKg`, 520, y, 9);
     });
@@ -333,19 +331,21 @@ export async function renderMagayaPickup(
   });
 }
 
-type GoodsRow = { pcs: number; description: string; kg: number; vkg: number };
+type GoodsRow = { pcs: number; pkg: string; description: string; kg: number; vkg: number };
 
 function goodsRows(document: GuiaRecord, loaded: { pcs: number | null; kgs: number | null; chw: number | null; build: string | null }): GoodsRow[] {
   const lines = [...document.lines].sort((a, b) => a.sortOrder - b.sortOrder).filter((line) => (line.pieces ?? 0) > 0 || (line.grossWeight ?? 0) > 0 || plain(line.nature));
+  const pkg = plain(document.packageType);
   if (lines.length) {
     return lines.map((line) => ({
       pcs: line.pieces ?? 0,
+      pkg,
       description: plain(line.nature),
       kg: line.grossWeight ?? 0,
       vkg: line.chargeableWeight ?? 0,
     }));
   }
-  return [{ pcs: loaded.pcs ?? 0, description: plain(loaded.build), kg: loaded.kgs ?? 0, vkg: loaded.chw ?? 0 }];
+  return [{ pcs: loaded.pcs ?? 0, pkg, description: plain(loaded.build), kg: loaded.kgs ?? 0, vkg: loaded.chw ?? 0 }];
 }
 
 type SecurityLetter = {

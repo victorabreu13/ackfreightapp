@@ -186,8 +186,10 @@ model AirWaybillDocument {
   truckerName      String?
   truckerPhone     String?
   driverName       String?
+  /// Pallet, Box, Pieces or Crates. Prints in the Package column of the pickup order.
+  packageType      String?
   seal             String?
-  reviewJson       String?      @db.Text
+  reviewJson      String?      @db.Text
   snippetJson      String?      @db.Text
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
@@ -431,6 +433,8 @@ model PickupRequest {
   consigneeAddress String?           @db.Text
   destination    String?
   pieces         Int?
+  /// Pallet, Box, Pieces or Crates.
+  packageType    String?
   weightKg       Float?
   description    String?             @db.Text
   /// The day and the time the cargo is ready, as typed.

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { blank, documentData, lineData } from "@/lib/guias/guia-data";
 import { ensureGuiaClient } from "@/lib/guias/guia-client";
+import { packageTypeFrom } from "@/lib/guias/package-types";
 import type { GuiaValues } from "@/lib/guias/extract";
 import { rememberGuiaParties } from "@/lib/guias/parties";
 
@@ -38,7 +39,7 @@ export const EMPTY_GUIA_VALUES: GuiaValues = {
  */
 export async function createDraftGuia(
   values: GuiaValues,
-  extra: { createdBy: string; truckerName?: string; truckerPhone?: string; driverName?: string },
+  extra: { createdBy: string; truckerName?: string; truckerPhone?: string; driverName?: string; packageType?: string },
 ): Promise<{ id: string }> {
   const billTo = await ensureGuiaClient("ack", values.client);
   const created = await prisma.airWaybillDocument.create({
@@ -54,6 +55,7 @@ export async function createDraftGuia(
       truckerName: blank(extra.truckerName ?? ""),
       truckerPhone: blank(extra.truckerPhone ?? ""),
       driverName: blank(extra.driverName ?? ""),
+      packageType: blank(packageTypeFrom(extra.packageType)),
       lines: { create: [lineData(values)] },
     },
   });
