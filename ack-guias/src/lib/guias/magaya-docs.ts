@@ -244,10 +244,10 @@ export async function renderMagayaPickup(
   const warehouseName = plain(company.warehouseName);
   const warehouseAddress = plain(company.warehouseAddress);
   const deliveryLines = warehouseName || warehouseAddress
-    ? [when, warehouseName, warehouseAddress, company.signerName.trim() ? `Contact: ${plain(company.signerName)}` : "", company.phone.trim() ? `Phone: ${plain(company.phone)}` : "", company.opsEmail.trim() ? `Email: ${plain(company.opsEmail)}` : ""]
+    ? [warehouseName, warehouseAddress, company.signerName.trim() ? `Contact: ${plain(company.signerName)}` : "", company.phone.trim() ? `Phone: ${plain(company.phone)}` : "", company.opsEmail.trim() ? `Email: ${plain(company.opsEmail)}` : ""]
     : airline
-      ? [when, airline.includes("(") ? airline : `${airline} (${origin})`]
-      : [when, consignee, consigneeAddress];
+      ? [airline.includes("(") ? airline : `${airline} (${origin})`]
+      : [consignee, consigneeAddress];
   const rows = goodsRows(document, loaded);
   const pieces = rows.reduce((sum, row) => sum + row.pcs, 0);
   const kilos = rows.reduce((sum, row) => sum + row.kg, 0);
@@ -274,7 +274,7 @@ export async function renderMagayaPickup(
     put(doc, "Pickup information", 14, 114, 8, "Helvetica-Bold");
     put(doc, "Delivery information", 212, 114, 8, "Helvetica-Bold");
     put(doc, "Carrier", 410, 114, 8, "Helvetica-Bold");
-    block(doc, [when, shipper, shipperAddress].filter(Boolean).join("\n"), 14, 124, 9, 185);
+    block(doc, [shipper, shipperAddress].filter(Boolean).join("\n"), 14, 124, 9, 185);
     block(doc, deliveryLines.filter(Boolean).join("\n"), 212, 124, 9, 185);
     put(doc, trucker, 410, 124, 9, "Helvetica", "#000000", 180);
     put(doc, "PRO number", 410, 142, 7, "Helvetica", GREY);
