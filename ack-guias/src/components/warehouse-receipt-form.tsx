@@ -6,6 +6,7 @@ import { DriverFields } from "@/components/driver-fields";
 import { GuiaLookupInput } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PACKAGE_TYPES } from "@/lib/guias/package-types";
 import { receiptTotals } from "@/lib/guias/wr";
 import { EMPTY_RECEIPT_LINE, type ReceiptFormLine, type ReceiptFormValues } from "@/lib/guias/wr-form";
 import { saveWarehouseReceipt } from "@/server/wr-actions";
@@ -18,7 +19,7 @@ function num(value: string): number | null {
 }
 
 /** The warehouse receipt form: the header, the lines with their measures, and the totals the receipt will show. */
-export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFormValues; pickups: Array<{ id: string; label: string; number: string }> }) {
+export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFormValues; pickups: Array<{ id: string; label: string; number: string; packageType: string }> }) {
   const [values, setValues] = useState(initial);
   const set = <K extends keyof ReceiptFormValues>(key: K, value: ReceiptFormValues[K]) => setValues((current) => ({ ...current, [key]: value }));
   const setLine = (index: number, key: keyof ReceiptFormLine, value: string) =>
@@ -39,7 +40,13 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
             value={values.pickupRequestId}
             onChange={(event) => {
               const chosen = pickups.find((pickup) => pickup.id === event.target.value);
-              setValues((current) => ({ ...current, pickupRequestId: event.target.value, pickupNumber: chosen ? chosen.number : current.pickupNumber }));
+              // The pickup's Package fills the lines that have none yet.
+              setValues((current) => ({
+                ...current,
+                pickupRequestId: event.target.value,
+                pickupNumber: chosen ? chosen.number : current.pickupNumber,
+                lines: chosen?.packageType ? current.lines.map((line) => (line.packageType ? line : { ...line, packageType: chosen.packageType })) : current.lines,
+              }));
             }}
             className="block h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           >
@@ -156,7 +163,22 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
           {values.lines.map((line, index) => (
             <div key={index} className="grid gap-2 rounded-md border border-border p-3 md:grid-cols-6">
               <Input name="linePieces" aria-label="Piezas" placeholder="Pcs" inputMode="numeric" value={line.pieces} onChange={(event) => setLine(index, "pieces", event.target.value)} />
-              <Input name="linePackage" aria-label="Package" placeholder="Package" value={line.packageType} onChange={(event) => setLine(index, "packageType", event.target.value)} />
+              <select
+                name="linePackage"
+                aria-label="Package"
+                value={line.packageType}
+                onChange={(event) => setLine(index, "packageType", event.target.value)}
+                className="block h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Package</option>
+                {/* A value typed before the list existed stays selectable. */}
+                {line.packageType && !PACKAGE_TYPES.some((item) => item === line.packageType) ? <option value={line.packageType}>{line.packageType}</option> : null}
+                {PACKAGE_TYPES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
               <Input name="lineLength" aria-label="Largo in" placeholder="Largo in" inputMode="decimal" value={line.length} onChange={(event) => setLine(index, "length", event.target.value)} />
               <Input name="lineWidth" aria-label="Ancho in" placeholder="Ancho in" inputMode="decimal" value={line.width} onChange={(event) => setLine(index, "width", event.target.value)} />
               <Input name="lineHeight" aria-label="Alto in" placeholder="Alto in" inputMode="decimal" value={line.height} onChange={(event) => setLine(index, "height", event.target.value)} />

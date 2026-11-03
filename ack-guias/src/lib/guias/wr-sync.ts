@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { ensureGuiaClient } from "@/lib/guias/guia-client";
 import { guiaValuesOf } from "@/lib/guias/guia-data";
+import { packageTypeFrom } from "@/lib/guias/package-types";
 import { applyReceiptsToGuia, type ReceiptFeed } from "@/lib/guias/wr";
 
 /**
@@ -35,6 +36,12 @@ export async function syncGuiaFromReceipts(guiaId: string): Promise<{ changed: s
   }));
   const current = guiaValuesOf(document);
   const { values, changed } = applyReceiptsToGuia(current, feeds);
+  // The Package of the pickup order is the first one a receipt line names, when the guía has none.
+  const received = receipts.flatMap((receipt) => receipt.lines).map((line) => packageTypeFrom(line.packageType)).find(Boolean);
+  if (received && !document.packageType?.trim()) {
+    await prisma.airWaybillDocument.update({ where: { id: guiaId }, data: { packageType: received } });
+    changed.push("packageType");
+  }
   if (changed.length === 0) return { changed, skipped: false };
 
   const documentUpdate: Record<string, unknown> = {};
