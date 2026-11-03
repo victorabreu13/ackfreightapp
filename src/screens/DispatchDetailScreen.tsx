@@ -396,7 +396,7 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
       </Text>
 
       <EditTripDetails request={request} />
-      <TripRequestReadOnly request={request} editableDocs canPrint />
+      <TripRequestReadOnly request={request} editableDocs canSend />
 
       <TripRouteSection request={request} />
 

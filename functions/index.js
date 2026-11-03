@@ -1636,7 +1636,6 @@ exports.mergeRequestDocuments = onCall(
   { invoker: "public", memory: "1GiB", timeoutSeconds: 120 },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
-    await requireAdmin(request.auth.uid);
     const { requestId, items } = request.data || {};
     if (!requestId) throw new HttpsError("invalid-argument", "requestId is required.");
 
@@ -1644,6 +1643,13 @@ exports.mergeRequestDocuments = onCall(
     const snap = await db.collection("tripRequests").doc(requestId).get();
     if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
     const data = snap.data();
+    // Same people who can download a request's documents can print them.
+    const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+    const allowed =
+      callerSnap.data()?.role === "admin" ||
+      data.customerId === request.auth.uid ||
+      (data.assignedDriverIds || []).includes(request.auth.uid);
+    if (!allowed) throw new HttpsError("permission-denied", "You can't print this request's documents.");
 
     const docs = documentsForRequest(data, requestId, items);
     if (docs.length === 0) throw new HttpsError("failed-precondition", "There are no documents to print.");

@@ -31,15 +31,15 @@ export default function TripRequestReadOnly({
   showQuote = true,
   onlyDriverId,
   editableDocs = false,
-  canPrint = false,
+  canSend = false,
 }: {
   request: TripRequest;
   showQuote?: boolean;
   onlyDriverId?: string;
   /** Admin / owning customer can add or replace each AWB's documents. */
   editableDocs?: boolean;
-  /** Admins: print all or the picked documents as one PDF. */
-  canPrint?: boolean;
+  /** Admins: send all or the picked documents to the airline counter. */
+  canSend?: boolean;
 }) {
   const [busyDoc, setBusyDoc] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -143,10 +143,10 @@ export default function TripRequestReadOnly({
     },
     { label: `Download selected (${picked.size})`, disabled: noneSelected, run: () => downloadDocs([...picked]) },
     { label: `Download all (${allDocKeys.length})`, run: () => downloadDocs(allDocKeys) },
-    ...(canPrint
+    { label: `Print selected (${picked.size})`, disabled: noneSelected, run: () => printDocs([...picked]) },
+    { label: `Print all (${allDocKeys.length})`, run: () => printDocs(allDocKeys) },
+    ...(canSend
       ? [
-          { label: `Print selected (${picked.size})`, disabled: noneSelected, run: () => printDocs([...picked]) },
-          { label: `Print all (${allDocKeys.length})`, run: () => printDocs(allDocKeys) },
           { label: `Send selected to counter (${picked.size})`, disabled: noneSelected, run: () => setCounterKeys([...picked]) },
           { label: `Send all to counter (${allDocKeys.length})`, run: () => setCounterKeys(allDocKeys) },
         ]
@@ -186,7 +186,7 @@ export default function TripRequestReadOnly({
 
       <LiveTrackingSection request={request} />
 
-      {canPrint && <SendToCounterModal request={request} keys={counterKeys} onClose={() => setCounterKeys(null)} />}
+      {canSend && <SendToCounterModal request={request} keys={counterKeys} onClose={() => setCounterKeys(null)} />}
       <Text style={styles.sectionTitle}>AWBs</Text>
       {allDocKeys.length > 0 && (
         <View style={styles.downloadBar}>
@@ -225,7 +225,7 @@ export default function TripRequestReadOnly({
           </View>
         </TouchableOpacity>
       </Modal>
-      {canPrint && (request.counterSends ?? []).length > 0 && (
+      {canSend && (request.counterSends ?? []).length > 0 && (
         <Text style={styles.sentNote}>
           Last sent to {request.counterSends![request.counterSends!.length - 1].email} on{" "}
           {new Date(request.counterSends![request.counterSends!.length - 1].sentAt).toLocaleString("en-US", {
