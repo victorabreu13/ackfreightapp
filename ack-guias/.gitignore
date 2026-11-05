@@ -1,0 +1,16 @@
+node_modules
+.pnp
+.pnp.*
+.next
+out
+build
+coverage
+.DS_Store
+*.pem
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+next-env.d.ts
+ack-export.json
+*.log

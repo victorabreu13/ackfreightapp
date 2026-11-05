@@ -8,6 +8,8 @@ on:
 
 jobs:
   typecheck:
+    # The ACK Guías app has its own workflow; this one is for the freight app.
+    if: github.head_ref != 'ack-guias'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,6 +21,8 @@ jobs:
       - run: npx tsc --noEmit
 
   unit:
+    # The ACK Guías app has its own workflow; this one is for the freight app.
+    if: github.head_ref != 'ack-guias'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +34,8 @@ jobs:
       - run: npm test
 
   rules:
+    # The ACK Guías app has its own workflow; this one is for the freight app.
+    if: github.head_ref != 'ack-guias'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
