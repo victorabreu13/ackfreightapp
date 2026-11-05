@@ -70,6 +70,23 @@ function pdf(size: "LETTER" | [number, number], draw: (doc: Doc) => void | Promi
   });
 }
 
+/**
+ * Most office printers cannot print the outer 0.17 to 0.25 in of a Letter page, and the air waybill face and the
+ * conditions page run to within a few points of the edges. Each of those pages is drawn at this scale, centered, so
+ * that every mark stays at least about 0.3 in inside the page and nothing is cut off, even when the page is printed
+ * at actual size. The page itself stays Letter.
+ */
+const PRINT_SAFE_SCALE = 0.94;
+
+function inPrintSafeArea(doc: Doc, draw: () => void) {
+  const { width, height } = doc.page;
+  doc.save();
+  doc.translate((width * (1 - PRINT_SAFE_SCALE)) / 2, (height * (1 - PRINT_SAFE_SCALE)) / 2);
+  doc.scale(PRINT_SAFE_SCALE);
+  draw();
+  doc.restore();
+}
+
 /** WinAnsi-safe text. Standard Helvetica cannot carry a custom Unicode cmap, which is what turned names into "<dD>>". */
 export function plain(value: string | null | undefined): string {
   return (value ?? "")
@@ -455,7 +472,7 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
     const totalPages = draft ? 1 : customerCopy ? 2 : 12;
     copies.forEach((label, index) => {
       if (index > 0) doc.addPage({ size: "LETTER", margin: 0 });
-      drawAwbFace(doc, {
+      inPrintSafeArea(doc, () => drawAwbFace(doc, {
         barcode,
         prefix: document.prefix,
         serial: document.serial,
@@ -497,12 +514,14 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
         page: index * 2 + 1,
         pages: totalPages,
         draft,
-      });
+      }));
       if (draft) return;
       doc.addPage({ size: "LETTER", margin: 0 });
-      doc.image(CONDITIONS_PNG, 0, 0, { width: 612, height: 792 });
-      doc.save().fillColor("#ffffff").rect(536, 779, 76, 13).fill().restore();
-      tr(doc, 582, 788, `Page ${index * 2 + 2} of ${totalPages}`, 8, "Helvetica-Bold");
+      inPrintSafeArea(doc, () => {
+        doc.image(CONDITIONS_PNG, 0, 0, { width: 612, height: 792 });
+        doc.save().fillColor("#ffffff").rect(536, 779, 76, 13).fill().restore();
+        tr(doc, 582, 788, `Page ${index * 2 + 2} of ${totalPages}`, 8, "Helvetica-Bold");
+      });
     });
   });
 }
