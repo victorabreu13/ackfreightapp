@@ -145,6 +145,22 @@ export function companyLogo(company: CompanyView): Buffer {
   return company.agentKey === "ack" ? ACK_LOGO_PNG : KOPE_LOGO_PNG;
 }
 
+/** The saved signature of the company, or null when none is set. */
+function signatureOf(company: CompanyView): Buffer | null {
+  return company.signature && company.signature.length > 0 ? Buffer.from(company.signature) : null;
+}
+
+/** Draws the signature inside the box, keeping its proportions and sitting on the bottom edge so it rests on the line. */
+function drawSignature(doc: Doc, image: Buffer | null, x: number, y: number, width: number, height: number) {
+  if (!image) return;
+  try {
+    doc.image(image, x, y, { fit: [width, height], align: "center", valign: "bottom" });
+  } catch (error) {
+    // A signature file PDFKit cannot read must not stop the guía from printing.
+    console.error("signature", error);
+  }
+}
+
 function headerAddress(address: string): string[] {
   const raw = plain(address);
   const multiline = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
@@ -508,6 +524,7 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
         prepaid,
         accounting,
         signature: name,
+        signatureImage: draft ? null : signatureOf(company),
         executed,
         place,
         label,
@@ -561,6 +578,8 @@ type Face = {
   prepaid: string;
   accounting: string;
   signature: string;
+  /** The signer's handwritten signature, drawn on the line of the Signature of Shipper or his Agent. Not on drafts. */
+  signatureImage: Buffer | null;
   executed: string;
   place: string;
   label: string;
@@ -728,6 +747,7 @@ function drawAwbFace(doc: Doc, face: Face) {
   lines(doc, 269, 692, ["Shipper certifies that the particulars on the face hereof are correct and that insofar as any part of the consignment contains dangerous goods, such part", "is properly described by name and is in proper condition for carriage by air according to the applicable Dangerous Goods Regulations."], 4.3, 5);
   t(doc, 275, 718, face.signature, 9);
   t(doc, 275, 729, "Authorized Agent", 7.5);
+  drawSignature(doc, face.signatureImage, 345, 703, 200, 34);
   rule(doc, 266, 738, R, 738);
   tc(doc, 424, 745, "Signature of Shipper or his Agent", 5.5);
   t(doc, 280, 765, face.executed, 8);
@@ -905,6 +925,8 @@ export async function renderLithiumLetter(document: GuiaRecord, company: Company
     rule(doc, 54, 661, 530, 661);
     t(doc, 58, 701, shipper, 10);
     t(doc, 58, 719, shipperAddress, 10);
+    // Under the shipper address and across the Signed line, clear of the company name below it.
+    drawSignature(doc, signatureOf(company), 110, 729, 200, 38);
     t(doc, 404, 750, date, 11);
     tc(doc, 294, 770, name, 8);
     // An X in the box of every battery type checked on the guía. With none checked the boxes stay empty.

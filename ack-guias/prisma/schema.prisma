@@ -236,6 +236,9 @@ model CompanyProfile {
   signerTitle      String?
   logo             Bytes?
   logoMime         String?
+  /// The signer's handwritten signature, printed on the issued air waybill and the lithium battery letter.
+  signature        Bytes?
+  signatureMime    String?
   updatedAt        DateTime     @updatedAt
 }
 

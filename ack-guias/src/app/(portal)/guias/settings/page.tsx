@@ -96,6 +96,29 @@ export default async function GuiaSettingsPage({
                 <input id={`${agent.key}-logo`} name="logo" type="file" accept="image/*" className="block text-sm" />
                 <p className="text-xs text-muted-foreground">{profile?.logo ? "A logo is on file." : "No logo. Letters show the company name."}</p>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor={`${agent.key}-signature`}>Firma predeterminada</Label>
+                {profile?.signature ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`data:${profile.signatureMime || "image/png"};base64,${Buffer.from(profile.signature).toString("base64")}`}
+                    alt="Firma actual"
+                    className="h-20 rounded-md border border-border bg-white p-1"
+                  />
+                ) : null}
+                <input id={`${agent.key}-signature`} name="signature" type="file" accept="image/png,image/jpeg" className="block text-sm" />
+                <p className="text-xs text-muted-foreground">
+                  {profile?.signature
+                    ? "Esta firma sale sola en la guía emitida y en el documento de baterías de litio. Sube otra imagen para cambiarla."
+                    : "Sube la imagen de tu firma (PNG o JPG, mejor con fondo transparente). Saldrá sola en la guía emitida y en el documento de baterías de litio."}
+                </p>
+                {profile?.signature ? (
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" name="removeSignature" value="1" />
+                    Quitar la firma
+                  </label>
+                ) : null}
+              </div>
               <Button type="submit">Save ACK</Button>
             </form>
           );

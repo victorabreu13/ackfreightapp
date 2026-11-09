@@ -415,6 +415,17 @@ export async function saveCompanyProfile(formData: FormData) {
     logo = new Uint8Array(bytes);
     logoMime = file.type || "image/png";
   }
+  // The signature printed on the air waybill and the lithium letter. PDFKit draws PNG and JPEG only.
+  const signatureFile = formData.get("signature");
+  let signature: Uint8Array<ArrayBuffer> | undefined;
+  let signatureMime: string | undefined;
+  if (signatureFile instanceof File && signatureFile.size > 0) {
+    if (!["image/png", "image/jpeg"].includes(signatureFile.type)) redirect("/guias/settings?error=La%20firma%20debe%20ser%20una%20imagen%20PNG%20o%20JPG");
+    if (signatureFile.size > 2_000_000) redirect("/guias/settings?error=La%20firma%20pesa%20m%C3%A1s%20de%202%20MB");
+    signature = new Uint8Array(await signatureFile.arrayBuffer());
+    signatureMime = signatureFile.type;
+  }
+  const removeSignature = text(formData.get("removeSignature")) === "1";
   const data = {
     brandName: text(formData.get("brandName")),
     letterheadName: text(formData.get("letterheadName")),
@@ -432,6 +443,7 @@ export async function saveCompanyProfile(formData: FormData) {
     signerName: text(formData.get("signerName")),
     signerTitle: blank(text(formData.get("signerTitle"))),
     ...(logo ? { logo, logoMime } : {}),
+    ...(signature ? { signature, signatureMime } : removeSignature ? { signature: null, signatureMime: null } : {}),
   };
   await prisma.companyProfile.upsert({
     where: { agentKey },

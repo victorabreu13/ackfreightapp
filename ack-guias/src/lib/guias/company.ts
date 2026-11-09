@@ -27,6 +27,7 @@ export async function loadCompany(agentKey: string): Promise<CompanyView> {
     signerTitle: profile?.signerTitle || "",
     logo: profile?.logo ? Buffer.from(profile.logo) : null,
     logoMime: profile?.logoMime ?? null,
+    signature: profile?.signature ? Buffer.from(profile.signature) : null,
   };
   return applyKopeOverrides(view);
 }

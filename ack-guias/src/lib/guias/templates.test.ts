@@ -56,3 +56,20 @@ test("the CCSF and the CCSP print three copies, one page each", async () => {
   const single = await renderGuiaPdf("tsa", sampleGuia(), company, samplePrintOptions("team@ackfreight.com", "Team"));
   assert.equal(pages(single), 1);
 });
+
+test("the saved signature is drawn on the lithium letter and the issued AWB, and never on a draft", async () => {
+  // A 1 x 1 PNG is enough: the file only has to be an image PDFKit can embed.
+  const signature = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  const options = samplePrintOptions("team@ackfreight.com", "Team");
+  const signed = { ...company, signature };
+  const images = (pdf: Buffer) => (pdf.toString("latin1").match(/\/Subtype \/Image/g) ?? []).length;
+  const lithiumPlain = await renderGuiaPdf("lithium", sampleGuia(), company, options);
+  const lithiumSigned = await renderGuiaPdf("lithium", sampleGuia(), signed, options);
+  assert.ok(images(lithiumSigned) > images(lithiumPlain));
+  const awbPlain = await renderGuiaPdf("awb", sampleGuia(), company, { ...options, customerCopy: true });
+  const awbSigned = await renderGuiaPdf("awb", sampleGuia(), signed, { ...options, customerCopy: true });
+  assert.ok(images(awbSigned) > images(awbPlain));
+  const draftPlain = await renderGuiaPdf("awb", sampleGuia(), company, { ...options, draft: true });
+  const draftSigned = await renderGuiaPdf("awb", sampleGuia(), signed, { ...options, draft: true });
+  assert.equal(images(draftSigned), images(draftPlain));
+});

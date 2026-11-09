@@ -32,6 +32,8 @@ export type CompanyView = {
   signerTitle: string;
   logo: Buffer | null;
   logoMime: string | null;
+  /** The signer's handwritten signature, drawn on the issued air waybill and the lithium letter when set. */
+  signature?: Buffer | null;
 };
 
 const KOPE_ENV: Array<[keyof CompanyView, string]> = [
@@ -78,7 +80,7 @@ export function applyKopeOverrides(profile: CompanyView, env: Record<string, str
   for (const [field, name] of KOPE_ENV) {
     const value = env[name]?.trim();
     if (!value) continue;
-    if (field === "logo" || field === "logoMime") continue;
+    if (field === "logo" || field === "logoMime" || field === "signature") continue;
     next[field] = value;
   }
   return next;
