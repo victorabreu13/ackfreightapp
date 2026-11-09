@@ -333,6 +333,18 @@ export async function adminCompleteAwbLines(
   await callWithFreshToken(adminCompleteAwbLinesFn, { requestId, awbIndexes, onDuplicate });
 }
 
+const reassignCompletedAwbFn = httpsCallable<
+  { requestId: string; awbIndex: number; driverId: string },
+  { success: boolean; movedIndexes: number[]; driverId: string; driverName: string; adjustmentsCleared: number }
+>(functions, "reassignCompletedAwb");
+
+// Admin-only: changes the driver of a completed AWB. The driver's trip log and
+// pay record move with it, so Payroll and the trip counts follow. AWBs that
+// share that trip log move together; the server refuses a trip already paid.
+export async function reassignCompletedAwb(requestId: string, awbIndex: number, driverId: string) {
+  return callWithFreshToken(reassignCompletedAwbFn, { requestId, awbIndex, driverId });
+}
+
 const updateAwbDocumentFn = httpsCallable<
   { requestId: string; awbIndex: number; slot: "awb" | "loa" | "do" | "fee"; file: { url: string; name: string } },
   { success: boolean }

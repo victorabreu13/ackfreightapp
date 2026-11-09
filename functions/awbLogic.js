@@ -75,7 +75,9 @@ function driversGainingAwbLines(beforeLines, afterLines) {
   for (const driverId of driverIdsOnLines(afterLines)) {
     if (gainedBySelfAccept(beforeLines, afterLines, driverId)) continue;
     const before = awbCountsForDriver(beforeLines, driverId);
-    const after = awbCountsForDriver(afterLines, driverId);
+    // A trip that is already completed (dispatch changed its driver afterwards)
+    // is not new work, so it never counts as a gained AWB.
+    const after = awbCountsForDriver((afterLines || []).filter((l) => l.status !== "completed"), driverId);
     let increased = false;
     for (const [key, count] of after) {
       if (count > (before.get(key) || 0)) increased = true;

@@ -40,10 +40,12 @@ const { applyPatches, planMerge } = require("./mergeRequests");
 const { cleanMessageText, messageTargets, previewText } = require("./messages");
 const { MAX_TRAIL_POINTS, shouldRecordPoint, stampPoint, stampTransitions } = require("./trail");
 const { quoteForRequest, uldCountForLines } = require("./quote");
+const { planReassignCompleted, planReassignTripLog } = require("./reassignCompleted");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
 const { estimateRoute, haversineMiles } = require("./routeEstimate");
 const {
   lockCompletedPay,
+  moveLockedPay,
   offerForLine,
   openLineIndexes,
   payDocId,
@@ -1419,6 +1421,87 @@ exports.adminCompleteAwbLines = onCall({ invoker: "public" }, async (request) =>
 
   await lockCompletedPay(db, requestId, [...new Set(awbIndexes)], completedData);
   return { success: true };
+});
+
+// Admin changes the driver of an AWB that is already completed. The trip log (the
+// driver's trip) and the pay record move to the new driver, so Payroll and the trip
+// counts follow. Every AWB on this request that shares that trip log moves with it.
+// A trip already paid out is refused: mark it unpaid in Payroll first.
+exports.reassignCompletedAwb = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const { requestId, awbIndex, driverId } = request.data || {};
+  if (!requestId || !Number.isInteger(awbIndex) || awbIndex < 0 || !driverId) {
+    throw new HttpsError("invalid-argument", "requestId, awbIndex and driverId are required.");
+  }
+  const db = admin.firestore();
+  const ref = db.collection("tripRequests").doc(requestId);
+  const adminSnap = await db.collection("users").doc(request.auth.uid).get();
+  const adminName = String(adminSnap.data()?.name || request.auth.token.email || "an admin");
+  const driverSnap = await db.collection("users").doc(String(driverId)).get();
+  const profile = driverSnap.data();
+  if (!profile || profile.role !== "driver") throw new HttpsError("failed-precondition", "That person isn't a driver.");
+  const newDriver = { id: driverSnap.id, name: String(profile.name || ""), email: String(profile.email || "") };
+
+  let result;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const data = snap.data();
+    const plan = planReassignCompleted(data.awbLines || [], awbIndex, newDriver.id, newDriver.name);
+    if (!plan.ok) throw new HttpsError("failed-precondition", plan.message);
+
+    let tripUpdate = null;
+    if (plan.tripLogId) {
+      const tripRef = db.collection("trips").doc(plan.tripLogId);
+      const tripSnap = await tx.get(tripRef);
+      const tripPlan = planReassignTripLog(tripSnap.exists ? tripSnap.data() : null, newDriver);
+      if (!tripPlan.ok) throw new HttpsError("failed-precondition", tripPlan.message);
+      if (tripPlan.update) {
+        tripUpdate = {
+          ref: tripRef,
+          body: {
+            ...tripPlan.update,
+            driverChanges: admin.firestore.FieldValue.arrayUnion({
+              at: Date.now(),
+              by: adminName,
+              from: plan.fromDriverName,
+              to: newDriver.name,
+            }),
+          },
+        };
+      }
+    }
+
+    const updates = {
+      awbLines: plan.awbLines,
+      assignedDriverIds: plan.assignedDriverIds,
+      assignedDriverNames: plan.assignedDriverNames,
+      updatedAt: Date.now(),
+    };
+    // The old driver's pin can't be on the map for a completed trip, but clear it if it is.
+    if (plan.fromDriverId && !driverStillOnTrip(plan.awbLines, plan.fromDriverId)) {
+      updates[`driverLocations.${plan.fromDriverId}`] = admin.firestore.FieldValue.delete();
+    }
+    tx.update(ref, updates);
+    if (tripUpdate) tx.update(tripUpdate.ref, tripUpdate.body);
+    result = { plan, data };
+  });
+
+  const adjustmentsCleared = await moveLockedPay(
+    db,
+    requestId,
+    result.plan.indexes,
+    { ...result.data, awbLines: result.plan.awbLines },
+    newDriver.id
+  );
+  return {
+    success: true,
+    movedIndexes: result.plan.indexes,
+    driverId: newDriver.id,
+    driverName: newDriver.name,
+    adjustmentsCleared,
+  };
 });
 
 // Attach or replace an AWB's document (AWB, Letter of Authorization, Delivery

@@ -126,6 +126,32 @@ async function lockCompletedPay(db, requestId, indexes, req) {
   }
 }
 
+// Completed lines moved to another driver: the pay record follows the driver (the
+// amount is worked out again under the new driver's agreement) and stays locked.
+// Returns how many records had a pay adjustment that could not be carried over.
+async function moveLockedPay(db, requestId, indexes, req, newDriverId) {
+  const lines = (req && req.awbLines) || [];
+  let adjustmentsCleared = 0;
+  for (const index of indexes) {
+    const line = lines[index] || {};
+    const ref = db.collection("awbPay").doc(payDocId(requestId, index));
+    const old = await ref.get();
+    if (old.exists && old.data().adjustment) adjustmentsCleared += 1;
+    const { offer } = await offerForLine(db, newDriverId, req, line, requestId, index);
+    const body = snapshotBody(requestId, index, newDriverId, req, line, offer, req.routeEstimate);
+    const arrivedAt = line.pickedUpAt || line.startedAt || Date.now();
+    let waitAmount = 0;
+    if (typeof body.waitPer15Min === "number" && body.waitPer15Min > 0) {
+      const waited = minutesPastPickup(req.tripDate, req.pickupTime, arrivedAt);
+      const free = typeof body.waitFreeMinutes === "number" ? body.waitFreeMinutes : 0;
+      const blocks = Math.ceil(Math.max(0, waited - free) / 15);
+      waitAmount = Math.round(blocks * body.waitPer15Min * 100) / 100;
+    }
+    await ref.set({ ...body, locked: true, waitAmount, lockedAt: Date.now() });
+  }
+  return adjustmentsCleared;
+}
+
 function openLineIndexes(lines) {
   const indexes = [];
   (lines || []).forEach((line, index) => {
@@ -145,6 +171,7 @@ module.exports = {
   writeSnapshot,
   syncAssignedSnapshots,
   lockCompletedPay,
+  moveLockedPay,
   openLineIndexes,
   sameIdList,
   cleanAgreement,

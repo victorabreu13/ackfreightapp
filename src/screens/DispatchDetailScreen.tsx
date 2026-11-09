@@ -24,6 +24,7 @@ import { getUserProfile, setCustomerBillRate, subscribeToActiveDrivers } from ".
 import {
   adminCompleteAwbLines,
   assignAwbDriver,
+  reassignCompletedAwb,
   removeAwbLine,
   setTripRequestStatus,
   subscribeToTripRequest,
@@ -198,8 +199,54 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
     }
   };
 
+  // A completed AWB keeps its status: the driver's trip log and pay move to the
+  // new driver, so Payroll and the trip counts follow.
+  const doReassignCompleted = async (awbIndex: number, driver: UserProfile) => {
+    setAssigningIndex(awbIndex);
+    try {
+      const result = await reassignCompletedAwb(request.id, awbIndex, driver.uid);
+      setRequest((prev) => {
+        const moved = new Set(result.movedIndexes);
+        const awbLines = prev.awbLines.map((line, i) =>
+          moved.has(i) ? { ...line, assignedDriverId: driver.uid, assignedDriverName: driver.name } : line
+        );
+        return { ...prev, awbLines, ...computeTripRequestRollup(awbLines) };
+      });
+      notify(
+        "Driver changed",
+        `${result.movedIndexes.length === 1 ? "The trip" : `${result.movedIndexes.length} AWBs from the same trip`} now count for ${driver.name} in Trips and Payroll.${
+          result.adjustmentsCleared > 0 ? " A pay adjustment set for the previous driver was cleared." : ""
+        }`
+      );
+    } catch (e: any) {
+      notify("Couldn't change the driver", e?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setAssigningIndex(null);
+    }
+  };
+
   const handleAssign = (awbIndex: number, driver: UserProfile | null) => {
     const line = request.awbLines[awbIndex];
+    if (line.status === "completed") {
+      if (!driver) {
+        notify("A driver is needed", "A completed AWB can't be left without a driver. Pick the right driver.");
+        return;
+      }
+      const others = request.awbLines.filter(
+        (l, i) => i !== awbIndex && !!line.tripLogId && l.tripLogId === line.tripLogId && l.assignedDriverId === line.assignedDriverId
+      ).length;
+      confirmAction(
+        {
+          title: "Change the driver of a completed trip?",
+          message: `${line.assignedDriverName ?? "The current driver"}'s trip log and pay for this AWB${
+            others > 0 ? ` (and ${others} more AWB${others === 1 ? "" : "s"} on the same trip)` : ""
+          } will move to ${driver.name}, and Payroll and the trip counts update. A trip already paid can't be moved.`,
+          confirmLabel: "Change driver",
+        },
+        () => doReassignCompleted(awbIndex, driver)
+      );
+      return;
+    }
     if (line.status === "in_progress") {
       confirmAction(
         {
@@ -405,11 +452,10 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
         <Text style={styles.empty}>No drivers found.</Text>
       ) : (
         request.awbLines.map((line, i) => {
-          // Completed lines already have a Trip Log entry tied to that
-          // driver, so those stay locked — in-progress ones can still be
-          // reassigned (e.g. swapping in a replacement driver), with a
-          // confirmation since it resets the line for the new driver.
-          const locked = line.status === "completed";
+          // Completed lines can change driver too: the Trip Log entry and the pay
+          // record move with it (server side), and a paid trip is refused there.
+          // In-progress ones reset for the new driver, with a confirmation.
+          const locked = false;
           const priority = line.priority ?? "Normal";
           return (
             <View key={i} style={styles.awbAssignRow}>
