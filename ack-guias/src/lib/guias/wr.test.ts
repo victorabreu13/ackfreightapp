@@ -37,8 +37,10 @@ test("the receipts of a guía add up and fill only what the guía left empty", (
   assert.equal(fed.values.chargeableKg, "364.58");
   assert.equal(fed.values.goods, "ELECTRONICS");
   assert.equal(fed.values.shipper, "PACIFIKO, LLC");
-  assert.equal(fed.values.dg, "1");
-  assert.equal(fed.values.unNumbers, "UN3481");
+  // The HAZMAT of a receipt never declares Dangerous Goods by itself: it is only a suggestion.
+  assert.equal(fed.values.dg, "");
+  assert.equal(fed.values.unNumbers, "");
+  assert.deepEqual(fed.dangerousGoods, { text: "HAZMAT - UN 3481", unNumbers: ["UN3481"] });
   // What the guía already has stays, but the numbers follow the receipts.
   const kept = applyReceiptsToGuia({ ...blank, shipper: "OTHER", pieces: "99", goods: "TYPED", dg: "", unNumbers: "UN1950" }, receipts);
   assert.equal(kept.values.shipper, "OTHER");

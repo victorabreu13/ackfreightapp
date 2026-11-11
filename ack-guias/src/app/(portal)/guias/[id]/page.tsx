@@ -12,8 +12,10 @@ import { canEditAgreedRate, canInvoiceGuia, canManageGuias, canReadGuias, guiaWh
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { loadCarrierOptions } from "@/lib/guias/carriers";
-import { receiptNumber, receiptTotals } from "@/lib/guias/wr";
-import { linkReceiptToGuia, refreshGuiaFromReceipts, unlinkReceiptFromGuia } from "@/server/wr-actions";
+import { applyReceiptsToGuia, receiptNumber, receiptTotals } from "@/lib/guias/wr";
+import { guiaFieldLabel, MANUAL_FIELDS, manualFieldOf, manualKeysOf, parseDismissed } from "@/lib/guias/guia-manual";
+import { receiptFeeds } from "@/lib/guias/wr-sync";
+import { keepGuiaValueOverReceipt, linkReceiptToGuia, refreshGuiaFromReceipts, resetGuiaFromReceipts, unlinkReceiptFromGuia } from "@/server/wr-actions";
 import { loadCompany } from "@/lib/guias/company";
 import { missingProfileMessages } from "@/lib/guias/company-profile";
 import { GUIA_FILE_LABELS, formatNy } from "@/lib/guias/documents-index";
@@ -72,6 +74,15 @@ export default async function GuiaDetailPage({
     prisma.warehouseReceipt.findMany({ where: { guiaId: null }, orderBy: { seq: "desc" }, take: 50, select: { id: true, seq: true, clientLabel: true, shipperName: true } }),
   ]);
   const receiptsNotice = one(query, "receipts");
+  // A draft shows what its receipts say that its own numbers do not: the choice between the two, and a Dangerous
+  // Goods suggestion. An issued guía is never touched by a receipt, so it shows nothing.
+  const issuedGuia = document.status === "issued";
+  const manualKeys = manualKeysOf(document);
+  const fromReceipts = linkedReceipts.length && !issuedGuia ? applyReceiptsToGuia(valuesOf(document), receiptFeeds(linkedReceipts), manualKeys) : null;
+  const dismissed = parseDismissed(document.wrDismissed);
+  const conflicts = (fromReceipts?.conflicts ?? []).filter((conflict) => dismissed[conflict.field] !== conflict.wr);
+  const dgSuggestion = fromReceipts?.dangerousGoods ?? null;
+  const changeHistory = canManageGuias(user) ? await prisma.guiaChangeLog.findMany({ where: { guiaId: id }, orderBy: { createdAt: "desc" }, take: 25 }) : [];
   const uploadRows = uploads.map((file) => ({
     id: file.id,
     fileName: file.fileName,
@@ -426,10 +437,70 @@ export default async function GuiaDetailPage({
           <div>
             <h2 className="font-display text-2xl">Warehouse receipts</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              La carga recibida en la bodega para esta guía. {document.status === "issued" ? "La guía ya está emitida: ligar o soltar un receipt no la modifica." : "Mientras sea borrador, toma de sus receipts las piezas, los pesos, el shipper, el consignee y la mercancía."}
+              La carga recibida en la bodega para esta guía. {document.status === "issued" ? "La guía ya está emitida: ligar o soltar un receipt no la modifica, solo guarda la relación." : "Mientras sea borrador, toma de sus receipts las piezas, los pesos, el shipper, el consignee y la mercancía. Lo que escribes a mano en piezas o pesos no se sobrescribe."}
             </p>
           </div>
           {receiptsNotice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{receiptsNotice}</p> : null}
+          {conflicts.map((conflict) => {
+            const field = manualFieldOf(conflict.field);
+            const unit = field.unit ? ` ${field.unit}` : "";
+            return (
+              <div key={conflict.field} className="space-y-2 rounded-md border border-amber-500 bg-[#fff8e6] px-3 py-2 text-sm">
+                <p>
+                  <strong>{field.label}.</strong> Guía: {conflict.guia}
+                  {unit} / WR: {conflict.wr}
+                  {unit}. La guía se queda con el valor que escribiste.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <form action={keepGuiaValueOverReceipt}>
+                    <input type="hidden" name="guiaId" value={document.id} />
+                    <input type="hidden" name="field" value={conflict.field} />
+                    <input type="hidden" name="receiptValue" value={conflict.wr} />
+                    <Button type="submit" variant="outline" size="sm">
+                      Mantener el de la guía
+                    </Button>
+                  </form>
+                  <form action={resetGuiaFromReceipts}>
+                    <input type="hidden" name="guiaId" value={document.id} />
+                    <input type="hidden" name="field" value={conflict.field} />
+                    <Button type="submit" variant="outline" size="sm">
+                      Usar el del WR
+                    </Button>
+                  </form>
+                </div>
+              </div>
+            );
+          })}
+          {dgSuggestion ? (
+            <p className="rounded-md border border-amber-500 bg-[#fff8e6] px-3 py-2 text-sm">
+              <strong>Sugerencia.</strong> Un warehouse receipt trae {dgSuggestion.text}
+              {dgSuggestion.unNumbers.length ? ` (${dgSuggestion.unNumbers.join(", ")})` : ""}. Si aplica, marca Dangerous Goods{dgSuggestion.unNumbers.length ? " y los UN numbers" : ""} en la guía. No se cambió solo.
+            </p>
+          ) : null}
+          {!issuedGuia && linkedReceipts.length && manualKeys.size ? (
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="text-muted-foreground">Escritos a mano:</span>
+              {MANUAL_FIELDS.filter((field) => manualKeys.has(field.key)).map((field) => (
+                <form key={field.key} action={resetGuiaFromReceipts} className="flex items-center gap-1.5">
+                  <input type="hidden" name="guiaId" value={document.id} />
+                  <input type="hidden" name="field" value={field.key} />
+                  <span>{field.label}</span>
+                  <button type="submit" className="text-xs underline-offset-2 hover:underline">
+                    Restablecer desde WR
+                  </button>
+                </form>
+              ))}
+              {manualKeys.size > 1 ? (
+                <form action={resetGuiaFromReceipts}>
+                  <input type="hidden" name="guiaId" value={document.id} />
+                  <input type="hidden" name="field" value="all" />
+                  <Button type="submit" variant="outline" size="sm">
+                    Restablecer todo desde WR
+                  </Button>
+                </form>
+              ) : null}
+            </div>
+          ) : null}
           {linkedReceipts.length ? (
             <ul className="space-y-2 text-sm">
               {linkedReceipts.map((receipt) => {
@@ -494,6 +565,41 @@ export default async function GuiaDetailPage({
             <Button asChild variant="outline">
               <Link href="/guias/warehouse/new">Nuevo warehouse receipt</Link>
             </Button>
+          </div>
+        </section>
+      ) : null}
+
+      {changeHistory.length ? (
+        <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <div>
+            <h2 className="font-display text-2xl">Historial de cambios</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Quién cambió cada campo de la guía, cuándo, y de qué valor a cuál. Los últimos 25.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                <tr>
+                  <th className="px-2 py-1.5">Cuándo</th>
+                  <th className="px-2 py-1.5">Quién</th>
+                  <th className="px-2 py-1.5">Campo</th>
+                  <th className="px-2 py-1.5">Antes</th>
+                  <th className="px-2 py-1.5">Después</th>
+                  <th className="px-2 py-1.5">Origen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {changeHistory.map((entry) => (
+                  <tr key={entry.id} className="border-b border-border align-top last:border-0">
+                    <td className="whitespace-nowrap px-2 py-1.5">{formatNy(entry.createdAt)}</td>
+                    <td className="px-2 py-1.5">{entry.changedBy}</td>
+                    <td className="px-2 py-1.5">{guiaFieldLabel(entry.field)}</td>
+                    <td className="max-w-[16rem] truncate px-2 py-1.5">{entry.oldValue || "—"}</td>
+                    <td className="max-w-[16rem] truncate px-2 py-1.5">{entry.newValue || "—"}</td>
+                    <td className="px-2 py-1.5">{entry.source === "receipt" ? "Warehouse receipt" : entry.source === "reset" ? "Restablecido desde WR" : "A mano"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       ) : null}

@@ -1,5 +1,6 @@
 import { parseUnNumbers } from "@/lib/guias/dg";
 import type { GuiaValues } from "@/lib/guias/extract";
+import { sameNumber, type ManualKey } from "@/lib/guias/guia-manual";
 
 /** Receipts are shown as K5500, pickup requests as PU-0001. */
 export function receiptNumber(seq: number): string {
@@ -64,13 +65,26 @@ function firstText(values: Array<string | null | undefined>): string {
   return values.map((value) => (value ?? "").trim()).find(Boolean) ?? "";
 }
 
+/** A number the guía holds by hand that the receipts do not agree with. The guía keeps its own until the user chooses. */
+export type ReceiptConflict = { field: ManualKey; guia: string; wr: string };
+
+/** Hazmat the receipts name and the guía does not declare. Only a suggestion: the guía's Dangerous Goods never changes by itself. */
+export type DangerousGoodsSuggestion = { text: string; unNumbers: string[] };
+
 /**
  * What the receipts of a guía give it: the pieces and the weights add up, and the text fields come from the first
- * receipt that has them. The numbers replace what the guía had. The text only fills what the guía left empty.
+ * receipt that has them. The numbers follow the receipts, except the ones the user typed by hand (`manual`), which stay
+ * and come back as conflicts when the receipts say something else. The text only fills what the guía left empty. The
+ * receipts never change Dangerous Goods or the UN numbers: they only produce a suggestion.
  */
-export function applyReceiptsToGuia(current: GuiaValues, receipts: ReceiptFeed[]): { values: GuiaValues; changed: string[] } {
+export function applyReceiptsToGuia(
+  current: GuiaValues,
+  receipts: ReceiptFeed[],
+  manual: ReadonlySet<ManualKey> = new Set(),
+): { values: GuiaValues; changed: string[]; conflicts: ReceiptConflict[]; dangerousGoods: DangerousGoodsSuggestion | null } {
   const next = { ...current };
   const changed: string[] = [];
+  const conflicts: ReceiptConflict[] = [];
   const set = (key: keyof GuiaValues, value: string) => {
     if (next[key] === value) return;
     (next as Record<string, string>)[key] = value;
@@ -78,9 +92,14 @@ export function applyReceiptsToGuia(current: GuiaValues, receipts: ReceiptFeed[]
   };
   const lines = receipts.flatMap((receipt) => receipt.lines);
   const totals = receiptTotals(lines);
-  if (totals.pieces > 0) set("pieces", String(totals.pieces));
-  if (totals.weightKg > 0) set("grossKg", String(totals.weightKg));
-  if (totals.chargeableKg > 0) set("chargeableKg", String(totals.chargeableKg));
+  const follow = (key: ManualKey, amount: number) => {
+    if (amount <= 0) return;
+    if (!manual.has(key)) return set(key, String(amount));
+    if (!sameNumber(current[key], amount)) conflicts.push({ field: key, guia: current[key], wr: String(amount) });
+  };
+  follow("pieces", totals.pieces);
+  follow("grossKg", totals.weightKg);
+  follow("chargeableKg", totals.chargeableKg);
   const fill = (key: keyof GuiaValues, value: string) => {
     if (value && !String(current[key] ?? "").trim()) set(key, value);
   };
@@ -91,12 +110,11 @@ export function applyReceiptsToGuia(current: GuiaValues, receipts: ReceiptFeed[]
   fill("consigneeAddress", firstText(receipts.map((receipt) => receipt.consigneeAddress)));
   const descriptions = [...new Set(lines.map((line) => (line.description ?? "").trim()).filter(Boolean))];
   fill("goods", descriptions.join(", "));
-  const un = parseUnNumbers(receipts.map((receipt) => receipt.dangerousGood ?? "").join(" "));
-  if (un.length && !current.unNumbers.trim()) {
-    set("dg", "1");
-    set("unNumbers", un.map((number) => `UN${number}`).join(", "));
-  }
-  return { values: next, changed };
+  const hazmatText = [...new Set(receipts.map((receipt) => (receipt.dangerousGood ?? "").trim()).filter(Boolean))].join(", ");
+  const un = parseUnNumbers(hazmatText).map((number) => `UN${number}`);
+  const declared = current.unNumbers.toUpperCase();
+  const dangerousGoods = hazmatText && (current.dg !== "1" || un.some((number) => !declared.includes(number))) ? { text: hazmatText, unNumbers: un } : null;
+  return { values: next, changed, conflicts, dangerousGoods };
 }
 
 /** Whether a dangerous good text names a UN number. */

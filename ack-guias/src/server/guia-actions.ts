@@ -10,7 +10,8 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { assignAwbToGuia } from "@/lib/guias/assign-awb";
 import { resolveCarrier } from "@/lib/guias/carriers";
-import { blank, documentData, lineData } from "@/lib/guias/guia-data";
+import { blank, documentData, guiaValuesOf, lineData } from "@/lib/guias/guia-data";
+import { diffGuiaValues, manualEdits, MANUAL_FIELDS } from "@/lib/guias/guia-manual";
 import { packageTypeFrom } from "@/lib/guias/package-types";
 import { loadCompany } from "@/lib/guias/company";
 import { guiaAwbFolder, publishRenderedPdf, saveDocumentLog } from "@/lib/guias/document-log";
@@ -113,6 +114,10 @@ export async function saveNewGuia(formData: FormData) {
       serial: "",
       agentKey: agent.key,
       createdBy: user.email,
+      // What was typed in the new guía form is by hand, so a warehouse receipt later keeps it.
+      piecesManual: values.pieces !== "",
+      grossManual: values.grossKg !== "",
+      chargeableManual: values.chargeableKg !== "",
       truckerName: blank(text(formData.get("truckerName"))),
       truckerPhone: blank(text(formData.get("truckerPhone"))),
       driverName: blank(text(formData.get("driverName"))),
@@ -140,9 +145,9 @@ export async function saveNewGuia(formData: FormData) {
 }
 
 export async function saveGuia(formData: FormData) {
-  await requireGuiaTeam();
+  const user = await requireGuiaTeam();
   const id = text(formData.get("id"));
-  const existing = await prisma.airWaybillDocument.findUnique({ where: { id } });
+  const existing = await prisma.airWaybillDocument.findUnique({ where: { id }, include: { lines: { orderBy: { sortOrder: "asc" } }, guiaClient: { select: { name: true } } } });
   if (!existing || existing.product !== "guia") redirect("/guias?error=Gu%C3%ADa%20not%20found");
   const values = valuesFromForm(formData);
   if (values.issuingCompany !== "ack") {
@@ -151,11 +156,22 @@ export async function saveGuia(formData: FormData) {
   if (!values.client) redirect(`/guias/${id}?error=${encodeURIComponent(CLIENT_REQUIRED)}`);
   const billTo = await ensureGuiaClient("ack", values.client);
   const uniqueReview = reviewFromForm(formData);
+  // Pieces and weights the user changed by hand are marked, so a warehouse receipt never overwrites them. Clearing one
+  // removes the mark. Every field that changed goes to the change history.
+  const before = guiaValuesOf(existing);
+  const changes = diffGuiaValues(before, values);
+  const typed = new Set(manualEdits(before, values));
+  const manualFlags: Record<string, boolean> = {};
+  for (const field of MANUAL_FIELDS) {
+    if (typed.has(field.key)) manualFlags[field.flag] = true;
+    else if (!values[field.key]) manualFlags[field.flag] = false;
+  }
   await prisma.awbGoodsLine.deleteMany({ where: { documentId: id } });
   await prisma.airWaybillDocument.update({
     where: { id },
     data: {
       ...documentData(values, uniqueReview, snippetsFromForm(formData), billTo?.id ?? null),
+      ...manualFlags,
       truckerName: blank(text(formData.get("truckerName"))),
       truckerPhone: blank(text(formData.get("truckerPhone"))),
       driverName: blank(text(formData.get("driverName"))),
@@ -164,6 +180,11 @@ export async function saveGuia(formData: FormData) {
       lines: { create: [lineData(values)] },
     },
   });
+  if (changes.length) {
+    await prisma.guiaChangeLog.createMany({
+      data: changes.map((change) => ({ guiaId: id, field: change.field, oldValue: change.oldValue || null, newValue: change.newValue || null, source: "manual", changedBy: user.email })),
+    });
+  }
   await rememberParties(billTo?.id ?? null, values);
   await applyCarrier(id, text(formData.get("carrierId")), existing.carrierId);
   revalidatePath(`/guias/${id}`);

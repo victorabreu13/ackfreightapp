@@ -188,6 +188,13 @@ model AirWaybillDocument {
   driverName       String?
   /// Pallet, Box, Pieces or Crates. Prints in the Package column of the pickup order.
   packageType      String?
+  /// The pieces, the gross weight or the chargeable weight was typed by hand, so a warehouse receipt never overwrites it.
+  piecesManual     Boolean      @default(false)
+  grossManual      Boolean      @default(false)
+  chargeableManual Boolean      @default(false)
+  /// Receipt values the user chose to ignore, as JSON like {"chargeableKg":"536.2"}. The notice returns if the receipt changes.
+  wrDismissed      String?      @db.Text
+  changeLog        GuiaChangeLog[]
   seal             String?
   reviewJson      String?      @db.Text
   snippetJson      String?      @db.Text
@@ -214,6 +221,22 @@ model AirWaybillDocument {
   @@index([status])
   @@index([product])
   @@index([guiaClientId])
+}
+
+/// Who changed a field of a guía, when, from what to what: by hand, by a warehouse receipt, or by a reset to the receipt.
+model GuiaChangeLog {
+  id        String             @id @default(cuid())
+  guiaId    String
+  guia      AirWaybillDocument @relation(fields: [guiaId], references: [id], onDelete: Cascade)
+  field     String
+  oldValue  String?            @db.Text
+  newValue  String?            @db.Text
+  /// manual, receipt or reset.
+  source    String
+  changedBy String
+  createdAt DateTime           @default(now())
+
+  @@index([guiaId, createdAt])
 }
 
 model CompanyProfile {
