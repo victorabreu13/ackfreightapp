@@ -570,12 +570,16 @@ export default async function GuiaDetailPage({
       ) : null}
 
       {changeHistory.length ? (
-        <section className="space-y-3 rounded-lg border border-border bg-card p-4">
-          <div>
-            <h2 className="font-display text-2xl">Historial de cambios</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Quién cambió cada campo de la guía, cuándo, y de qué valor a cuál. Los últimos 25.</p>
-          </div>
-          <div className="overflow-x-auto">
+        <details className="group rounded-lg border border-border bg-card p-4">
+          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
+            <span className="font-display text-2xl">Historial de cambios</span>
+            <span className="rounded-md border border-border px-3 py-1.5 text-sm font-medium">
+              <span className="group-open:hidden">Ver historial ({changeHistory.length})</span>
+              <span className="hidden group-open:inline">Ocultar historial</span>
+            </span>
+          </summary>
+          <p className="mt-3 text-sm text-muted-foreground">Quién cambió cada campo de la guía, cuándo, y de qué valor a cuál. Los últimos 25.</p>
+          <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
                 <tr>
@@ -601,7 +605,7 @@ export default async function GuiaDetailPage({
               </tbody>
             </table>
           </div>
-        </section>
+        </details>
       ) : null}
 
       <section className="space-y-4 rounded-lg border border-border bg-card p-4">
