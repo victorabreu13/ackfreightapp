@@ -47,7 +47,7 @@ test("the last admin and ADMIN_EMAILS accounts cannot be demoted or removed", ()
       actorId: "a",
       targetId: "a",
     }) ?? "",
-    /propia/,
+    /your own account/,
   );
   assert.equal(
     userRemoveError({
