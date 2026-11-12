@@ -145,6 +145,16 @@ function multipartUpload(metadata: { name: string; parents: string[] }, mime: st
   };
 }
 
+/**
+ * What the files of one batch share while they upload: the access token and the folders already found or created.
+ * Folders are kept as promises, so files uploaded at the same time wait for one lookup instead of each making their own.
+ */
+export type DriveSession = { token?: Promise<string>; folders: Map<string, Promise<unknown>> };
+
+export function newDriveSession(): DriveSession {
+  return { folders: new Map() };
+}
+
 export function driveFolderName(value: string): string {
   const cleaned = value.replace(/[\\/]/g, " ").replace(/\s+/g, " ").trim();
   return cleaned || "No client";
@@ -178,20 +188,34 @@ export async function uploadDrivePdf(input: {
   /** Used when no service account key is configured. Defaults to Application Default Credentials. */
   tokenSource?: DriveTokenSource;
   fetchImpl?: DriveFetch;
+  /** Shared by the files of one batch: the token and the folders are looked up once, not once per file. */
+  session?: DriveSession;
 }): Promise<{ id: string; url: string }> {
   if (!input.rootId.trim()) throw new Error("Drive is not configured");
   const fetchImpl = input.fetchImpl ?? fetch;
-  const token = await driveAccessToken({ ...input, fetchImpl });
+  const session = input.session;
+  const token = await (session ? (session.token ??= driveAccessToken({ ...input, fetchImpl })) : driveAccessToken({ ...input, fetchImpl }));
   const library = input.libraryName === undefined ? driveLibraryName() : input.libraryName.trim();
-  let parentId = input.rootId;
-  if (library) {
+  const remembered = <T>(key: string, find: () => Promise<T>): Promise<T> => {
+    if (!session) return find();
+    const known = session.folders.get(key) as Promise<T> | undefined;
+    if (known) return known;
+    const pending = find();
+    session.folders.set(key, pending);
+    // A failed lookup is not kept, so the next file tries again.
+    pending.catch(() => session.folders.delete(key));
+    return pending;
+  };
+  const parentId = await remembered(`library|${input.rootId}|${library}`, async () => {
+    if (!library) return input.rootId;
     const root = await driveJson(fetchImpl, driveFilesUrl(input.rootId, { fields: "id,name" }), token);
-    if ((root.name ?? "").trim().toLowerCase() !== library.toLowerCase()) {
-      parentId = await ensureFolder(fetchImpl, token, input.rootId, library);
-    }
-  }
-  const clientId = await ensureFolder(fetchImpl, token, parentId, driveFolderName(input.clientName));
-  const awbId = await ensureFolder(fetchImpl, token, clientId, driveFolderName(input.awbFolder));
+    if ((root.name ?? "").trim().toLowerCase() !== library.toLowerCase()) return ensureFolder(fetchImpl, token, input.rootId, library);
+    return input.rootId;
+  });
+  const clientName = driveFolderName(input.clientName);
+  const clientId = await remembered(`client|${parentId}|${clientName}`, () => ensureFolder(fetchImpl, token, parentId, clientName));
+  const awbName = driveFolderName(input.awbFolder);
+  const awbId = await remembered(`awb|${clientId}|${awbName}`, () => ensureFolder(fetchImpl, token, clientId, awbName));
   const existing = await driveJson(
     fetchImpl,
     driveFilesUrl(undefined, { q: fileQuery(awbId, input.fileName), fields: "files(id)" }, true),

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import test from "node:test";
-import { downloadDriveFile, resolveDriveLibrary, trashDriveFile, uploadDrivePdf, type DriveFetch } from "./drive";
+import { downloadDriveFile, newDriveSession, resolveDriveLibrary, trashDriveFile, uploadDrivePdf, type DriveFetch } from "./drive";
 
 const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const serviceAccountJson = JSON.stringify({
@@ -176,4 +176,29 @@ test("every Drive call opts into shared drives, and lists include shared-drive i
     if (list) assert.equal(parsed.searchParams.get("includeItemsFromAllDrives"), "true", call.url);
   }
   assert.ok(driveCalls.some((call) => call.url.includes("uploadType=multipart")));
+});
+
+test("files of one batch share the token and the folders: they are looked up once, and created once", async () => {
+  const { fetchImpl, created } = mockDrive("Other Root");
+  const calls: string[] = [];
+  const counting: DriveFetch = async (url, init) => {
+    calls.push(url.includes("oauth2.googleapis.com/token") ? "token" : `${init?.method ?? "GET"}`);
+    return fetchImpl(url, init);
+  };
+  const session = newDriveSession();
+  const names = ["A.pdf", "B.pdf", "C.pdf", "D.pdf", "E.pdf"];
+  // At the same time, like the files of an issued guía.
+  await Promise.all(names.map((fileName) => uploadDrivePdf({ ...upload, fileName, fetchImpl: counting, session })));
+  assert.equal(calls.filter((call) => call === "token").length, 1);
+  // The library, the client and the AWB folder, each created once, not once per file.
+  assert.deepEqual(created, ["ACK Guías", "PINTO INTERNATIONAL LOGISTICS", "729-95048310"]);
+  // Without a session every file looks everything up again.
+  const alone: string[] = [];
+  const lone: DriveFetch = async (url, init) => {
+    alone.push(url.includes("oauth2.googleapis.com/token") ? "token" : `${init?.method ?? "GET"}`);
+    return mockDrive("Other Root").fetchImpl(url, init);
+  };
+  await uploadDrivePdf({ ...upload, fetchImpl: lone });
+  await uploadDrivePdf({ ...upload, fetchImpl: lone });
+  assert.equal(alone.filter((call) => call === "token").length, 2);
 });

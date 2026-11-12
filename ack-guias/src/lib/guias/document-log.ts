@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { driveLibraryName, driveRootId, uploadDrivePdf, type DriveFetch } from "@/lib/guias/drive";
+import { driveLibraryName, driveRootId, uploadDrivePdf, type DriveFetch, type DriveSession } from "@/lib/guias/drive";
 import { GUIA_FILE_KINDS, type GuiaFileKind } from "@/lib/guias/files";
 
 export type DocumentStatus = "UPLOADED" | "FAILED";
@@ -233,6 +233,7 @@ async function sendToDrive(input: {
   rootId?: string;
   libraryName?: string;
   fetchImpl?: DriveFetch;
+  session?: DriveSession;
   serviceAccountJson?: string;
 }) {
   try {
@@ -246,6 +247,7 @@ async function sendToDrive(input: {
       bytes: input.bytes,
       fetchImpl: input.fetchImpl,
       serviceAccountJson: input.serviceAccountJson,
+      session: input.session,
     });
     return uploadOutcome(uploaded, null);
   } catch (caught) {
@@ -266,6 +268,7 @@ export async function publishRenderedPdf(input: {
   rootId?: string;
   libraryName?: string;
   fetchImpl?: DriveFetch;
+  session?: DriveSession;
   serviceAccountJson?: string;
 }) {
   const client = input.client.trim() || "No client";

@@ -22,6 +22,7 @@ import { safeGuiaReturn } from "@/lib/guias/upload-rules";
 import { rememberGuiaParties } from "@/lib/guias/parties";
 import { reviewFieldsToSave } from "@/lib/guias/review";
 import { guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
+import { newDriveSession } from "@/lib/guias/drive";
 import { aircraftFrom, driveKinds } from "@/lib/guias/guia-pack";
 import { roundUpText } from "@/lib/guias/round-up";
 
@@ -211,6 +212,7 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
   const awbFolder = guiaAwbFolder(document.awb, document.id);
   const user = await requireGuiaTeam();
   const master = "";
+  const session = newDriveSession();
   const pushKind = async (kind: GuiaFileKind): Promise<string | null> => {
     // The pickup order is only kept: with no trucker it is skipped, it is not an error.
     if (kind === "pickup" && !document.truckerName?.trim()) return null;
@@ -234,6 +236,7 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
         fileName,
         bytes,
         generatedBy: user.email,
+        session,
       });
       if (saved.status === "FAILED" && !firstError) firstError = saved.error ?? "Drive upload failed";
     } catch (error) {
@@ -258,11 +261,10 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
     }
     return firstError;
   };
-  // The first file goes alone: it creates the client and AWB folders in Drive, which the others then find. The rest go
-  // a few at a time instead of one after another, since each one is several round trips to Drive.
-  const [head, ...rest] = driveKinds(document);
-  const errors: Array<string | null> = [await pushKind(head)];
-  const queue = [...rest];
+  // The files go a few at a time instead of one after another. They share one Drive session, so the token and the
+  // client and AWB folders are looked up once, and a folder that has to be created is created once.
+  const queue = [...driveKinds(document)];
+  const errors: Array<string | null> = [];
   const worker = async () => {
     for (let kind = queue.shift(); kind; kind = queue.shift()) errors.push(await pushKind(kind));
   };
