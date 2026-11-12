@@ -173,7 +173,16 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   openButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 14 },
-  box: { backgroundColor: "#fff", borderRadius: 10, borderWidth: 1, borderColor: "#ddd", padding: 14, marginTop: 10 },
+  box: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    padding: 14,
+    marginTop: 10,
+    width: "100%",
+    maxWidth: 440,
+  },
   title: { fontSize: 15, fontWeight: "800", color: "#111", marginBottom: 8 },
   row: { borderBottomWidth: 1, borderBottomColor: "#eee", paddingBottom: 10, marginBottom: 10 },
   input: {
