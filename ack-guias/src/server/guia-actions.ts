@@ -1,0 +1,494 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { miamiDate, signatureFor } from "@/lib/awb/document";
+import { destinationCountry, routingTo } from "@/lib/guias/awb-face";
+import { assignDraftAwb, issueErrorMessage, issueWaybillAtomic, releaseDraftAwb } from "@/lib/awb/issue";
+import { canManageGuias, isAdmin } from "@/lib/access";
+import { getSessionUser } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { assignAwbToGuia } from "@/lib/guias/assign-awb";
+import { resolveCarrier } from "@/lib/guias/carriers";
+import { blank, documentData, guiaValuesOf, lineData } from "@/lib/guias/guia-data";
+import { diffGuiaValues, manualEdits, MANUAL_FIELDS } from "@/lib/guias/guia-manual";
+import { loadCompany } from "@/lib/guias/company";
+import { guiaAwbFolder, publishRenderedPdf, saveDocumentLog } from "@/lib/guias/document-log";
+import { ensureGuiaClient, guiaBillToName } from "@/lib/guias/guia-client";
+import { type GuiaValues, type ReviewField } from "@/lib/guias/extract";
+import { formatUnNumbers, parseLithiumTypes } from "@/lib/guias/dg";
+import { checkFlights } from "@/lib/guias/flight-check";
+import { safeGuiaReturn } from "@/lib/guias/upload-rules";
+import { rememberGuiaParties } from "@/lib/guias/parties";
+import { reviewFieldsToSave } from "@/lib/guias/review";
+import { guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
+import { newDriveSession } from "@/lib/guias/drive";
+import { aircraftFrom, driveKinds } from "@/lib/guias/guia-pack";
+import { roundUpText } from "@/lib/guias/round-up";
+
+/** Every guía belongs to a client of the book. The client portal and its emails depend on it. */
+const CLIENT_REQUIRED = "Type the client of the guía.";
+
+function text(value: FormDataEntryValue | null): string {
+  return String(value ?? "").trim();
+}
+
+async function requireGuiaTeam() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (!canManageGuias(user)) redirect("/guias?error=Only%20the%20ACK%20team%20can%20change%20a%20gu%C3%ADa");
+  return user;
+}
+
+function valuesFromForm(formData: FormData): GuiaValues {
+  const company = text(formData.get("issuingCompany"));
+  return {
+    client: text(formData.get("client")),
+    shipper: text(formData.get("shipper")),
+    shipperAddress: text(formData.get("shipperAddress")),
+    consignee: text(formData.get("consignee")),
+    consigneeAddress: text(formData.get("consigneeAddress")),
+    notify: text(formData.get("notify")),
+    notifyAddress: text(formData.get("notifyAddress")),
+    origin: text(formData.get("origin")).toUpperCase(),
+    destination: text(formData.get("destination")).toUpperCase(),
+    flightNumber: text(formData.get("flightNumber")).toUpperCase(),
+    flightDate: text(formData.get("flightDate")),
+    // Pieces and weights go up to the next whole number. The rate is a price and stays as typed.
+    pieces: roundUpText(text(formData.get("pieces"))),
+    chargeableKg: roundUpText(text(formData.get("chargeableKg"))),
+    rate: text(formData.get("rate")),
+    grossKg: roundUpText(text(formData.get("grossKg"))),
+    goods: text(formData.get("goods")),
+    handling: text(formData.get("handling")),
+    aesItn: text(formData.get("aesItn")).replace(/^AES\s*ITN\s*:\s*/i, "").trim(),
+    hawb: text(formData.get("hawb")),
+    dg: text(formData.get("dg")) === "1" ? "1" : "",
+    unNumbers: text(formData.get("dg")) === "1" ? formatUnNumbers(text(formData.get("unNumbers"))) : "",
+    bup: text(formData.get("bup")) === "1" ? "1" : "",
+    bupItems: text(formData.get("bup")) === "1" ? text(formData.get("bupItems")) : "",
+    lithiumPi: parseLithiumTypes(formData.getAll("lithiumPi").map((item) => String(item)).join(",")).join(","),
+    issuingCompany: company === "ack" || company === "" ? "ack" : "",
+  };
+}
+
+function reviewFromForm(formData: FormData): ReviewField[] {
+  return reviewFieldsToSave(text(formData.get("review")));
+}
+
+function snippetsFromForm(formData: FormData): Record<string, string> {
+  const raw = text(formData.get("snippetJson"));
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/** The directory is a convenience. A failure there never blocks saving the guía. */
+async function rememberParties(guiaClientId: string | null, values: GuiaValues) {
+  try {
+    await rememberGuiaParties("ack", guiaClientId, values);
+  } catch (error) {
+    console.error("guía directory", error);
+  }
+}
+
+export async function saveNewGuia(formData: FormData) {
+  const user = await requireGuiaTeam();
+  const values = valuesFromForm(formData);
+  if (values.issuingCompany !== "ack") {
+    redirect("/guias/new?error=ACK%20TEAM%20LLC%20is%20the%20only%20issuer");
+  }
+  if (!values.client) redirect(`/guias/new?error=${encodeURIComponent(CLIENT_REQUIRED)}`);
+  const agent = await prisma.issuingAgent.findUnique({ where: { key: "ack" } });
+  if (!agent) redirect("/guias/new?error=ACK%20TEAM%20LLC%20is%20the%20only%20issuer");
+  const billTo = await ensureGuiaClient(agent.key, values.client);
+  const uniqueReview = reviewFromForm(formData);
+  const created = await prisma.airWaybillDocument.create({
+    data: {
+      ...documentData(values, uniqueReview, snippetsFromForm(formData), billTo?.id ?? null),
+      product: "guia",
+      status: "draft",
+      awb: "",
+      prefix: "",
+      serial: "",
+      agentKey: agent.key,
+      createdBy: user.email,
+      // What was typed in the new guía form is by hand, so a warehouse receipt later keeps it.
+      piecesManual: values.pieces !== "",
+      grossManual: values.grossKg !== "",
+      chargeableManual: values.chargeableKg !== "",
+      aircraft: aircraftFrom(formData.get("aircraft")) || null,
+      screened: text(formData.get("screened")) === "1",
+      truckerName: blank(text(formData.get("truckerName"))),
+      truckerPhone: blank(text(formData.get("truckerPhone"))),
+      driverName: blank(text(formData.get("driverName"))),
+      seal: blank(text(formData.get("seal"))),
+      lines: { create: [lineData(values)] },
+    },
+  });
+  await rememberParties(billTo?.id ?? null, values);
+  await applyCarrier(created.id, text(formData.get("carrierId")), null);
+  const wantedAwb = text(formData.get("assignAwb"));
+  const wantedPrefix = text(formData.get("assignPrefix"));
+  if (wantedAwb || wantedPrefix) {
+    try {
+      await assignAwbToGuia(created.id, wantedAwb, wantedPrefix);
+    } catch (error) {
+      revalidatePath("/guias");
+      redirect(`/guias/${created.id}?error=${encodeURIComponent(`The guía was saved, but the AWB was not assigned. ${issueErrorMessage(error)}`)}`);
+    }
+    revalidatePath("/guias");
+    redirect(`/guias/${created.id}?assigned=1`);
+  }
+  revalidatePath("/guias");
+  redirect(`/guias/${created.id}`);
+}
+
+export async function saveGuia(formData: FormData) {
+  const user = await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  const existing = await prisma.airWaybillDocument.findUnique({ where: { id }, include: { lines: { orderBy: { sortOrder: "asc" } }, guiaClient: { select: { name: true } } } });
+  if (!existing || existing.product !== "guia") redirect("/guias?error=Gu%C3%ADa%20not%20found");
+  const values = valuesFromForm(formData);
+  if (values.issuingCompany !== "ack") {
+    redirect(`/guias/${id}?error=ACK%20TEAM%20LLC%20is%20the%20only%20issuer`);
+  }
+  if (!values.client) redirect(`/guias/${id}?error=${encodeURIComponent(CLIENT_REQUIRED)}`);
+  const billTo = await ensureGuiaClient("ack", values.client);
+  const uniqueReview = reviewFromForm(formData);
+  // Pieces and weights the user changed by hand are marked, so a warehouse receipt never overwrites them. Clearing one
+  // removes the mark. Every field that changed goes to the change history.
+  const before = guiaValuesOf(existing);
+  const changes = diffGuiaValues(before, values);
+  const typed = new Set(manualEdits(before, values));
+  const manualFlags: Record<string, boolean> = {};
+  for (const field of MANUAL_FIELDS) {
+    if (typed.has(field.key)) manualFlags[field.flag] = true;
+    else if (!values[field.key]) manualFlags[field.flag] = false;
+  }
+  await prisma.awbGoodsLine.deleteMany({ where: { documentId: id } });
+  await prisma.airWaybillDocument.update({
+    where: { id },
+    data: {
+      ...documentData(values, uniqueReview, snippetsFromForm(formData), billTo?.id ?? null),
+      ...manualFlags,
+      aircraft: aircraftFrom(formData.get("aircraft")) || null,
+      screened: text(formData.get("screened")) === "1",
+      truckerName: blank(text(formData.get("truckerName"))),
+      truckerPhone: blank(text(formData.get("truckerPhone"))),
+      driverName: blank(text(formData.get("driverName"))),
+      seal: blank(text(formData.get("seal"))),
+      lines: { create: [lineData(values)] },
+    },
+  });
+  if (changes.length) {
+    await prisma.guiaChangeLog.createMany({
+      data: changes.map((change) => ({ guiaId: id, field: change.field, oldValue: change.oldValue || null, newValue: change.newValue || null, source: "manual", changedBy: user.email })),
+    });
+  }
+  await rememberParties(billTo?.id ?? null, values);
+  await applyCarrier(id, text(formData.get("carrierId")), existing.carrierId);
+  revalidatePath(`/guias/${id}`);
+  redirect(`/guias/${id}?saved=1`);
+}
+
+export async function pushGuiaToDrive(id: string): Promise<string | null> {
+  const document = await prisma.airWaybillDocument.findUnique({
+    where: { id },
+    include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true },
+  });
+  if (!document || document.agentKey !== "ack") return "Guía not found";
+  let company;
+  try {
+    company = await loadCompany("ack");
+  } catch (error) {
+    return error instanceof Error ? error.message : "Company profile missing";
+  }
+  const clientName = guiaBillToName(document) || "No client";
+  const awbFolder = guiaAwbFolder(document.awb, document.id);
+  const user = await requireGuiaTeam();
+  const master = "";
+  const session = newDriveSession();
+  const pushKind = async (kind: GuiaFileKind): Promise<string | null> => {
+    // The pickup order is only kept: with no trucker it is skipped, it is not an error.
+    if (kind === "pickup" && !document.truckerName?.trim()) return null;
+    let firstError: string | null = null;
+    const fileName = guiaFileName(kind, document.awb, master);
+    try {
+      const bytes = await renderGuiaPdf(kind, document, company, {
+        email: user.email,
+        name: user.name,
+        trucker: document.truckerName,
+        truckerPhone: document.truckerPhone,
+        seal: document.seal,
+        driver: document.driverName,
+      });
+      const saved = await publishRenderedPdf({
+        guiaId: id,
+        client: clientName,
+        awb: awbFolder,
+        company: document.agentKey,
+        kind,
+        fileName,
+        bytes,
+        generatedBy: user.email,
+        session,
+      });
+      if (saved.status === "FAILED" && !firstError) firstError = saved.error ?? "Drive upload failed";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Drive upload failed";
+      if (!firstError) firstError = message;
+      try {
+        await saveDocumentLog({
+          source: "generated",
+          guiaId: id,
+          client: clientName,
+          awb: awbFolder,
+          company: document.agentKey,
+          kind,
+          fileName,
+          generatedBy: user.email,
+          status: "FAILED",
+          error: message,
+        });
+      } catch (logError) {
+        console.error("guia document log", logError);
+      }
+    }
+    return firstError;
+  };
+  // The files go a few at a time instead of one after another. They share one Drive session, so the token and the
+  // client and AWB folders are looked up once, and a folder that has to be created is created once.
+  const queue = [...driveKinds(document)];
+  const errors: Array<string | null> = [];
+  const worker = async () => {
+    for (let kind = queue.shift(); kind; kind = queue.shift()) errors.push(await pushKind(kind));
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  return errors.find((error) => error) ?? null;
+}
+
+/**
+ * Saves the carrier picked in the form and prints it as the first carrier. With none picked nothing changes, unless one
+ * was picked before: then the airline prefix of the AWB decides again.
+ */
+async function applyCarrier(id: string, carrierId: string, before: string | null) {
+  if (!carrierId && !before) return;
+  const row = carrierId ? await prisma.carrier.findUnique({ where: { id: carrierId } }) : null;
+  const current = await prisma.airWaybillDocument.findUnique({ where: { id }, select: { awb: true } });
+  const prefix = (current?.awb ?? "").replace(/\D/g, "").slice(0, 3);
+  if (!row && !prefix) {
+    await prisma.airWaybillDocument.update({ where: { id }, data: { carrierId: null, carrierName: null, carrierAddress: null, by1: null } });
+    return;
+  }
+  const carrier = await resolveCarrier({ carrierId: row?.id ?? null, awbPrefix: prefix });
+  await prisma.airWaybillDocument.update({
+    where: { id },
+    data: { carrierId: row?.id ?? null, carrierName: carrier.name, carrierAddress: carrier.address, by1: carrier.name },
+  });
+}
+
+/** Reserves an AWB number for a draft now, so its drafts and labels already carry it. */
+export async function assignGuiaAwb(formData: FormData) {
+  await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  try {
+    await assignAwbToGuia(id, text(formData.get("manualAwb")), text(formData.get("prefix")));
+  } catch (error) {
+    redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorMessage(error))}`);
+  }
+  revalidatePath(`/guias/${id}`);
+  redirect(`/guias/${id}?assigned=1`);
+}
+
+/** Gives the number back to stock. Only a draft can do it. */
+export async function releaseGuiaAwb(formData: FormData) {
+  await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  const before = await prisma.airWaybillDocument.findUnique({ where: { id }, select: { carrierId: true } });
+  try {
+    await releaseDraftAwb(id, "ack");
+    // Giving the number back clears the carrier block. The one the team picked stays.
+    if (before?.carrierId) await applyCarrier(id, before.carrierId, before.carrierId);
+  } catch (error) {
+    redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorMessage(error))}`);
+  }
+  revalidatePath(`/guias/${id}`);
+  redirect(`/guias/${id}?released=1`);
+}
+
+export async function issueGuia(formData: FormData) {
+  const user = await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  const existing = await prisma.airWaybillDocument.findUnique({ where: { id } });
+  if (!existing || existing.product !== "guia") redirect("/guias?error=Gu%C3%ADa%20not%20found");
+  if (existing.agentKey !== "ack") redirect(`/guias/${id}?error=ACK%20TEAM%20LLC%20is%20the%20only%20issuer`);
+  const agent = await prisma.issuingAgent.findUnique({ where: { key: "ack" } });
+  if (!agent) redirect(`/guias/${id}?error=ACK%20TEAM%20LLC%20is%20the%20only%20issuer`);
+  const assignedStock = existing.awb.trim() ? await prisma.awbStockNumber.findFirst({ where: { documentId: id, agentKey: "ack" } }) : null;
+  const manual = assignedStock ? "" : text(formData.get("manualAwb"));
+  const prefix = assignedStock ? assignedStock.prefix : text(formData.get("prefix"));
+  const airlinePrefix = manual.replace(/\D/g, "").slice(0, 3) || prefix;
+  const carrier = await resolveCarrier({ carrierId: existing.carrierId, awbPrefix: airlinePrefix });
+  const signed = signatureFor(agent, user.name || user.email);
+  const billTo = await ensureGuiaClient(agent.key, existing.clientLabel);
+  try {
+    await issueWaybillAtomic({
+      documentId: id,
+      agentKey: agent.key,
+      manualAwb: manual || null,
+      prefix,
+      requireInStock: true,
+      data: {
+        carrierName: carrier.name,
+        carrierAddress: carrier.address,
+        to1: routingTo(existing.destination) || null,
+        by1: carrier.name,
+        destCountry: destinationCountry(existing.destination) || null,
+        accountNo: agent.accountNo,
+        carrierSignature: signed,
+        shipperSignature: signed,
+        executedOn: miamiDate(),
+        executedAt: "MIA",
+        // The AES ITN is entered once, in the guía form, and issuing leaves it as saved.
+      },
+    });
+  } catch (error) {
+    redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorMessage(error))}`);
+  }
+  await prisma.airWaybillDocument.updateMany({
+    where: { id, agentKey: agent.key, product: "guia" },
+    data: { guiaClientId: billTo?.id ?? null },
+  });
+  const driveError = await pushGuiaToDrive(id);
+  revalidatePath("/guias");
+  revalidatePath(`/guias/${id}`);
+  const drive = driveError ? `&drive=${encodeURIComponent(driveError)}` : "&drive=ok";
+  redirect(`/guias/${id}?issued=1${drive}`);
+}
+
+/** Looks up the flight of one guía now, and emails the client if the status changed. */
+export async function checkGuiaFlight(formData: FormData) {
+  await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  const summary = await checkFlights({ guiaIds: [id] });
+  const target = safeGuiaReturn(text(formData.get("returnTo")), `/guias/${id}`);
+  const joiner = target.includes("?") ? "&" : "?";
+  revalidatePath(`/guias/${id}`);
+  revalidatePath("/guias/awb-status");
+  if (summary.errors.length) redirect(`${target}${joiner}flight=${encodeURIComponent(summary.errors[0])}`);
+  redirect(`${target}${joiner}flight=ok`);
+}
+
+/** The team marks a guía completed so it leaves the Guías screen, or brings it back. */
+export async function setGuiaCompleted(formData: FormData) {
+  const user = await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  const done = text(formData.get("done")) === "1";
+  const guia = await prisma.airWaybillDocument.findFirst({ where: { id, product: "guia" }, select: { id: true, awb: true } });
+  if (!guia) redirect(`/guias?error=${encodeURIComponent("The guía was not found.")}`);
+  await prisma.airWaybillDocument.update({
+    where: { id },
+    data: done ? { completedAt: new Date(), completedBy: user.email } : { completedAt: null, completedBy: null },
+  });
+  revalidatePath("/guias");
+  revalidatePath(`/guias/${id}`);
+  const target = safeGuiaReturn(text(formData.get("returnTo")), done ? "/guias" : `/guias/${id}`);
+  if (done && target === "/guias") {
+    redirect(`/guias?notice=${encodeURIComponent(`Guía ${guia.awb || "draft"} marked as completed. It no longer appears on this screen; it stays in Documents.`)}`);
+  }
+  redirect(target);
+}
+
+/**
+ * Deletes a guía from the system, its documents in Documentos with it, and gives its AWB number back to stock.
+ * An issued guía can only be deleted by an Admin. Copies already saved in Google Drive are not touched.
+ */
+export async function deleteGuia(formData: FormData) {
+  const user = await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  const guia = await prisma.airWaybillDocument.findFirst({ where: { id, product: "guia" }, select: { id: true, awb: true, status: true } });
+  if (!guia) redirect(`/guias?error=${encodeURIComponent("The guía was not found.")}`);
+  const label = guia.awb || "en borrador";
+  if (guia.status === "issued" && !isAdmin(user)) {
+    redirect(`/guias?error=${encodeURIComponent(`Only an Admin can delete an issued guía (${label}).`)}`);
+  }
+  const [returned] = await prisma.$transaction([
+    // The number goes back to stock, reserved or already issued.
+    prisma.awbStockNumber.updateMany({ where: { documentId: id }, data: { documentId: null, status: "available" } }),
+    // Its documents leave Documentos, the stored files with them.
+    prisma.guiaDocument.deleteMany({ where: { guiaId: id } }),
+    prisma.airWaybillDocument.delete({ where: { id } }),
+  ]);
+  revalidatePath("/guias");
+  revalidatePath("/guias/documents");
+  redirect(`/guias?notice=${encodeURIComponent(`Guía ${label} deleted, with its documents.${returned.count ? " The AWB number went back to stock." : ""}`)}`);
+}
+
+export async function saveGuiaToDrive(formData: FormData) {
+  await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  const driveError = await pushGuiaToDrive(id);
+  revalidatePath(`/guias/${id}`);
+  if (driveError) redirect(`/guias/${id}?drive=${encodeURIComponent(driveError)}`);
+  redirect(`/guias/${id}?drive=ok`);
+}
+
+export async function saveCompanyProfile(formData: FormData) {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (!isAdmin(user)) redirect("/guias?error=Settings%20are%20for%20admins");
+  const agentKey = text(formData.get("agentKey"));
+  if (agentKey !== "ack") redirect("/guias/settings?error=Unknown%20company");
+  const agent = await prisma.issuingAgent.findUnique({ where: { key: "ack" } });
+  if (!agent) redirect("/guias/settings?error=Unknown%20company");
+  const file = formData.get("logo");
+  let logo: Uint8Array<ArrayBuffer> | undefined;
+  let logoMime: string | undefined;
+  if (file instanceof File && file.size > 0) {
+    const bytes = await file.arrayBuffer();
+    logo = new Uint8Array(bytes);
+    logoMime = file.type || "image/png";
+  }
+  // The signature printed on the air waybill and the lithium letter. PDFKit draws PNG and JPEG only.
+  const signatureFile = formData.get("signature");
+  let signature: Uint8Array<ArrayBuffer> | undefined;
+  let signatureMime: string | undefined;
+  if (signatureFile instanceof File && signatureFile.size > 0) {
+    if (!["image/png", "image/jpeg"].includes(signatureFile.type)) redirect("/guias/settings?error=The%20signature%20must%20be%20a%20PNG%20or%20JPG%20image");
+    if (signatureFile.size > 2_000_000) redirect("/guias/settings?error=The%20signature%20is%20over%202%20MB");
+    signature = new Uint8Array(await signatureFile.arrayBuffer());
+    signatureMime = signatureFile.type;
+  }
+  const removeSignature = text(formData.get("removeSignature")) === "1";
+  const data = {
+    brandName: text(formData.get("brandName")),
+    letterheadName: text(formData.get("letterheadName")),
+    address: text(formData.get("address")),
+    phone: blank(text(formData.get("phone"))),
+    fax: blank(text(formData.get("fax"))),
+    opsEmail: blank(text(formData.get("opsEmail"))),
+    contactName: blank(text(formData.get("contactName"))),
+    contactTitle: blank(text(formData.get("contactTitle"))),
+    termsUrl: blank(text(formData.get("termsUrl"))),
+    tsaIacId: blank(text(formData.get("tsaIacId"))),
+    ccsfId: blank(text(formData.get("ccsfId"))),
+    warehouseName: blank(text(formData.get("warehouseName"))),
+    warehouseAddress: blank(text(formData.get("warehouseAddress"))),
+    signerName: text(formData.get("signerName")),
+    signerTitle: blank(text(formData.get("signerTitle"))),
+    ...(logo ? { logo, logoMime } : {}),
+    ...(signature ? { signature, signatureMime } : removeSignature ? { signature: null, signatureMime: null } : {}),
+  };
+  await prisma.companyProfile.upsert({
+    where: { agentKey },
+    create: { agentKey, ...data, signerName: data.signerName || agent.legalName },
+    update: data,
+  });
+  revalidatePath("/guias/settings");
+  redirect("/guias/settings?saved=1");
+}
