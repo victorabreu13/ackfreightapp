@@ -56,6 +56,8 @@ export async function createDraftGuia(
       truckerPhone: blank(extra.truckerPhone ?? ""),
       driverName: blank(extra.driverName ?? ""),
       packageType: blank(packageTypeFrom(extra.packageType)),
+      // A draft starts as cargo, like the new guía form. The team changes it in the form.
+      aircraft: "cargo",
       lines: { create: [lineData(values)] },
     },
   });

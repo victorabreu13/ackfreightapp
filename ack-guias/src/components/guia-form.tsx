@@ -348,11 +348,11 @@ export function GuiaForm({
             <legend className="text-sm font-medium">Avión</legend>
             <div className="flex flex-wrap gap-4 text-sm">
               <label className="flex items-center gap-2">
-                <input type="radio" name="aircraft" value="pax" defaultChecked={aircraft === "pax" || (mode === "new" && !aircraft)} />
+                <input type="radio" name="aircraft" value="pax" defaultChecked={aircraft === "pax"} />
                 Pax (carta TSA)
               </label>
               <label className="flex items-center gap-2">
-                <input type="radio" name="aircraft" value="cargo" defaultChecked={aircraft === "cargo"} />
+                <input type="radio" name="aircraft" value="cargo" defaultChecked={aircraft === "cargo" || (mode === "new" && !aircraft)} />
                 Carguero (TSA unknown shipper)
               </label>
             </div>
