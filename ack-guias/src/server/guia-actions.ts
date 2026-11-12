@@ -204,8 +204,8 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
   const awbFolder = guiaAwbFolder(document.awb, document.id);
   const user = await requireGuiaTeam();
   const master = "";
-  let firstError: string | null = null;
-  for (const kind of GUIA_FILE_KINDS) {
+  const pushKind = async (kind: (typeof GUIA_FILE_KINDS)[number]): Promise<string | null> => {
+    let firstError: string | null = null;
     const fileName = guiaFileName(kind, document.awb, master);
     try {
       const bytes = await renderGuiaPdf(kind, document, company, {
@@ -247,8 +247,18 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
         console.error("guia document log", logError);
       }
     }
-  }
-  return firstError;
+    return firstError;
+  };
+  // The first file goes alone: it creates the client and AWB folders in Drive, which the others then find. The rest go
+  // a few at a time instead of one after another, since each one is several round trips to Drive.
+  const [head, ...rest] = GUIA_FILE_KINDS;
+  const errors: Array<string | null> = [await pushKind(head)];
+  const queue = [...rest];
+  const worker = async () => {
+    for (let kind = queue.shift(); kind; kind = queue.shift()) errors.push(await pushKind(kind));
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  return errors.find((error) => error) ?? null;
 }
 
 /**

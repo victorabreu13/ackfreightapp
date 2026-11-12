@@ -25,6 +25,7 @@ import { GUIA_FILE_KINDS, guiaFileName } from "@/lib/guias/files";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
 import { requestAckTripRequest } from "@/server/ack-freight-actions";
 import { FLIGHT_STATUS_LABEL, isFlightStatus } from "@/lib/guias/flight-status";
+import { SubmitButton } from "@/components/submit-button";
 import { assignGuiaAwb, checkGuiaFlight, issueGuia, releaseGuiaAwb, saveGuiaToDrive } from "@/server/guia-actions";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
@@ -313,9 +314,9 @@ export default async function GuiaDetailPage({
                 <span className="text-muted-foreground">Or an in-stock number</span>
                 <input name="manualAwb" className="block h-10 rounded-md border border-input bg-background px-3 font-mono" placeholder="123-12345675" />
               </label>
-              <Button type="submit" variant="outline" size="lg">
+              <SubmitButton variant="outline" size="lg" pendingLabel="Asignando…">
                 Asignar AWB
-              </Button>
+              </SubmitButton>
             </form>
           )}
         </section>
@@ -359,9 +360,9 @@ export default async function GuiaDetailPage({
                   </label>
                 </>
               )}
-              <Button type="submit" size="lg">
+              <SubmitButton size="lg" pendingLabel="Emitiendo… no cierres la página">
                 Issue
-              </Button>
+              </SubmitButton>
             </form>
           </>
         )}
@@ -745,9 +746,9 @@ export default async function GuiaDetailPage({
           )}
           <form action={saveGuiaToDrive}>
             <input type="hidden" name="id" value={document.id} />
-            <Button type="submit" variant="outline">
+            <SubmitButton variant="outline" pendingLabel="Guardando en Drive…">
               Save to Drive
-            </Button>
+            </SubmitButton>
           </form>
         </div>
       </section>
