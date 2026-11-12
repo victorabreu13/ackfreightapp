@@ -25,7 +25,7 @@ test("the last admin and ADMIN_EMAILS accounts cannot be demoted or removed", ()
   );
   assert.match(
     userRoleChangeError({ email: "lead@ackfreight.com", from: "ADMIN", to: "OPERATIONS", activeAdminCount: 1, adminEmails: admins }) ?? "",
-    /al menos un Admin/,
+    /At least one Admin/,
   );
   assert.match(
     userRemoveError({
@@ -70,14 +70,14 @@ test("development login stays off in production unless ENABLE_DEV_LOGIN is set",
   assert.equal(roleOnGoogleSignIn("ACCOUNTING", "xiomara.viloria@ackfreight.com", admins), "ACCOUNTING");
 });
 
-test("a portal customer is never edited or removed from Usuarios, and every role has its detail", () => {
+test("a portal customer is never edited or removed from Users, and every role has its detail", () => {
   assert.match(
     userRoleChangeError({ email: "bquiroa@pacifiko.com", from: "CUSTOMER", to: "ADMIN", activeAdminCount: 2, adminEmails: admins }) ?? "",
-    /cliente del portal/,
+    /portal client/,
   );
   assert.match(
     userRemoveError({ email: "bquiroa@pacifiko.com", role: "CUSTOMER", activeAdminCount: 2, adminEmails: admins, actorId: "a", targetId: "b" }) ?? "",
-    /cliente del portal/,
+    /portal client/,
   );
   assert.deepEqual(
     ROLE_DETAIL.map((item) => item.role),
