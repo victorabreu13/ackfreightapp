@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { GuiaAccountingView } from "@/components/guia-accounting";
 import { GuiaBilling } from "@/components/guia-billing";
+import { companyTitle } from "@/lib/guias/qbo";
 import { GuiaForm } from "@/components/guia-form";
 import { CategoryUpload } from "@/components/category-upload";
 import { setGuiaCompleted } from "@/server/guia-actions";
@@ -264,8 +265,6 @@ export default async function GuiaDetailPage({
           </p>
         </section>
       ) : null}
-
-      <GuiaBilling {...billing} />
 
       <section className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-4">
         <div>
@@ -572,45 +571,6 @@ export default async function GuiaDetailPage({
         </section>
       ) : null}
 
-      {changeHistory.length ? (
-        <details className="group rounded-lg border border-border bg-card p-4">
-          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
-            <span className="font-display text-2xl">Historial de cambios</span>
-            <span className="rounded-md border border-border px-3 py-1.5 text-sm font-medium">
-              <span className="group-open:hidden">Ver historial ({changeHistory.length})</span>
-              <span className="hidden group-open:inline">Ocultar historial</span>
-            </span>
-          </summary>
-          <p className="mt-3 text-sm text-muted-foreground">Quién cambió cada campo de la guía, cuándo, y de qué valor a cuál. Los últimos 25.</p>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                <tr>
-                  <th className="px-2 py-1.5">Cuándo</th>
-                  <th className="px-2 py-1.5">Quién</th>
-                  <th className="px-2 py-1.5">Campo</th>
-                  <th className="px-2 py-1.5">Antes</th>
-                  <th className="px-2 py-1.5">Después</th>
-                  <th className="px-2 py-1.5">Origen</th>
-                </tr>
-              </thead>
-              <tbody>
-                {changeHistory.map((entry) => (
-                  <tr key={entry.id} className="border-b border-border align-top last:border-0">
-                    <td className="whitespace-nowrap px-2 py-1.5">{formatNy(entry.createdAt)}</td>
-                    <td className="px-2 py-1.5">{entry.changedBy}</td>
-                    <td className="px-2 py-1.5">{guiaFieldLabel(entry.field)}</td>
-                    <td className="max-w-[16rem] truncate px-2 py-1.5">{entry.oldValue || "—"}</td>
-                    <td className="max-w-[16rem] truncate px-2 py-1.5">{entry.newValue || "—"}</td>
-                    <td className="px-2 py-1.5">{entry.source === "receipt" ? "Warehouse receipt" : entry.source === "reset" ? "Restablecido desde WR" : "A mano"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </details>
-      ) : null}
-
       <section className="space-y-4 rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -787,6 +747,56 @@ export default async function GuiaDetailPage({
         error={uploadError ?? null}
         files={uploadRows}
       />
+
+      <details className="group space-y-3" open={Boolean(one(query, "invoiced") || one(query, "qbo") || one(query, "rate"))}>
+        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-4">
+          <span className="font-display text-2xl">Factura {companyTitle(document.agentKey)}</span>
+          <span className="rounded-md border border-border px-3 py-1.5 text-sm font-medium">
+            <span className="group-open:hidden">Ver factura</span>
+            <span className="hidden group-open:inline">Ocultar factura</span>
+          </span>
+        </summary>
+        <GuiaBilling {...billing} />
+      </details>
+
+      {changeHistory.length ? (
+        <details className="group rounded-lg border border-border bg-card p-4">
+          <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
+            <span className="font-display text-2xl">Historial de cambios</span>
+            <span className="rounded-md border border-border px-3 py-1.5 text-sm font-medium">
+              <span className="group-open:hidden">Ver historial ({changeHistory.length})</span>
+              <span className="hidden group-open:inline">Ocultar historial</span>
+            </span>
+          </summary>
+          <p className="mt-3 text-sm text-muted-foreground">Quién cambió cada campo de la guía, cuándo, y de qué valor a cuál. Los últimos 25.</p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                <tr>
+                  <th className="px-2 py-1.5">Cuándo</th>
+                  <th className="px-2 py-1.5">Quién</th>
+                  <th className="px-2 py-1.5">Campo</th>
+                  <th className="px-2 py-1.5">Antes</th>
+                  <th className="px-2 py-1.5">Después</th>
+                  <th className="px-2 py-1.5">Origen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {changeHistory.map((entry) => (
+                  <tr key={entry.id} className="border-b border-border align-top last:border-0">
+                    <td className="whitespace-nowrap px-2 py-1.5">{formatNy(entry.createdAt)}</td>
+                    <td className="px-2 py-1.5">{entry.changedBy}</td>
+                    <td className="px-2 py-1.5">{guiaFieldLabel(entry.field)}</td>
+                    <td className="max-w-[16rem] truncate px-2 py-1.5">{entry.oldValue || "—"}</td>
+                    <td className="max-w-[16rem] truncate px-2 py-1.5">{entry.newValue || "—"}</td>
+                    <td className="px-2 py-1.5">{entry.source === "receipt" ? "Warehouse receipt" : entry.source === "reset" ? "Restablecido desde WR" : "A mano"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
