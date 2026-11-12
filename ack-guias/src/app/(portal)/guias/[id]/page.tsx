@@ -207,7 +207,7 @@ export default async function GuiaDetailPage({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
             <Link href="/guias">Guías</Link>
@@ -218,6 +218,10 @@ export default async function GuiaDetailPage({
             {linked?.name || document.clientLabel ? ` · ${linked?.name || document.clientLabel}` : ""}
           </p>
         </div>
+        <form action={requestAckTripRequest}>
+          <input type="hidden" name="id" value={document.id} />
+          <SubmitButton pendingLabel="Solicitando…">Trip request</SubmitButton>
+        </form>
       </div>
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
       {one(query, "saved") ? <p className="text-sm text-muted-foreground">Saved.</p> : null}
@@ -265,19 +269,6 @@ export default async function GuiaDetailPage({
           </p>
         </section>
       ) : null}
-
-      <section className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-4">
-        <div>
-          <h2 className="font-display text-2xl">Trip request en ACK Freight</h2>
-          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Cuando la carga esté lista: crea el trip request de entrega (del warehouse a la aerolínea) en ACK Freight, con el AWB, el pickup order y el delivery order de esta guía. Si ya se pidió, no se duplica.
-          </p>
-        </div>
-        <form action={requestAckTripRequest}>
-          <input type="hidden" name="id" value={document.id} />
-          <Button type="submit">Solicitar trip request</Button>
-        </form>
-      </section>
 
       {document.status !== "issued" ? (
         <section className="space-y-3 rounded-lg border border-border bg-card p-4">
