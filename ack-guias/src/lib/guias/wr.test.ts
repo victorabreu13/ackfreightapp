@@ -33,8 +33,8 @@ test("the receipts of a guía add up and fill only what the guía left empty", (
   ];
   const fed = applyReceiptsToGuia(blank, receipts);
   assert.equal(fed.values.pieces, "7");
-  assert.equal(fed.values.grossKg, "269.5");
-  assert.equal(fed.values.chargeableKg, "364.58");
+  assert.equal(fed.values.grossKg, "270");
+  assert.equal(fed.values.chargeableKg, "365");
   assert.equal(fed.values.goods, "ELECTRONICS");
   assert.equal(fed.values.shipper, "PACIFIKO, LLC");
   // The HAZMAT of a receipt never declares Dangerous Goods by itself: it is only a suggestion.

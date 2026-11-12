@@ -1,6 +1,7 @@
 import { parseUnNumbers } from "@/lib/guias/dg";
 import type { GuiaValues } from "@/lib/guias/extract";
 import { sameNumber, type ManualKey } from "@/lib/guias/guia-manual";
+import { roundUp } from "@/lib/guias/round-up";
 
 /** Receipts are shown as K5500, pickup requests as PU-0001. */
 export function receiptNumber(seq: number): string {
@@ -92,8 +93,10 @@ export function applyReceiptsToGuia(
   };
   const lines = receipts.flatMap((receipt) => receipt.lines);
   const totals = receiptTotals(lines);
-  const follow = (key: ManualKey, amount: number) => {
-    if (amount <= 0) return;
+  const follow = (key: ManualKey, total: number) => {
+    if (total <= 0) return;
+    // The guía holds whole numbers: what the receipts add up to goes up to the next one.
+    const amount = roundUp(total);
     if (!manual.has(key)) return set(key, String(amount));
     if (!sameNumber(current[key], amount)) conflicts.push({ field: key, guia: current[key], wr: String(amount) });
   };

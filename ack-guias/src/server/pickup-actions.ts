@@ -10,6 +10,7 @@ import { assignAwbToGuia } from "@/lib/guias/assign-awb";
 import { createDraftGuia, EMPTY_GUIA_VALUES } from "@/lib/guias/draft-guia";
 import { numberOrNull } from "@/lib/guias/guia-data";
 import { packageTypeFrom } from "@/lib/guias/package-types";
+import { roundUpOrNull } from "@/lib/guias/round-up";
 import { pickupNumber } from "@/lib/guias/wr";
 import { sendPickupToAckFreight } from "@/lib/guias/ack-freight-send";
 
@@ -43,7 +44,7 @@ export async function savePickupRequest(formData: FormData) {
   if (!client) back("Escribe el cliente del pickup.", "error");
   if (!shipper) back("Escribe el shipper: de dónde se recoge la carga.", "error");
   const pieces = numberOrNull(text(formData.get("pieces")));
-  const weight = numberOrNull(text(formData.get("weightKg")));
+  const weight = roundUpOrNull(numberOrNull(text(formData.get("weightKg"))));
   const data = {
     createdBy: user.email,
     clientLabel: client,

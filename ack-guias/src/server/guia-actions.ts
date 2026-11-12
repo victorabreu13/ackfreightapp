@@ -23,6 +23,7 @@ import { rememberGuiaParties } from "@/lib/guias/parties";
 import { reviewFieldsToSave } from "@/lib/guias/review";
 import { guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
 import { aircraftFrom, driveKinds } from "@/lib/guias/guia-pack";
+import { roundUpText } from "@/lib/guias/round-up";
 
 /** Every guía belongs to a client of the book. The client portal and its emails depend on it. */
 const CLIENT_REQUIRED = "Escribe el cliente de la guía.";
@@ -52,10 +53,11 @@ function valuesFromForm(formData: FormData): GuiaValues {
     destination: text(formData.get("destination")).toUpperCase(),
     flightNumber: text(formData.get("flightNumber")).toUpperCase(),
     flightDate: text(formData.get("flightDate")),
-    pieces: text(formData.get("pieces")),
-    chargeableKg: text(formData.get("chargeableKg")),
+    // Pieces and weights go up to the next whole number. The rate is a price and stays as typed.
+    pieces: roundUpText(text(formData.get("pieces"))),
+    chargeableKg: roundUpText(text(formData.get("chargeableKg"))),
     rate: text(formData.get("rate")),
-    grossKg: text(formData.get("grossKg")),
+    grossKg: roundUpText(text(formData.get("grossKg"))),
     goods: text(formData.get("goods")),
     handling: text(formData.get("handling")),
     aesItn: text(formData.get("aesItn")).replace(/^AES\s*ITN\s*:\s*/i, "").trim(),

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isLithiumPi, LITHIUM_TYPES, onlyLithiumUn, parseLithiumTypes } from "@/lib/guias/dg";
 import type { GuiaValues } from "@/lib/guias/extract";
+import { ROUNDED_GUIA_FIELDS, roundUpText } from "@/lib/guias/round-up";
 import { saveGuia, saveNewGuia } from "@/server/guia-actions";
 
 const FIELDS: Array<{ key: keyof GuiaValues; label: string; area?: boolean; hint?: string }> = [
@@ -209,6 +210,7 @@ export function GuiaForm({
                   name={field.key}
                   value={draft[field.key]}
                   onChange={(event) => update(field.key, event.target.value)}
+                  onBlur={ROUNDED_GUIA_FIELDS.has(field.key) ? () => update(field.key, roundUpText(draft[field.key])) : undefined}
                   className={flagged ? "border-amber-500 bg-amber-50" : ""}
                 />
               )}

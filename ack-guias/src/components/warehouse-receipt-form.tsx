@@ -7,6 +7,7 @@ import { GuiaLookupInput } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PACKAGE_TYPES } from "@/lib/guias/package-types";
+import { roundUpText } from "@/lib/guias/round-up";
 import { receiptTotals } from "@/lib/guias/wr";
 import { EMPTY_RECEIPT_LINE, type ReceiptFormLine, type ReceiptFormValues } from "@/lib/guias/wr-form";
 import { saveWarehouseReceipt } from "@/server/wr-actions";
@@ -179,10 +180,10 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
                   </option>
                 ))}
               </select>
-              <Input name="lineLength" aria-label="Largo in" placeholder="Largo in" inputMode="decimal" value={line.length} onChange={(event) => setLine(index, "length", event.target.value)} />
-              <Input name="lineWidth" aria-label="Ancho in" placeholder="Ancho in" inputMode="decimal" value={line.width} onChange={(event) => setLine(index, "width", event.target.value)} />
-              <Input name="lineHeight" aria-label="Alto in" placeholder="Alto in" inputMode="decimal" value={line.height} onChange={(event) => setLine(index, "height", event.target.value)} />
-              <Input name="lineWeight" aria-label="Peso kg" placeholder="Peso kg" inputMode="decimal" value={line.weightKg} onChange={(event) => setLine(index, "weightKg", event.target.value)} />
+              <Input name="lineLength" aria-label="Largo in" placeholder="Largo in" inputMode="decimal" value={line.length} onChange={(event) => setLine(index, "length", event.target.value)} onBlur={() => setLine(index, "length", roundUpText(line.length))} />
+              <Input name="lineWidth" aria-label="Ancho in" placeholder="Ancho in" inputMode="decimal" value={line.width} onChange={(event) => setLine(index, "width", event.target.value)} onBlur={() => setLine(index, "width", roundUpText(line.width))} />
+              <Input name="lineHeight" aria-label="Alto in" placeholder="Alto in" inputMode="decimal" value={line.height} onChange={(event) => setLine(index, "height", event.target.value)} onBlur={() => setLine(index, "height", roundUpText(line.height))} />
+              <Input name="lineWeight" aria-label="Peso kg" placeholder="Peso kg" inputMode="decimal" value={line.weightKg} onChange={(event) => setLine(index, "weightKg", event.target.value)} onBlur={() => setLine(index, "weightKg", roundUpText(line.weightKg))} />
               <Input name="lineLocation" aria-label="Location" placeholder="Location" value={line.location} onChange={(event) => setLine(index, "location", event.target.value)} />
               <Input name="lineDescription" aria-label="Description" placeholder="Description" className="md:col-span-2" value={line.description} onChange={(event) => setLine(index, "description", event.target.value)} />
               <Input name="lineNotes" aria-label="Notes" placeholder="Notes" className="md:col-span-2" value={line.notes} onChange={(event) => setLine(index, "notes", event.target.value)} />

@@ -7,6 +7,7 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { rememberDriver } from "@/lib/guias/drivers";
 import { numberOrNull } from "@/lib/guias/guia-data";
+import { roundUpOrNull } from "@/lib/guias/round-up";
 import { pickupNumber, receiptNumber } from "@/lib/guias/wr";
 import { removeReceiptFromGuia, storeReceiptInGuia } from "@/lib/guias/wr-store";
 import { isManualKey } from "@/lib/guias/guia-manual";
@@ -47,10 +48,11 @@ function linesFromForm(formData: FormData) {
   const lines = pieces.map((_, index) => ({
     pieces: Math.max(1, Math.round(numberOrNull(pieces[index] ?? "") ?? 1)),
     packageType: type[index] || null,
-    length: numberOrNull(length[index] ?? ""),
-    width: numberOrNull(width[index] ?? ""),
-    height: numberOrNull(height[index] ?? ""),
-    weightKg: numberOrNull(weight[index] ?? ""),
+    // Weights and dimensions go up to the next whole number.
+    length: roundUpOrNull(numberOrNull(length[index] ?? "")),
+    width: roundUpOrNull(numberOrNull(width[index] ?? "")),
+    height: roundUpOrNull(numberOrNull(height[index] ?? "")),
+    weightKg: roundUpOrNull(numberOrNull(weight[index] ?? "")),
     location: location[index] || null,
     description: description[index] || null,
     notes: notes[index] || null,

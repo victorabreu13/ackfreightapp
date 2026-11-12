@@ -20,15 +20,15 @@ test("a draft with a chargeable weight typed by hand keeps it and gets a notice 
   const current = { ...blank, client: "ACME", pieces: "2", grossKg: "600", chargeableKg: "638" };
   const result = applyReceiptsToGuia(current, [receipt()], manualKeysOf({ chargeableManual: true }));
   assert.equal(result.values.chargeableKg, "638");
-  assert.deepEqual(result.conflicts, [{ field: "chargeableKg", guia: "638", wr: "536.2" }]);
+  assert.deepEqual(result.conflicts, [{ field: "chargeableKg", guia: "638", wr: "537" }]);
   // The numbers nobody typed still follow the receipt.
   assert.equal(result.values.pieces, "5");
-  assert.equal(result.values.grossKg, "536.2");
+  assert.equal(result.values.grossKg, "537");
   assert.deepEqual(result.changed.sort(), ["goods", "grossKg", "pieces", "shipper", "shipperAddress"]);
 });
 
 test("a manual number that already agrees with the receipt gives no notice", () => {
-  const current = { ...blank, chargeableKg: "536.20" };
+  const current = { ...blank, chargeableKg: "537" };
   const result = applyReceiptsToGuia(current, [receipt()], manualKeysOf({ chargeableManual: true }));
   assert.deepEqual(result.conflicts, []);
 });
@@ -36,8 +36,8 @@ test("a manual number that already agrees with the receipt gives no notice", () 
 test("a guía with nothing typed by hand takes the pieces and the weights of the receipt", () => {
   const result = applyReceiptsToGuia({ ...blank, pieces: "1", grossKg: "10", chargeableKg: "10" }, [receipt()], manualKeysOf({}));
   assert.equal(result.values.pieces, "5");
-  assert.equal(result.values.grossKg, "536.2");
-  assert.equal(result.values.chargeableKg, "536.2");
+  assert.equal(result.values.grossKg, "537");
+  assert.equal(result.values.chargeableKg, "537");
   assert.deepEqual(result.conflicts, []);
 });
 
@@ -116,10 +116,10 @@ test("linking a receipt to a draft with a manual chargeable weight keeps 638 and
   const { syncGuiaFromReceipts } = await import("@/lib/guias/wr-sync");
   const result = await syncGuiaFromReceipts("guia-1", "team@ackfreight.com");
   assert.deepEqual(result.changed.sort(), ["grossKg", "pieces"]);
-  assert.deepEqual(writes.line, [{ pieces: 5, grossWeight: 536.2 }]);
+  assert.deepEqual(writes.line, [{ pieces: 5, grossWeight: 537 }]);
   assert.deepEqual(writes.log.map((entry) => [entry.field, entry.oldValue, entry.newValue, entry.source, entry.changedBy]), [
     ["pieces", "2", "5", "receipt", "team@ackfreight.com"],
-    ["grossKg", "600", "536.2", "receipt", "team@ackfreight.com"],
+    ["grossKg", "600", "537", "receipt", "team@ackfreight.com"],
   ]);
 });
 
@@ -137,8 +137,8 @@ test("a reset takes the receipt values again, clears the mark and says so in the
   const { syncGuiaFromReceipts } = await import("@/lib/guias/wr-sync");
   await syncGuiaFromReceipts("guia-1", "team@ackfreight.com", { source: "reset", reset: ["chargeableKg"] });
   assert.deepEqual(writes.document[0], { piecesManual: false, grossManual: false, chargeableManual: false, wrDismissed: null });
-  assert.ok(writes.line.some((data) => data.chargeableWeight === 536.2));
-  assert.ok(writes.log.some((entry) => entry.field === "chargeableKg" && entry.oldValue === "638" && entry.newValue === "536.2" && entry.source === "reset"));
+  assert.ok(writes.line.some((data) => data.chargeableWeight === 537));
+  assert.ok(writes.log.some((entry) => entry.field === "chargeableKg" && entry.oldValue === "638" && entry.newValue === "537" && entry.source === "reset"));
 });
 
 test("linking a receipt to an issued guía changes nothing", async () => {

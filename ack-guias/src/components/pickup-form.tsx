@@ -6,6 +6,7 @@ import { GuiaLookupInput } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PackageSelect } from "@/components/package-select";
+import { roundUpText } from "@/lib/guias/round-up";
 import { savePickupRequest } from "@/server/pickup-actions";
 
 const AREA = "block w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
@@ -94,7 +95,7 @@ export function PickupForm({ awbOptions = [] }: { awbOptions?: Array<{ prefix: s
           <PackageSelect />
           <div className="space-y-1.5">
             <Label htmlFor="weightKg">Kilos</Label>
-            <Input id="weightKg" name="weightKg" inputMode="decimal" />
+            <Input id="weightKg" name="weightKg" inputMode="decimal" onBlur={(event) => (event.currentTarget.value = roundUpText(event.currentTarget.value))} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pickupDate">Fecha del pickup</Label>
