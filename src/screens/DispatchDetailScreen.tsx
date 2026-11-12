@@ -14,6 +14,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import AddAwbSection from "../components/AddAwbSection";
 import AwbDriverPicker from "../components/AwbDriverPicker";
 import EditTripDetails from "../components/EditTripDetails";
 import TripRouteSection from "../components/TripRouteSection";
@@ -515,6 +516,10 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
             </View>
           );
         })
+      )}
+
+      {request.status !== "cancelled" && request.status !== "invoiced" && (
+        <AddAwbSection requestId={request.id} drivers={drivers} />
       )}
 
       <DispatchAwbPay requestId={request.id} lines={request.awbLines} />

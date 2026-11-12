@@ -41,6 +41,7 @@ const { cleanMessageText, messageTargets, previewText } = require("./messages");
 const { MAX_TRAIL_POINTS, shouldRecordPoint, stampPoint, stampTransitions } = require("./trail");
 const { quoteForRequest, uldCountForLines } = require("./quote");
 const { planReassignCompleted, planReassignTripLog } = require("./reassignCompleted");
+const { canAdd, cleanNewLines, defaultDriver, planAddLines, sameRequestDuplicates } = require("./addAwbs");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
 const { estimateRoute, haversineMiles } = require("./routeEstimate");
 const {
@@ -1235,6 +1236,132 @@ exports.checkAwbInUse = onCall({ invoker: "public", timeoutSeconds: 180 }, async
   }
   return { inUse };
 });
+
+// Adds AWBs to a trip request that was already submitted: dispatch any time, the
+// owning customer until the trip is completed. New AWBs go to the request's one
+// driver (dispatch can pick another or none); a customer's always do. The usual
+// "one AWB, one trip" rule applies, the quote is worked out again, and the driver
+// is notified by the same trigger as any assignment.
+exports.addAwbLines = onCall(
+  { invoker: "public", timeoutSeconds: 120, secrets: [GMAIL_USER, GMAIL_APP_PASSWORD] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+    const { requestId, awbLines: input } = request.data || {};
+    if (!requestId) throw new HttpsError("invalid-argument", "requestId is required.");
+    const db = admin.firestore();
+    const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+    const caller = callerSnap.data() || {};
+    const role = caller.role;
+    const ref = db.collection("tripRequests").doc(requestId);
+
+    const cleaned = cleanNewLines(input);
+    if (!cleaned.ok) throw new HttpsError("invalid-argument", cleaned.message);
+
+    const preSnap = await ref.get();
+    if (!preSnap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const allowed = canAdd(preSnap.data(), role, request.auth.uid);
+    if (!allowed.ok) throw new HttpsError("permission-denied", allowed.message);
+    const same = sameRequestDuplicates(preSnap.data().awbLines, cleaned.lines);
+    if (same.length > 0) {
+      throw new HttpsError("failed-precondition", `AWB ${same.join(", ")} is already on this trip request.`);
+    }
+
+    // One AWB, one trip: not on another request, not on a trip log.
+    await ensureAwbKeysBackfilled(db);
+    for (const l of cleaned.lines) {
+      const key = awbKey(l.awbNumber);
+      const snap = await db.collection("tripRequests").where("awbKeys", "array-contains", key).get();
+      if (snap.docs.some((d) => d.id !== requestId && d.data().status !== "cancelled")) {
+        throw new HttpsError("failed-precondition", `AWB ${l.awbNumber} duplicated — it's already on another trip request.`);
+      }
+      const dup = await findDuplicateTripAwb(db, { awbNumber: l.awbNumber });
+      if (dup) {
+        throw new HttpsError(
+          "failed-precondition",
+          `AWB ${dup.label} duplicated — it's already logged on another trip (${describeTrip(dup.data)}).`
+        );
+      }
+    }
+
+    // Dispatch may pick the driver (or nobody); everyone else follows the request's driver.
+    let chosen;
+    const wantsChoice = role === "admin" && Object.prototype.hasOwnProperty.call(request.data, "driverId");
+    if (wantsChoice && request.data.driverId) {
+      const driverSnap = await db.collection("users").doc(String(request.data.driverId)).get();
+      const profile = driverSnap.data();
+      if (!profile || profile.role !== "driver") throw new HttpsError("failed-precondition", "That person isn't a driver.");
+      chosen = { id: driverSnap.id, name: String(profile.name || "") };
+    } else if (wantsChoice) {
+      chosen = null;
+    }
+
+    let result;
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+      const data = snap.data();
+      const again = canAdd(data, role, request.auth.uid);
+      if (!again.ok) throw new HttpsError("permission-denied", again.message);
+      const driver = chosen !== undefined ? chosen : defaultDriver(data.awbLines);
+      const plan = planAddLines(data.awbLines || [], cleaned.lines, driver);
+      tx.update(ref, {
+        awbLines: plan.awbLines,
+        status: plan.status,
+        assignedDriverIds: plan.assignedDriverIds,
+        assignedDriverNames: plan.assignedDriverNames,
+        awbKeys: awbKeysFromRequest({ status: plan.status, awbLines: plan.awbLines }),
+        updatedAt: Date.now(),
+      });
+      result = { plan, data, driver };
+    });
+
+    // The quote follows the new AWBs (best effort; the request is already saved).
+    const after = { ...result.data, awbLines: result.plan.awbLines };
+    try {
+      const customerSnap = after.customerId ? await db.collection("users").doc(after.customerId).get() : null;
+      const quote = quoteForRequest(customerSnap && customerSnap.exists ? customerSnap.data() : null, after.awbLines);
+      await ref.update({
+        quotedAmount: quote.quotedAmount,
+        quoteStatus: quote.quoteStatus,
+        quoteBasis: quote.quoteBasis,
+      });
+    } catch (err) {
+      logger.error("Re-pricing after adding AWBs failed:", err);
+    }
+
+    // A customer's change is told to dispatch.
+    if (role === "customer") {
+      try {
+        const adminsSnap = await db.collection("users").where("role", "==", "admin").get();
+        const numbers = cleaned.lines.map((l) => l.awbNumber).join(", ");
+        const text = `${escapeHtml(after.customerName || "A customer")} added ${cleaned.lines.length === 1 ? "an AWB" : "AWBs"} (${escapeHtml(numbers)}) to a trip request.`;
+        const emails = adminsSnap.docs.map((d) => d.data().email).filter(isNotificationEmail);
+        if (emails.length > 0) {
+          await buildTransporter().sendMail({
+            from: `"ACK Freight" <${GMAIL_USER.value()}>`,
+            to: emails.join(","),
+            subject: `ACK Freight — AWB added (${after.customerName || "customer"})`,
+            html: buildTripRequestEmailHtml("AWB added to a trip request", text, after),
+          });
+        }
+        await sendExpoPush(
+          adminsSnap.docs.map((d) => d.data().pushToken).filter(Boolean),
+          "AWB added to a trip request",
+          `${after.customerName || "A customer"}: ${numbers}`,
+          { type: "tripRequestCreated", requestId }
+        );
+      } catch (err) {
+        logger.error("Failed to tell dispatch about added AWBs:", err);
+      }
+    }
+
+    return {
+      success: true,
+      added: cleaned.lines.length,
+      driverName: result.driver ? result.driver.name : null,
+    };
+  }
+);
 
 // Admin takes an AWB off a trip request. Pay records are keyed by the line's
 // position (`<requestId>_<index>`), so the ones after the removed line shift

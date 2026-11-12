@@ -18,6 +18,7 @@ import {
   NewTripRequestInput,
   PublicPayOffer,
   TripRequest,
+  UldType,
 } from "../types";
 import { applyAwbAssignment } from "../utils/awbMutations";
 import { markInvoicedUpdate, notInvoicedStatus } from "../utils/invoicing";
@@ -331,6 +332,26 @@ export async function adminCompleteAwbLines(
   onDuplicate?: "merge"
 ): Promise<void> {
   await callWithFreshToken(adminCompleteAwbLinesFn, { requestId, awbIndexes, onDuplicate });
+}
+
+const addAwbLinesFn = httpsCallable<
+  {
+    requestId: string;
+    awbLines: { awbNumber: string; qtyPieces: number; kilograms: number; type: UldType; hazmat: boolean; unNumber: string }[];
+    driverId?: string | null;
+  },
+  { success: boolean; added: number; driverName: string | null }
+>(functions, "addAwbLines");
+
+// Adds AWBs to a submitted trip request: dispatch any time, the owning customer
+// until it is completed. They follow the trip's driver; dispatch can pick another
+// driver (or null for nobody) with `choice`.
+export async function addAwbLines(
+  requestId: string,
+  awbLines: { awbNumber: string; qtyPieces: number; kilograms: number; type: UldType; hazmat: boolean; unNumber: string }[],
+  choice?: { driverId: string | null }
+) {
+  return callWithFreshToken(addAwbLinesFn, { requestId, awbLines, ...(choice ?? {}) });
 }
 
 const reassignCompletedAwbFn = httpsCallable<

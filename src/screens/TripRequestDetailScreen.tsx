@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AddAwbSection from "../components/AddAwbSection";
 import CustomerProofSection from "../components/CustomerProofSection";
 import TripRequestForm, {
   TripRequestFormValues,
@@ -112,6 +113,7 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
       {locked ? (
         <>
           <TripRequestReadOnly request={request} editableDocs={request.status !== "cancelled"} />
+          {request.status === "in_progress" && <AddAwbSection requestId={request.id} />}
           {request.awbLines.some((line) => line.tripLogId) && (
             <CustomerProofSection requestId={request.id} />
           )}
