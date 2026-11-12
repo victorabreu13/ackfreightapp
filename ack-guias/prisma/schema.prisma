@@ -194,6 +194,10 @@ model AirWaybillDocument {
   chargeableManual Boolean      @default(false)
   /// Receipt values the user chose to ignore, as JSON like {"chargeableKg":"536.2"}. The notice returns if the receipt changes.
   wrDismissed      String?      @db.Text
+  /// "pax" or "cargo": decides which TSA letter the guía carries. Empty until the team picks one.
+  aircraft         String?
+  /// Whether the cargo goes screened: only then the guía carries the CCSF and the CCSP.
+  screened         Boolean      @default(false)
   changeLog        GuiaChangeLog[]
   seal             String?
   reviewJson      String?      @db.Text

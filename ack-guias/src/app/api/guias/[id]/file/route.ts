@@ -4,7 +4,10 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { loadCompany } from "@/lib/guias/company";
 import { guiaAwbFolder, publishRenderedPdf } from "@/lib/guias/document-log";
-import { GUIA_FILE_KINDS, PRINT_SEPARATELY, guiaFileName, renderGuiaPdf, type GuiaFileKind, type GuiaPrintOptions, type GuiaRecord } from "@/lib/guias/files";
+import { downloadDriveFile } from "@/lib/guias/drive";
+import { packKinds } from "@/lib/guias/guia-pack";
+import { UPLOAD_KIND } from "@/lib/guias/upload-rules";
+import { GUIA_FILE_KINDS, guiaFileName, renderGuiaPdf, type GuiaFileKind, type GuiaPrintOptions, type GuiaRecord } from "@/lib/guias/files";
 import type { CompanyView } from "@/lib/guias/company-profile";
 import { draftPrintPage } from "@/lib/guias/draft-print-page";
 import { guiaBillToName } from "@/lib/guias/guia-client";
@@ -110,8 +113,9 @@ async function packGuia(
 ): Promise<Buffer> {
   const files: Array<{ name: string; data: Buffer }> = [];
   const errors: string[] = [];
-  for (const item of GUIA_FILE_KINDS) {
-    if (PRINT_SEPARATELY.includes(item)) continue;
+  // The documents this guía carries: its aircraft's TSA, the CCSF and CCSP only when screened. The checklist, the
+  // labels and the pickup order are not in the zip.
+  for (const item of packKinds(document)) {
     try {
       const pdf = await renderGuiaPdf(item, document, company, printOptions(false));
       const fileName = guiaFileName(item, document.awb, master);
@@ -129,6 +133,25 @@ async function packGuia(
       await recordPdf(document, "labels", fileName, pdf, email);
     } catch (error) {
       errors.push(`master labels: ${error instanceof Error ? error.message : "Could not render that document."}`);
+    }
+  }
+  // What the team uploaded for this guía goes in too: the signed DGD and the invoices or manifests.
+  const uploads = await prisma.guiaDocument.findMany({
+    where: { guiaId: document.id, kind: UPLOAD_KIND, source: "upload" },
+    orderBy: { generatedAt: "asc" },
+    include: { file: true },
+  });
+  const taken = new Set(files.map((file) => file.name));
+  for (const upload of uploads) {
+    try {
+      const data = upload.file ? Buffer.from(upload.file.bytes) : upload.driveFileId ? await downloadDriveFile({ fileId: upload.driveFileId }) : null;
+      if (!data) continue;
+      let name = upload.fileName;
+      for (let copy = 2; taken.has(name); copy += 1) name = upload.fileName.replace(/(\.[^.]*)?$/, ` (${copy})$1`);
+      taken.add(name);
+      files.push({ name, data });
+    } catch (error) {
+      errors.push(`${upload.fileName}: ${error instanceof Error ? error.message : "Could not read that file."}`);
     }
   }
   if (errors.length) files.push({ name: "ERRORS.txt", data: Buffer.from(`${errors.join("\n")}\n`, "utf8") });

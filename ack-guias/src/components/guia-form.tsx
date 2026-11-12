@@ -58,6 +58,8 @@ export function GuiaForm({
   truckerPhone = "",
   driverName = "",
   seal = "",
+  aircraft = "",
+  screened = false,
   awbOptions = [],
   carrierOptions = [],
   carrierId = "",
@@ -72,6 +74,10 @@ export function GuiaForm({
   truckerPhone?: string;
   driverName?: string;
   seal?: string;
+  /** "pax" or "cargo", which TSA letter the guía carries. Empty on a guía that has none picked yet. */
+  aircraft?: string;
+  /** Screened cargo carries the CCSF and the CCSP. */
+  screened?: boolean;
   /** Airline prefixes with the numbers left in stock. Only the new guía form offers them. */
   awbOptions?: Array<{ prefix: string; airline: string; left: number }>;
   /** The carriers of the list, for the Carrier field that follows Destination. */
@@ -328,6 +334,34 @@ export function GuiaForm({
           <p id="issuingCompany" className="flex h-9 items-center rounded-md border border-input bg-muted px-3 text-sm">
             ACK TEAM LLC
           </p>
+        </div>
+      </section>
+      <section className="space-y-3 rounded-md border border-border p-3">
+        <div>
+          <h2 className="font-display text-2xl">Documentos de la guía</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Solo se generan los documentos que esta carga necesita. Siempre: la guía, la carta de baterías y el delivery order. Si va con DG se agrega el DGD firmado.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-x-8 gap-y-3">
+          <fieldset className="space-y-1.5">
+            <legend className="text-sm font-medium">Avión</legend>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <label className="flex items-center gap-2">
+                <input type="radio" name="aircraft" value="pax" defaultChecked={aircraft === "pax" || (mode === "new" && !aircraft)} />
+                Pax (carta TSA)
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" name="aircraft" value="cargo" defaultChecked={aircraft === "cargo"} />
+                Carguero (TSA unknown shipper)
+              </label>
+            </div>
+            {mode === "edit" && !aircraft ? <p className="text-xs text-muted-foreground">Sin elegir: la guía muestra las dos cartas TSA.</p> : null}
+          </fieldset>
+          <label className="flex items-center gap-2 self-end text-sm font-medium">
+            <input type="checkbox" name="screened" value="1" defaultChecked={screened} />
+            Screened (CCSF y CCSP)
+          </label>
         </div>
       </section>
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">

@@ -21,11 +21,12 @@ import { missingProfileMessages } from "@/lib/guias/company-profile";
 import { GUIA_FILE_LABELS, formatNy } from "@/lib/guias/documents-index";
 import { canDeleteGuiaUpload, isCategoryUpload, UPLOAD_KIND } from "@/lib/guias/upload-rules";
 import { guiaValuesOf as valuesOf } from "@/lib/guias/guia-data";
-import { GUIA_FILE_KINDS, guiaFileName } from "@/lib/guias/files";
+import { guiaFileName } from "@/lib/guias/files";
 import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-error";
 import { requestAckTripRequest } from "@/server/ack-freight-actions";
 import { FLIGHT_STATUS_LABEL, isFlightStatus } from "@/lib/guias/flight-status";
 import { SubmitButton } from "@/components/submit-button";
+import { LABEL_KINDS, OPTIONAL_KINDS, packKinds } from "@/lib/guias/guia-pack";
 import { assignGuiaAwb, checkGuiaFlight, issueGuia, releaseGuiaAwb, saveGuiaToDrive } from "@/server/guia-actions";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
@@ -145,7 +146,7 @@ export default async function GuiaDetailPage({
         status={document.status}
         origin={document.departure || ""}
         destination={document.destination || ""}
-        files={[...GUIA_FILE_KINDS]}
+        files={packKinds(document)}
         notice={uploadNotice}
         error={one(query, "error") ?? null}
         uploads={uploads.map((file) => ({
@@ -428,6 +429,8 @@ export default async function GuiaDetailPage({
         truckerPhone={document.truckerPhone || ""}
         driverName={document.driverName || ""}
         seal={document.seal || ""}
+        aircraft={document.aircraft || ""}
+        screened={document.screened}
         carrierOptions={carrierOptions}
         carrierId={document.carrierId || ""}
       />
@@ -613,22 +616,25 @@ export default async function GuiaDetailPage({
           <div>
             <h2 className="font-display text-2xl">Documents</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Printing as ACK TEAM LLC. Every file below is generated here.
+              Printing as ACK TEAM LLC. Solo los documentos que esta carga necesita.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {document.dgDeclarable && document.unNumbers ? (
-              <Button asChild variant="outline">
-                <Link href={`/guias/dg-labels?un=${encodeURIComponent(document.unNumbers)}&copies=${Math.max(1, pieces)}&guia=${document.id}`}>Labels DG ({document.unNumbers})</Link>
+            {document.status === "issued" ? (
+              <Button asChild>
+                <a href={`${fileBase}?kind=all`}>Descargar todos los documentos</a>
               </Button>
-            ) : null}
-            <Button asChild>
-              <a href={`${fileBase}?kind=all`}>Todos los documentos</a>
-            </Button>
+            ) : (
+              <span title="Emite la guía para descargar todos los documentos" className="inline-flex cursor-not-allowed">
+                <Button type="button" disabled>
+                  Descargar todos los documentos
+                </Button>
+              </span>
+            )}
           </div>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
-          {GUIA_FILE_KINDS.map((kind) => {
+          {packKinds(document).map((kind) => {
             const saved = document.driveFiles.find((file) => file.kind === kind && (file.driveUrl || file.driveFileId));
             const href = `${fileBase}?kind=${kind}`;
             const masterAwb = "";
@@ -683,41 +689,23 @@ export default async function GuiaDetailPage({
             multiple
             buttonLabel="Subir facturas o manifiestos"
           />
-          <div className="flex flex-col gap-1">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-input px-3 py-3 text-sm">
-              <span>
-                <span className="font-medium">Warehouse receipt</span>
-                <span className="ml-3 text-xs text-muted-foreground">
-                  {linkedReceipts.length ? `${linkedReceipts.length} ${linkedReceipts.length === 1 ? "receipt" : "receipts"}` : "Se guarda aquí cuando se crea y se liga en Warehouse receipts"}
-                </span>
-              </span>
-              {canManageGuias(user) ? (
-                <Button asChild variant="outline" size="sm">
-                  <Link href="/guias/warehouse/new">Nuevo warehouse receipt</Link>
-                </Button>
-              ) : null}
-            </div>
-            {linkedReceipts.map((receipt) => (
-              <div key={receipt.id} className="flex flex-wrap items-center gap-3 px-1 text-xs text-muted-foreground">
-                <span>WAREHOUSE RECEIPT {receiptNumber(receipt.seq)}.pdf</span>
-                <a className="underline-offset-2 hover:underline" href={`/api/guias/warehouse/${receipt.id}/pdf`} target="_blank" rel="noreferrer">
-                  Abrir
-                </a>
-                <a className="underline-offset-2 hover:underline" href={`/api/guias/warehouse/${receipt.id}/pdf?download=1`}>
-                  Descargar
-                </a>
-                {canManageGuias(user) ? (
-                  <Link className="underline-offset-2 hover:underline" href={`/guias/warehouse/${receipt.id}`}>
-                    Editar
-                  </Link>
-                ) : null}
-              </div>
-            ))}
-          </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Todos los documentos downloads one zip: the shipment checklist, the 12-page AWB, delivery order, pickup order, TSA letter with the company logo, TSA unknown-shipper letter, CCSF certificate, CCSP certification and the lithium battery letter. ACK prints the ACK logo and letterhead. Delivery and pickup need a trucker. The AWB and labels wait until the number is issued. The cargo labels and the folder label are printed on their own and are not in that zip. Opening a file also uploads it to Drive under ACK Guías / client / AWB.
+          Descargar todos los documentos baja un zip con lo de arriba, más lo que subiste (DGD firmado, facturas o manifiestos). La carta TSA depende del avión y el CCSF y el CCSP salen solo si la carga va screened: se cambian en el formulario de la guía. El delivery order necesita un trucker y la guía espera a que se emita. El pickup order y los warehouse receipts se guardan, pero no van con los documentos: el pickup está en Pickups y los receipts en la sección de arriba. Al abrir un archivo también se sube a Drive en ACK Guías / cliente / AWB.
         </p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {OPTIONAL_KINDS.map((kind) => (
+            <div key={kind} className="flex flex-col gap-1">
+              <Button asChild variant="outline" className="h-auto justify-between px-3 py-3">
+                <a href={`${fileBase}?kind=${kind}`} target="_blank" rel="noreferrer">
+                  <span>{GUIA_FILE_LABELS[kind]}</span>
+                  <span className="text-xs font-normal text-muted-foreground">Opcional</span>
+                </a>
+              </Button>
+              <span className="px-1 text-xs text-muted-foreground">{guiaFileName(kind, document.awb, "")}</span>
+            </div>
+          ))}
+        </div>
         {profileGaps.length ? (
           <ul className="space-y-1 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
             {profileGaps.map((message) => (
@@ -750,6 +738,46 @@ export default async function GuiaDetailPage({
               Save to Drive
             </SubmitButton>
           </form>
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-display text-2xl">Labels</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Se imprimen aparte, no van con los documentos.</p>
+          </div>
+          {document.dgDeclarable && document.unNumbers ? (
+            <Button asChild variant="outline">
+              <Link href={`/guias/dg-labels?un=${encodeURIComponent(document.unNumbers)}&copies=${Math.max(1, pieces)}&guia=${document.id}`}>Labels DG ({document.unNumbers})</Link>
+            </Button>
+          ) : null}
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {LABEL_KINDS.map((kind) => {
+            const needsIssue = (kind === "labels" && document.status !== "issued") || (kind === "folder-label" && !document.awb);
+            const note = needsIssue ? "Emite la guía o usa Imprimir sin emitir" : "Ready";
+            return (
+              <div key={kind} className="flex flex-col gap-1">
+                {needsIssue ? (
+                  <span title="Emite la guía o usa Imprimir sin emitir" className="inline-flex w-full cursor-not-allowed">
+                    <Button type="button" disabled variant="outline" className="h-auto w-full justify-between px-3 py-3">
+                      <span>{GUIA_FILE_LABELS[kind]}</span>
+                      <span className="text-xs font-normal text-muted-foreground">{note}</span>
+                    </Button>
+                  </span>
+                ) : (
+                  <Button asChild variant="outline" className="h-auto justify-between px-3 py-3">
+                    <a href={`${fileBase}?kind=${kind}`} target="_blank" rel="noreferrer">
+                      <span>{GUIA_FILE_LABELS[kind]}</span>
+                      <span className="text-xs font-normal text-muted-foreground">{note}</span>
+                    </a>
+                  </Button>
+                )}
+                <span className="px-1 text-xs text-muted-foreground">{guiaFileName(kind, document.awb, "")}</span>
+              </div>
+            );
+          })}
         </div>
       </section>
 

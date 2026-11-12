@@ -21,7 +21,8 @@ import { checkFlights } from "@/lib/guias/flight-check";
 import { safeGuiaReturn } from "@/lib/guias/upload-rules";
 import { rememberGuiaParties } from "@/lib/guias/parties";
 import { reviewFieldsToSave } from "@/lib/guias/review";
-import { GUIA_FILE_KINDS, guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
+import { guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
+import { aircraftFrom, driveKinds } from "@/lib/guias/guia-pack";
 
 /** Every guía belongs to a client of the book. The client portal and its emails depend on it. */
 const CLIENT_REQUIRED = "Escribe el cliente de la guía.";
@@ -117,6 +118,8 @@ export async function saveNewGuia(formData: FormData) {
       piecesManual: values.pieces !== "",
       grossManual: values.grossKg !== "",
       chargeableManual: values.chargeableKg !== "",
+      aircraft: aircraftFrom(formData.get("aircraft")) || null,
+      screened: text(formData.get("screened")) === "1",
       truckerName: blank(text(formData.get("truckerName"))),
       truckerPhone: blank(text(formData.get("truckerPhone"))),
       driverName: blank(text(formData.get("driverName"))),
@@ -170,6 +173,8 @@ export async function saveGuia(formData: FormData) {
     data: {
       ...documentData(values, uniqueReview, snippetsFromForm(formData), billTo?.id ?? null),
       ...manualFlags,
+      aircraft: aircraftFrom(formData.get("aircraft")) || null,
+      screened: text(formData.get("screened")) === "1",
       truckerName: blank(text(formData.get("truckerName"))),
       truckerPhone: blank(text(formData.get("truckerPhone"))),
       driverName: blank(text(formData.get("driverName"))),
@@ -204,7 +209,9 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
   const awbFolder = guiaAwbFolder(document.awb, document.id);
   const user = await requireGuiaTeam();
   const master = "";
-  const pushKind = async (kind: (typeof GUIA_FILE_KINDS)[number]): Promise<string | null> => {
+  const pushKind = async (kind: GuiaFileKind): Promise<string | null> => {
+    // The pickup order is only kept: with no trucker it is skipped, it is not an error.
+    if (kind === "pickup" && !document.truckerName?.trim()) return null;
     let firstError: string | null = null;
     const fileName = guiaFileName(kind, document.awb, master);
     try {
@@ -251,7 +258,7 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
   };
   // The first file goes alone: it creates the client and AWB folders in Drive, which the others then find. The rest go
   // a few at a time instead of one after another, since each one is several round trips to Drive.
-  const [head, ...rest] = GUIA_FILE_KINDS;
+  const [head, ...rest] = driveKinds(document);
   const errors: Array<string | null> = [await pushKind(head)];
   const queue = [...rest];
   const worker = async () => {
