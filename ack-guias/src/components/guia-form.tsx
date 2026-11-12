@@ -87,6 +87,8 @@ export function GuiaForm({
 }) {
   const [carrier, setCarrier] = useState(carrierId);
   const [paste, setPaste] = useState("");
+  // The instructions box stays closed until the team wants it, so it takes no room when it is not used.
+  const [showInstructions, setShowInstructions] = useState(false);
   const [draft, setDraft] = useState(values);
   const [flags, setFlags] = useState<string[]>(review);
   const [sources, setSources] = useState(snippets);
@@ -142,12 +144,25 @@ export function GuiaForm({
       {id ? <input type="hidden" name="id" value={id} /> : null}
       <input type="hidden" name="review" value={flags.join(",")} />
       <input type="hidden" name="snippetJson" value={JSON.stringify(sources)} />
+      {!showInstructions ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="button" variant="outline" onClick={() => setShowInstructions(true)}>
+            Agregar client instructions
+          </Button>
+          {banner ? <p className="text-sm text-muted-foreground">{banner}</p> : null}
+        </div>
+      ) : (
       <section className="space-y-3 rounded-lg border border-border bg-card p-4">
-        <div>
-          <h2 className="font-display text-2xl">Client instructions</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Paste the email or the instructions. Extract leaves unsure fields empty and marks them for review.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-2xl">Client instructions</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Paste the email or the instructions. Extract leaves unsure fields empty and marks them for review.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowInstructions(false)}>
+            Ocultar
+          </Button>
         </div>
         <textarea
           value={paste}
@@ -164,6 +179,7 @@ export function GuiaForm({
         </div>
         {banner ? <p className="text-sm text-muted-foreground">{banner}</p> : null}
       </section>
+      )}
       {flags.length ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
           <p className="text-sm text-amber-900">Hay campos en revisión. No impiden emitir.</p>
