@@ -51,7 +51,7 @@ export default async function NewGuiaPage() {
     <div className="space-y-4">
       <div>
         <GuiaEyebrow />
-        <h1 className="font-display text-4xl">Nueva guía</h1>
+        <h1 className="font-display text-4xl">New guía</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           Chargeable kg is the weight that bills. Gross is optional. Every guía is issued by ACK TEAM LLC.
         </p>

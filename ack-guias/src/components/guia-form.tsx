@@ -27,7 +27,7 @@ const FIELDS: Array<{ key: keyof GuiaValues; label: string; area?: boolean; hint
   {
     key: "rate",
     label: "Rate printed on the AWB (per kg, optional)",
-    hint: "Prints in the Rate / Charge column and the total is rate x chargeable kg. It is not the rate billed to the client; that one is set under Clientes y tarifas.",
+    hint: "Prints in the Rate / Charge column and the total is rate x chargeable kg. It is not the rate billed to the client; that one is set under Clients and rates.",
   },
   { key: "grossKg", label: "Gross kg (optional, not billed)" },
   { key: "goods", label: "Goods description", area: true },
@@ -147,7 +147,7 @@ export function GuiaForm({
       {!showInstructions ? (
         <div className="flex flex-wrap items-center gap-3">
           <Button type="button" variant="outline" onClick={() => setShowInstructions(true)}>
-            Agregar client instructions
+            Add client instructions
           </Button>
           {banner ? <p className="text-sm text-muted-foreground">{banner}</p> : null}
         </div>
@@ -161,7 +161,7 @@ export function GuiaForm({
             </p>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={() => setShowInstructions(false)}>
-            Ocultar
+            Hide
           </Button>
         </div>
         <textarea
@@ -182,9 +182,9 @@ export function GuiaForm({
       )}
       {flags.length ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-          <p className="text-sm text-amber-900">Hay campos en revisión. No impiden emitir.</p>
+          <p className="text-sm text-amber-900">Some fields are under review. They do not stop you from issuing.</p>
           <Button type="button" variant="outline" onClick={() => setFlags([])}>
-            Confirmar todo
+            Confirm all
           </Button>
         </div>
       ) : null}
@@ -255,7 +255,7 @@ export function GuiaForm({
                   onChange={(event) => setCarrier(event.target.value)}
                   className="block h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
-                  <option value="">Automático (por el prefijo del AWB)</option>
+                  <option value="">Automatic (by the AWB prefix)</option>
                   {carrierOptions.map((option) => (
                     <option key={option.id} value={option.id}>
                       {option.label}
@@ -273,7 +273,7 @@ export function GuiaForm({
         <div className="space-y-3 rounded-md border border-border p-3 md:col-span-2">
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" name="dg" value="1" checked={draft.dg === "1"} onChange={(event) => update("dg", event.target.checked ? "1" : "")} />
-            Lleva mercancía peligrosa declarable (DG)
+            Carries declarable dangerous goods (DG)
           </label>
           {draft.dg === "1" ? (
             <div className="space-y-1.5">
@@ -290,10 +290,10 @@ export function GuiaForm({
             </div>
           ) : null}
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Baterías de litio (marcan el Lithium Battery Letter)</legend>
+            <legend className="text-sm font-medium">Lithium batteries (they mark the Lithium Battery Letter)</legend>
             {(["II", "IB"] as const).map((section) => (
               <div key={section} className="space-y-1">
-                <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">{section === "II" ? "Sección II (sin DGD)" : "Sección IB (lleva DGD)"}</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">{section === "II" ? "Section II (no DGD)" : "Section IB (carries a DGD)"}</p>
                 <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
                   {LITHIUM_TYPES.filter((type) => type.section === section).map((type) => (
                     <label key={type.code} className="flex items-center gap-2 text-sm">
@@ -319,7 +319,7 @@ export function GuiaForm({
             ))}
             {isLithiumPi(draft.lithiumPi) ? (
               <p className="text-xs text-muted-foreground">
-                Sección II no lleva DGD. Cada tipo de Sección II marcado sale en el Nature of Goods, después de la descripción y antes del ITN, como Lithium ion/metal batteries in compliance with Section II of PI…, y todos van marcados en el Lithium Battery Letter.
+                Section II carries no DGD. Each Section II type checked prints in the Nature of Goods, after the description and before the ITN, as Lithium ion/metal batteries in compliance with Section II of PI…, and all are marked on the Lithium Battery Letter.
               </p>
             ) : null}
           </fieldset>
@@ -330,7 +330,7 @@ export function GuiaForm({
           {draft.bup === "1" ? (
             <div className="space-y-1.5">
               <p className="text-xs text-muted-foreground">The shipment checklist will list the CCSF, the CCSP and the ULD Distribution.</p>
-              <Label htmlFor="bupItems">Elementos y piezas del BUP</Label>
+              <Label htmlFor="bupItems">BUP items and pieces</Label>
               <textarea
                 id="bupItems"
                 name="bupItems"
@@ -341,7 +341,7 @@ export function GuiaForm({
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
               <p className="text-xs text-muted-foreground">
-                Separa con comas: cada elemento sale en su propia línea del Nature of Goods, debajo de los AES ITN.
+                Separate with commas: each item prints on its own line of the Nature of Goods, below the AES ITN.
               </p>
             </div>
           ) : null}
@@ -356,29 +356,29 @@ export function GuiaForm({
       </section>
       <section className="space-y-3 rounded-md border border-border p-3">
         <div>
-          <h2 className="font-display text-2xl">Documentos de la guía</h2>
+          <h2 className="font-display text-2xl">Guía documents</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Solo se generan los documentos que esta carga necesita. Siempre: la guía, la carta de baterías y el delivery order. Si va con DG se agrega el DGD firmado.
+            Only the documents this cargo needs are generated. Always: the guía, the battery letter and the delivery order. With DG the signed DGD is added.
           </p>
         </div>
         <div className="flex flex-wrap gap-x-8 gap-y-3">
           <fieldset className="space-y-1.5">
-            <legend className="text-sm font-medium">Avión</legend>
+            <legend className="text-sm font-medium">Aircraft</legend>
             <div className="flex flex-wrap gap-4 text-sm">
               <label className="flex items-center gap-2">
                 <input type="radio" name="aircraft" value="pax" defaultChecked={aircraft === "pax"} />
-                Pax (carta TSA)
+                Pax (TSA letter)
               </label>
               <label className="flex items-center gap-2">
                 <input type="radio" name="aircraft" value="cargo" defaultChecked={aircraft === "cargo" || (mode === "new" && !aircraft)} />
-                Carguero (TSA unknown shipper)
+                Cargo aircraft (TSA unknown shipper)
               </label>
             </div>
-            {mode === "edit" && !aircraft ? <p className="text-xs text-muted-foreground">Sin elegir: la guía muestra las dos cartas TSA.</p> : null}
+            {mode === "edit" && !aircraft ? <p className="text-xs text-muted-foreground">Not chosen: the guía shows both TSA letters.</p> : null}
           </fieldset>
           <label className="flex items-center gap-2 self-end text-sm font-medium">
             <input type="checkbox" name="screened" value="1" defaultChecked={screened} />
-            Screened (CCSF y CCSP)
+            Screened (CCSF and CCSP)
           </label>
         </div>
       </section>
@@ -403,16 +403,16 @@ export function GuiaForm({
       {mode === "new" ? (
         <section className="space-y-3 rounded-md border border-border p-3">
           <div>
-            <h2 className="font-display text-2xl">Asignar AWB ahora (opcional)</h2>
+            <h2 className="font-display text-2xl">Assign AWB now (optional)</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Reserva el número del stock al guardar. El borrador de la guía, los labels y el Folder Label ya salen con ese número, y al emitir se usa el mismo.
+              Reserves the number from stock when saving. The guía draft, the labels and the Folder Label already print with that number, and the same one is used when issuing.
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="assignPrefix">Airline prefix stock</Label>
               <select id="assignPrefix" name="assignPrefix" defaultValue="" className="block h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                <option value="">No asignar todavía</option>
+                <option value="">Do not assign yet</option>
                 {awbOptions.map((row) => (
                   <option key={row.prefix} value={row.prefix}>
                     {row.prefix} {row.airline} ({row.left} left)
@@ -421,7 +421,7 @@ export function GuiaForm({
               </select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="assignAwb">O un número en stock</Label>
+              <Label htmlFor="assignAwb">Or a number in stock</Label>
               <Input id="assignAwb" name="assignAwb" placeholder="123-12345675" className="font-mono" />
             </div>
           </div>

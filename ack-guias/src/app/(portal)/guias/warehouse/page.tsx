@@ -33,11 +33,11 @@ export default async function WarehousePage({ searchParams }: { searchParams: Pr
           <GuiaEyebrow />
           <h1 className="font-display text-4xl">Warehouse receipts</h1>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Cada receipt es carga recibida en la bodega. Una guía puede juntar varios, y mientras siga en borrador toma de ellos las piezas, los pesos, el shipper, el consignee y la mercancía.
+            Each receipt is cargo received at the warehouse. A guía can gather several, and while it is still a draft it takes from them the pieces, the weights, the shipper, the consignee and the goods.
           </p>
         </div>
         <Link href="/guias/warehouse/new" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
-          Nuevo warehouse receipt
+          New warehouse receipt
         </Link>
       </div>
       {notice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{notice}</p> : null}
@@ -48,7 +48,7 @@ export default async function WarehousePage({ searchParams }: { searchParams: Pr
             <tr>
               <th className="px-3 py-2">Receipt</th>
               <th className="px-3 py-2">Recibido</th>
-              <th className="px-3 py-2">Cliente</th>
+              <th className="px-3 py-2">Client</th>
               <th className="px-3 py-2">Shipper</th>
               <th className="px-3 py-2">Pzas</th>
               <th className="px-3 py-2">Kg</th>
@@ -61,7 +61,7 @@ export default async function WarehousePage({ searchParams }: { searchParams: Pr
             {receipts.length === 0 ? (
               <tr>
                 <td colSpan={9} className="px-3 py-6 text-muted-foreground">
-                  Todavía no hay warehouse receipts.
+                  There are no warehouse receipts yet.
                 </td>
               </tr>
             ) : (
@@ -83,10 +83,10 @@ export default async function WarehousePage({ searchParams }: { searchParams: Pr
                     <td className="px-3 py-2">
                       {receipt.guia ? (
                         <Link href={`/guias/${receipt.guia.id}`} className="underline-offset-2 hover:underline">
-                          {receipt.guia.awb || "Borrador"}
+                          {receipt.guia.awb || "Draft"}
                         </Link>
                       ) : (
-                        <span className="text-muted-foreground">Sin guía</span>
+                        <span className="text-muted-foreground">No guía</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-right">
@@ -97,7 +97,7 @@ export default async function WarehousePage({ searchParams }: { searchParams: Pr
                         <form action={deleteWarehouseReceipt}>
                           <input type="hidden" name="id" value={receipt.id} />
                           <button type="submit" className="text-xs text-stuck underline-offset-2 hover:underline">
-                            Eliminar
+                            Delete
                           </button>
                         </form>
                       </div>

@@ -12,7 +12,7 @@ function settingsError(message: string) {
 export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user || !isAdmin(user)) {
-    return new NextResponse("Solo un administrador puede conectar QuickBooks.", {
+    return new NextResponse("Only an administrator can connect QuickBooks.", {
       status: 401,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
@@ -21,16 +21,16 @@ export async function GET(request: Request) {
   const authUrl = resolveAppUrl();
   const state = readOAuthState(params.get("state") ?? "", qboTokenKey(), Date.now());
   if (!state || state.userId !== user.id || state.agentKey !== "ack") {
-    return settingsError("La conexión de QuickBooks venció. Inténtalo de nuevo.");
+    return settingsError("The QuickBooks connection expired. Try again.");
   }
   const code = params.get("code")?.trim() ?? "";
   const realmId = params.get("realmId")?.trim() ?? "";
-  if (!code || !realmId) return settingsError("QuickBooks no devolvió la autorización.");
+  if (!code || !realmId) return settingsError("QuickBooks did not return the authorization.");
   if (await realmTakenByOther(state.agentKey, realmId)) {
-    return settingsError("Esa compañía de QuickBooks ya está conectada a la otra empresa.");
+    return settingsError("That QuickBooks company is already connected to the other company.");
   }
   const creds = qboCredentials(state.agentKey);
-  if (!creds || !authUrl) return settingsError("Faltan los secretos QBO_CLIENT_ID y QBO_CLIENT_SECRET.");
+  if (!creds || !authUrl) return settingsError("The secrets QBO_CLIENT_ID and QBO_CLIENT_SECRET are missing.");
   try {
     const tokens = await exchangeQboCode({
       code,
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("QuickBooks callback", error instanceof Error ? error.name : "error");
-    return settingsError("QuickBooks no completó la conexión.");
+    return settingsError("QuickBooks did not complete the connection.");
   }
   return NextResponse.redirect(new URL(`/guias/settings?saved=qbo&company=${state.agentKey}`, authUrl));
 }

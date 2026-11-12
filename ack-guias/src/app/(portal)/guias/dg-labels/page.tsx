@@ -62,16 +62,16 @@ export default async function DgLabelsPage({ searchParams }: { searchParams: Pro
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Labels DG</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Dos documentos: el label del Shipper y el Consignee como van en el DGD (con la dirección completa y nada más), y el checklist de los labels que lleva cada UN, con su dibujo, su nombre y una casilla para marcar.
+          Two documents: the Shipper and Consignee label as they go on the DGD (with the full address and nothing else), and the checklist of the labels each UN carries, with its drawing, its name and a box to tick.
         </p>
       </div>
 
       <form action="/guias/dg-labels" className="space-y-4 rounded-lg border border-border bg-card p-4">
         {guiaId ? <input type="hidden" name="guia" value={guiaId} /> : null}
-        {guia ? <p className="text-sm text-muted-foreground">Guía {guia.awb || "en borrador"}: el Shipper y el Consignee vienen de la guía y se pueden cambiar aquí.</p> : null}
+        {guia ? <p className="text-sm text-muted-foreground">Guía {guia.awb || "draft"}: the Shipper and the Consignee come from the guía and can be changed here.</p> : null}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <label className="space-y-1 text-sm md:col-span-2">
-            <span className="text-muted-foreground">UN (varios separados por coma)</span>
+            <span className="text-muted-foreground">UN (several separated by commas)</span>
             <Input name="un" defaultValue={numbers.map((number) => `UN${number}`).join(", ")} placeholder="UN3481, UN1950" />
           </label>
           <label className="space-y-1 text-sm">
@@ -80,20 +80,20 @@ export default async function DgLabelsPage({ searchParams }: { searchParams: Pro
           </label>
           <label className="flex items-end gap-2 pb-2 text-sm">
             <input type="checkbox" name="marks" value="1" defaultChecked={marks} />
-            Incluir la marca del bulto en el checklist
+            Include the package mark in the checklist
           </label>
           <label className="space-y-1 text-sm">
             <span className="text-muted-foreground">Cargo Aircraft Only</span>
             <select name="cao" defaultValue={cao} className={SELECT}>
-              <option value="auto">Automático (según la tabla)</option>
+              <option value="auto">Automatic (from the table)</option>
               <option value="yes">Siempre</option>
               <option value="no">Nunca</option>
             </select>
           </label>
           <label className="space-y-1 text-sm">
-            <span className="text-muted-foreground">Flechas de orientación</span>
+            <span className="text-muted-foreground">Orientation arrows</span>
             <select name="arrows" defaultValue={arrows} className={SELECT}>
-              <option value="auto">Automático (si lleva líquidos)</option>
+              <option value="auto">Automatic (if it carries liquids)</option>
               <option value="yes">Siempre</option>
               <option value="no">Nunca</option>
             </select>
@@ -102,19 +102,19 @@ export default async function DgLabelsPage({ searchParams }: { searchParams: Pro
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <h2 className="font-display text-2xl">Shipper</h2>
-            <Input name="shipperName" defaultValue={shipper.name} placeholder="Nombre" />
-            <textarea name="shipperAddress" rows={4} defaultValue={shipper.address} placeholder="Dirección completa" className={AREA} />
+            <Input name="shipperName" defaultValue={shipper.name} placeholder="Name" />
+            <textarea name="shipperAddress" rows={4} defaultValue={shipper.address} placeholder="Full address" className={AREA} />
           </div>
           <div className="space-y-2">
             <h2 className="font-display text-2xl">Consignee</h2>
-            <Input name="consigneeName" defaultValue={consignee.name} placeholder="Nombre" />
-            <textarea name="consigneeAddress" rows={4} defaultValue={consignee.address} placeholder="Dirección completa" className={AREA} />
+            <Input name="consigneeName" defaultValue={consignee.name} placeholder="Name" />
+            <textarea name="consigneeAddress" rows={4} defaultValue={consignee.address} placeholder="Full address" className={AREA} />
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          En el DGD solo van el nombre y la dirección completa. Los teléfonos, correos y contactos que estén en la dirección de la guía no se incluyen.
+          The DGD only carries the name and the full address. Phones, emails and contacts in the guía address are not included.
         </p>
-        <Button type="submit">Actualizar</Button>
+        <Button type="submit">Update</Button>
       </form>
 
       {plan ? (
@@ -143,7 +143,7 @@ export default async function DgLabelsPage({ searchParams }: { searchParams: Pro
                     <tr key={unit.un} className="border-b border-border align-top last:border-0">
                       <td className="px-3 py-2 font-medium">UN{unit.un}</td>
                       <td className="px-3 py-2">
-                        {unit.found ? unit.name : "No está en la tabla"}
+                        {unit.found ? unit.name : "Not in the table"}
                         {unit.notes.map((note) => (
                           <span key={note} className="mt-1 block text-xs text-muted-foreground">
                             {note}
@@ -158,7 +158,7 @@ export default async function DgLabelsPage({ searchParams }: { searchParams: Pro
                                 item.kind === "hazard" ? hazardLabelName(item.code) : item.kind === "cao" ? "Cargo Aircraft Only" : item.kind === "arrows" ? "Orientation arrows" : `Package marking UN${item.un}`,
                               )
                               .join(" · ")
-                          : "Ninguno"}
+                          : "None"}
                       </td>
                     </tr>
                   );
@@ -182,16 +182,16 @@ export default async function DgLabelsPage({ searchParams }: { searchParams: Pro
             </a>
           </Button>
         ) : (
-          <span className="text-sm text-muted-foreground">Escribe un UN y pulsa Actualizar para generar el checklist.</span>
+          <span className="text-sm text-muted-foreground">Type a UN and press Update to generate the checklist.</span>
         )}
       </div>
 
       <section className="max-w-3xl space-y-2 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
-        <h2 className="font-display text-2xl text-foreground">Antes de usar el checklist</h2>
+        <h2 className="font-display text-2xl text-foreground">Before using the checklist</h2>
         <p>
-          Los datos salen de la tabla de materiales peligrosos de 49 CFR 172.101 (documento público de EE. UU.), más algunas reglas aéreas conocidas como el hielo seco, el material magnetizado y las baterías de litio. No son el texto del IATA DGR, que es de pago. Confirma cada etiqueta con el DGR vigente antes de embarcar. El embarcador sigue siendo responsable de la clasificación, el marcado y el etiquetado.
+          The data comes from the hazardous materials table of 49 CFR 172.101 (a public US document), plus some well-known air rules such as dry ice, magnetized material and lithium batteries. It is not the text of the IATA DGR, which is paid. Confirm each label with the current DGR before shipping. The shipper remains responsible for the classification, the marking and the labeling.
         </p>
-        <p>Las etiquetas de la Clase 7 (radiactivos) llevan categoría, contenido, actividad e índice de transporte, por eso aparecen sin dibujo. Las baterías de litio de la Sección II usan la marca de baterías de litio en lugar de la etiqueta.</p>
+        <p>Class 7 (radioactive) labels carry category, contents, activity and transport index, so they appear without a drawing. Section II lithium batteries use the lithium battery mark instead of the label.</p>
       </section>
     </div>
   );

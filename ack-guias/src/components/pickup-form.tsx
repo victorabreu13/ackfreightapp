@@ -22,12 +22,12 @@ export function PickupForm({ awbOptions = [] }: { awbOptions?: Array<{ prefix: s
   return (
     <form action={savePickupRequest} className="space-y-4 rounded-lg border border-border bg-card p-4">
       <div>
-        <h2 className="font-display text-2xl">Nuevo pickup request</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Al guardarlo se crea el borrador de la guía con estos datos. El pickup order sale desde esa guía.</p>
+        <h2 className="font-display text-2xl">New pickup request</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Saving it creates the guía draft with this data. The pickup order comes from that guía.</p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="client">Cliente</Label>
+          <Label htmlFor="client">Client</Label>
           <GuiaLookupInput id="client" name="client" required type="client" value={client} onChange={setClient} onPick={(item) => setClient(item.name)} />
         </div>
         <div className="space-y-1.5">
@@ -35,7 +35,7 @@ export function PickupForm({ awbOptions = [] }: { awbOptions?: Array<{ prefix: s
           <Input id="destination" name="destination" placeholder="GUA" />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="shipper">Shipper (dónde se recoge)</Label>
+          <Label htmlFor="shipper">Shipper (where it is picked up)</Label>
           <GuiaLookupInput
             id="shipper"
             name="shipper"
@@ -66,30 +66,30 @@ export function PickupForm({ awbOptions = [] }: { awbOptions?: Array<{ prefix: s
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="shipperAddress">Dirección del pickup</Label>
+          <Label htmlFor="shipperAddress">Pickup address</Label>
           <textarea id="shipperAddress" name="shipperAddress" rows={3} value={shipperAddress} onChange={(event) => setShipperAddress(event.target.value)} className={AREA} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="consigneeAddress">Dirección del consignee</Label>
+          <Label htmlFor="consigneeAddress">Consignee address</Label>
           <textarea id="consigneeAddress" name="consigneeAddress" rows={3} value={consigneeAddress} onChange={(event) => setConsigneeAddress(event.target.value)} className={AREA} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="contactName">Contacto en el pickup</Label>
+          <Label htmlFor="contactName">Pickup contact</Label>
           <Input id="contactName" name="contactName" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="contactPhone">Teléfono</Label>
+            <Label htmlFor="contactPhone">Phone</Label>
             <Input id="contactPhone" name="contactPhone" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="contactEmail">Correo</Label>
+            <Label htmlFor="contactEmail">Email</Label>
             <Input id="contactEmail" name="contactEmail" type="email" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5 md:col-span-2">
           <div className="space-y-1.5">
-            <Label htmlFor="pieces">Piezas</Label>
+            <Label htmlFor="pieces">Pieces</Label>
             <Input id="pieces" name="pieces" inputMode="numeric" />
           </div>
           <PackageSelect />
@@ -98,16 +98,16 @@ export function PickupForm({ awbOptions = [] }: { awbOptions?: Array<{ prefix: s
             <Input id="weightKg" name="weightKg" inputMode="decimal" onBlur={(event) => (event.currentTarget.value = roundUpText(event.currentTarget.value))} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="pickupDate">Fecha del pickup</Label>
+            <Label htmlFor="pickupDate">Pickup date</Label>
             <Input id="pickupDate" name="pickupDate" type="date" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="readyTime">Hora lista</Label>
+            <Label htmlFor="readyTime">Ready time</Label>
             <Input id="readyTime" name="readyTime" type="time" />
           </div>
         </div>
         <div className="space-y-1.5 md:col-span-2">
-          <Label htmlFor="description">Descripción de la carga</Label>
+          <Label htmlFor="description">Cargo description</Label>
           <textarea id="description" name="description" rows={2} className={AREA} />
         </div>
         <div className="grid gap-3 md:col-span-2 md:grid-cols-3">
@@ -116,7 +116,7 @@ export function PickupForm({ awbOptions = [] }: { awbOptions?: Array<{ prefix: s
             <Input id="truckerName" name="truckerName" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="truckerPhone">Teléfono del trucker</Label>
+            <Label htmlFor="truckerPhone">Trucker phone</Label>
             <Input id="truckerPhone" name="truckerPhone" />
           </div>
           <div className="space-y-1.5">
@@ -131,14 +131,14 @@ export function PickupForm({ awbOptions = [] }: { awbOptions?: Array<{ prefix: s
       </div>
       <div className="space-y-3 rounded-md border border-border p-3">
         <div>
-          <h3 className="font-display text-xl">AWB de la guía (opcional)</h3>
-          <p className="mt-1 text-xs text-muted-foreground">Al crear el borrador se le asigna este número del stock, y sus drafts, labels y Folder Label ya salen con él. Sin elegir nada, la guía queda sin número.</p>
+          <h3 className="font-display text-xl">Guía AWB (optional)</h3>
+          <p className="mt-1 text-xs text-muted-foreground">When the draft is created this number from stock is assigned to it, and its drafts, labels and Folder Label already print with it. If you choose nothing, the guía has no number.</p>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="assignPrefix">Airline prefix stock</Label>
             <select id="assignPrefix" name="assignPrefix" defaultValue="" className="block h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-              <option value="">No asignar todavía</option>
+              <option value="">Do not assign yet</option>
               {awbOptions.map((row) => (
                 <option key={row.prefix} value={row.prefix}>
                   {row.prefix} {row.airline} ({row.left} left)
@@ -147,12 +147,12 @@ export function PickupForm({ awbOptions = [] }: { awbOptions?: Array<{ prefix: s
             </select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="assignAwb">O un número en stock</Label>
+            <Label htmlFor="assignAwb">Or a number in stock</Label>
             <Input id="assignAwb" name="assignAwb" placeholder="123-12345675" className="font-mono" />
           </div>
         </div>
       </div>
-      <Button type="submit">Crear pickup y borrador de guía</Button>
+      <Button type="submit">Create pickup and guía draft</Button>
     </form>
   );
 }

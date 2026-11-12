@@ -18,19 +18,19 @@ function CarrierFields({ carrier }: { carrier?: { name: string; address: string;
   return (
     <div className="grid gap-3 md:grid-cols-[2fr_1fr_1fr]">
       <label className="space-y-1 text-sm">
-        <span className="text-muted-foreground">Nombre (sale en By First Carrier y en Issued By)</span>
+        <span className="text-muted-foreground">Name (prints in By First Carrier and in Issued By)</span>
         <Input name="name" required defaultValue={carrier?.name ?? ""} placeholder="LATAM AIRLINES CARGO (MIA)" />
       </label>
       <label className="space-y-1 text-sm">
-        <span className="text-muted-foreground">Prefijo del AWB</span>
+        <span className="text-muted-foreground">AWB prefix</span>
         <Input name="prefix" inputMode="numeric" maxLength={3} defaultValue={carrier?.prefix ?? ""} placeholder="045" />
       </label>
       <label className="space-y-1 text-sm">
-        <span className="text-muted-foreground">Código IATA</span>
+        <span className="text-muted-foreground">IATA code</span>
         <Input name="iata" maxLength={2} defaultValue={carrier?.iata ?? ""} placeholder="LA" />
       </label>
       <label className="space-y-1 text-sm md:col-span-3">
-        <span className="text-muted-foreground">Dirección y teléfono (como sale en el AWB)</span>
+        <span className="text-muted-foreground">Address and phone (as it prints on the AWB)</span>
         <textarea
           name="address"
           rows={3}
@@ -62,27 +62,27 @@ export default async function CarriersPage({ searchParams }: { searchParams: Pro
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Carriers</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Cada carrier tiene el nombre y la dirección que salen en el AWB: el nombre va en By First Carrier y los dos van arriba a la derecha, debajo de Issued By. En la guía eliges el carrier en el campo Carrier, después de Destination. Si no eliges uno, se usa el que tenga el prefijo del AWB.
+          Each carrier has the name and address that print on the AWB: the name goes in By First Carrier and both go at the top right, under Issued By. On the guía you pick the carrier in the Carrier field, after Destination. If you pick none, the one with the AWB prefix is used.
         </p>
       </div>
       {notice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{notice}</p> : null}
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
 
       <section className="space-y-3">
-        {carriers.length === 0 ? <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">Todavía no hay carriers.</p> : null}
+        {carriers.length === 0 ? <p className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">There are no carriers yet.</p> : null}
         {carriers.map((carrier) => (
           <details key={carrier.id} className="rounded-lg border border-border bg-card">
             <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
               <span className="font-medium">{carrier.name}</span>
               <span className="text-muted-foreground">
-                {[carrier.prefix ? `Prefijo ${carrier.prefix}` : "", carrier.iata ? `IATA ${carrier.iata}` : "", usedBy(carrier.id) ? `${usedBy(carrier.id)} guías` : ""].filter(Boolean).join(" · ")}
+                {[carrier.prefix ? `Prefix ${carrier.prefix}` : "", carrier.iata ? `IATA ${carrier.iata}` : "", usedBy(carrier.id) ? `${usedBy(carrier.id)} guías` : ""].filter(Boolean).join(" · ")}
               </span>
             </summary>
             <div className="space-y-3 border-t border-border p-4">
               <form action={saveCarrier} className="space-y-3">
                 <input type="hidden" name="id" value={carrier.id} />
                 <CarrierFields carrier={carrier} />
-                <Button type="submit">Guardar</Button>
+                <Button type="submit">Save</Button>
               </form>
               <form action={deleteCarrier}>
                 <input type="hidden" name="id" value={carrier.id} />
@@ -96,10 +96,10 @@ export default async function CarriersPage({ searchParams }: { searchParams: Pro
       </section>
 
       <section className="space-y-3 rounded-lg border border-border bg-card p-4">
-        <h2 className="font-display text-2xl">Nuevo carrier</h2>
+        <h2 className="font-display text-2xl">New carrier</h2>
         <form action={saveCarrier} className="space-y-3">
           <CarrierFields />
-          <Button type="submit">Agregar</Button>
+          <Button type="submit">Add</Button>
         </form>
       </section>
     </div>

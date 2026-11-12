@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { canManageGuias } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { issueErrorInSpanish } from "@/lib/awb/issue";
+import { issueErrorMessage } from "@/lib/awb/issue";
 import { assignAwbToGuia } from "@/lib/guias/assign-awb";
 import { createDraftGuia, EMPTY_GUIA_VALUES } from "@/lib/guias/draft-guia";
 import { numberOrNull } from "@/lib/guias/guia-data";
@@ -41,8 +41,8 @@ export async function savePickupRequest(formData: FormData) {
   const user = await requireTeam();
   const client = text(formData.get("client"));
   const shipper = text(formData.get("shipper"));
-  if (!client) back("Escribe el cliente del pickup.", "error");
-  if (!shipper) back("Escribe el shipper: de dónde se recoge la carga.", "error");
+  if (!client) back("Type the pickup client.", "error");
+  if (!shipper) back("Type the shipper: where the cargo is picked up from.", "error");
   const pieces = numberOrNull(text(formData.get("pieces")));
   const weight = roundUpOrNull(numberOrNull(text(formData.get("weightKg"))));
   const data = {
@@ -96,7 +96,7 @@ export async function savePickupRequest(formData: FormData) {
       await assignAwbToGuia(draft.id, wantedAwb, wantedPrefix);
       assigned = (await prisma.airWaybillDocument.findUnique({ where: { id: draft.id }, select: { awb: true } }))?.awb ?? "";
     } catch (error) {
-      assignError = issueErrorInSpanish(error);
+      assignError = issueErrorMessage(error);
     }
   }
   // The pickup order also becomes a trip request in ACK Freight. A failure there never undoes the pickup.
@@ -125,13 +125,13 @@ export async function savePickupRequest(formData: FormData) {
     ack.state === "skipped"
       ? ""
       : ack.state === "failed"
-        ? ` No se pudo crear el trip request en ACK Freight: ${ack.message}`
+        ? ` The trip request could not be created in ACK Freight: ${ack.message}`
         : ` ${ack.message}`;
   revalidatePath("/guias/pickups");
   revalidatePath("/guias");
-  if (assignError) back(`Pickup ${pickupNumber(request.seq)} creado con su borrador de guía, pero no se asignó el AWB. ${assignError}${ackNote}`, "error");
+  if (assignError) back(`Pickup ${pickupNumber(request.seq)} created with its guía draft, but the AWB was not assigned. ${assignError}${ackNote}`, "error");
   back(
-    `Pickup ${pickupNumber(request.seq)} creado. Su borrador de guía ya está en Guías${assigned ? ` con el AWB ${assigned}` : ""}.${ackNote}`,
+    `Pickup ${pickupNumber(request.seq)} created. Its guía draft is already in Guías${assigned ? ` with AWB ${assigned}` : ""}.${ackNote}`,
     ack.state === "failed" ? "error" : "notice",
   );
 }
@@ -141,8 +141,8 @@ export async function deletePickupRequest(formData: FormData) {
   await requireTeam();
   const id = text(formData.get("id"));
   const found = await prisma.pickupRequest.findUnique({ where: { id }, select: { seq: true } });
-  if (!found) back("No se encontró el pickup.", "error");
+  if (!found) back("Pickup not found.", "error");
   await prisma.pickupRequest.delete({ where: { id } });
   revalidatePath("/guias/pickups");
-  back(`Pickup ${pickupNumber(found.seq)} eliminado. Su borrador de guía se queda en Guías.`);
+  back(`Pickup ${pickupNumber(found.seq)} deleted. Its guía draft stays in Guías.`);
 }

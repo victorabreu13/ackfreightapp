@@ -68,10 +68,10 @@ export async function deleteUploadedFile(input: {
 }): Promise<{ ok: true; guiaId: string | null } | { ok: false; error: string; guiaId: string | null }> {
   const row = await prisma.guiaDocument.findUnique({ where: { id: input.id } });
   if (!row || row.kind !== UPLOAD_KIND || row.source !== "upload") {
-    return { ok: false, error: "No se encontró el archivo.", guiaId: row?.guiaId ?? null };
+    return { ok: false, error: "File not found.", guiaId: row?.guiaId ?? null };
   }
   if (!canDeleteGuiaUpload(input.actor, row.generatedBy)) {
-    return { ok: false, error: "Solo el equipo o quien subió el archivo puede eliminarlo.", guiaId: row.guiaId };
+    return { ok: false, error: "Only the team or whoever uploaded the file can delete it.", guiaId: row.guiaId };
   }
   if (row.driveFileId) {
     try {
@@ -83,7 +83,7 @@ export async function deleteUploadedFile(input: {
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "";
       if (!/HTTP 404/.test(message)) {
-        return { ok: false, error: "No se pudo borrar el archivo en Drive. Sigue en la guía.", guiaId: row.guiaId };
+        return { ok: false, error: "The file could not be deleted in Drive. It stays on the guía.", guiaId: row.guiaId };
       }
     }
   }

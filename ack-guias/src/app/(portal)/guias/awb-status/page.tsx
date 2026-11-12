@@ -88,17 +88,17 @@ export default async function AwbStatusPage({ searchParams }: { searchParams: Pr
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">AWB Status</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Lo mismo que ve el cliente en su portal: cada AWB emitido con el estatus de su vuelo y el historial, para todos los clientes. El estatus se revisa solo cada pocas horas (más seguido cuando el vuelo va en ruta), desde el día antes del vuelo hasta el día después, y el cliente recibe un correo cuando cambia.
+          The same thing the client sees in their portal: every issued AWB with its flight status and history, for all clients. The status is checked on its own every few hours (more often while the flight is en route), from the day before the flight to the day after, and the client gets an email when it changes.
         </p>
       </div>
-      {flightMessage === "ok" ? <p className="text-sm text-muted-foreground">Estatus del vuelo revisado.</p> : null}
+      {flightMessage === "ok" ? <p className="text-sm text-muted-foreground">Flight status checked.</p> : null}
       {flightMessage && flightMessage !== "ok" ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">Vuelo: {flightMessage}</p> : null}
 
       <form action="/guias/awb-status" className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
         <label className="space-y-1 text-sm">
-          <span className="text-muted-foreground">Cliente</span>
+          <span className="text-muted-foreground">Client</span>
           <select name="client" defaultValue={clientId} className={SELECT}>
-            <option value="">Todos</option>
+            <option value="">All</option>
             {clients.map((client) => (
               <option key={client.id} value={client.id}>
                 {client.name}
@@ -107,15 +107,15 @@ export default async function AwbStatusPage({ searchParams }: { searchParams: Pr
           </select>
         </label>
         <label className="space-y-1 text-sm">
-          <span className="text-muted-foreground">Estatus</span>
+          <span className="text-muted-foreground">Status</span>
           <select name="status" defaultValue={status} className={SELECT}>
-            <option value="">Todos</option>
+            <option value="">All</option>
             {FLIGHT_STATUSES.filter((item) => item !== "UNKNOWN").map((item) => (
               <option key={item} value={item}>
                 {FLIGHT_STATUS_LABEL[item]}
               </option>
             ))}
-            <option value="NONE">Sin revisar</option>
+            <option value="NONE">Not checked</option>
           </select>
         </label>
         <label className="space-y-1 text-sm">
@@ -127,13 +127,13 @@ export default async function AwbStatusPage({ searchParams }: { searchParams: Pr
         </Button>
         {clientId || status || awb ? (
           <Button asChild variant="ghost">
-            <Link href="/guias/awb-status">Quitar filtros</Link>
+            <Link href="/guias/awb-status">Clear filters</Link>
           </Button>
         ) : null}
       </form>
 
       {guias.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border bg-card px-4 py-10 text-sm text-muted-foreground">No hay AWBs emitidos con esos filtros.</p>
+        <p className="rounded-lg border border-dashed border-border bg-card px-4 py-10 text-sm text-muted-foreground">No issued AWBs match those filters.</p>
       ) : (
         <ul className="space-y-4">
           {guias.map((guia) => {
@@ -148,9 +148,9 @@ export default async function AwbStatusPage({ searchParams }: { searchParams: Pr
                       </Link>
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {guia.client || "Sin cliente"}
+                      {guia.client || "No client"}
                       {[guia.departure, guia.destination].filter(Boolean).length ? ` · ${[guia.departure, guia.destination].filter(Boolean).join(" - ")}` : ""}
-                      {guia.flightNumber ? ` · Vuelo ${guia.flightNumber}` : ""}
+                      {guia.flightNumber ? ` · Flight ${guia.flightNumber}` : ""}
                       {guia.flightDate ? ` · ${guia.flightDate}` : ""}
                     </p>
                   </div>
@@ -162,14 +162,14 @@ export default async function AwbStatusPage({ searchParams }: { searchParams: Pr
                       rel="noreferrer"
                       className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
                     >
-                      Ver AWB
+                      View AWB
                     </a>
                     {manage && guia.flightNumber ? (
                       <form action={checkGuiaFlight}>
                         <input type="hidden" name="id" value={guia.id} />
                         <input type="hidden" name="returnTo" value="/guias/awb-status" />
                         <Button type="submit" variant="outline" size="sm">
-                          Revisar ahora
+                          Check now
                         </Button>
                       </form>
                     ) : null}
@@ -179,10 +179,10 @@ export default async function AwbStatusPage({ searchParams }: { searchParams: Pr
                 <FlightHistory events={guia.events} />
                 <p className="text-xs text-muted-foreground">
                   {guia.flightCheckedAt
-                    ? `Revisado ${flightStamp(guia.flightCheckedAt)}${guia.flightStatus ? "" : ". El servicio de vuelos todavía no tiene este vuelo; se vuelve a intentar solo."}`
+                    ? `Checked ${flightStamp(guia.flightCheckedAt)}${guia.flightStatus ? "" : ". The flight service does not have this flight yet; it tries again on its own."}`
                     : guia.flightNumber
-                      ? "Todavía no se ha revisado"
-                      : "Sin número de vuelo en la guía"}
+                      ? "Not checked yet"
+                      : "No flight number on the guía"}
                 </p>
               </li>
             );

@@ -7,15 +7,15 @@ export const QBO_TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens
 export const QBO_ITEM_NAME = "Flete aéreo";
 export const QBO_MINOR_VERSION = "75";
 
-export const QBO_NO_RATE = "Este cliente no tiene una tarifa acordada por kilo. No se creó la factura.";
-export const QBO_NO_KG = "Esta guía no tiene kilos cobrables. No se creó la factura.";
-export const QBO_NOT_ISSUED = "Emite la guía antes de facturar.";
-export const QBO_DUPLICATE = "Esta guía ya tiene una factura en QuickBooks.";
-export const QBO_IN_PROGRESS = "Ya se está creando la factura de esta guía en QuickBooks.";
-export const QBO_NO_CLIENT = "Esta guía no tiene un cliente. No se creó la factura.";
-export const QBO_WRONG_COMPANY = "La conexión de QuickBooks no es de esta empresa. No se creó la factura.";
-export const QBO_DOWN = "QuickBooks no respondió. No se creó la factura.";
-export const QBO_NO_INCOME = "QuickBooks no tiene una cuenta de ingresos para el flete. No se creó la factura.";
+export const QBO_NO_RATE = "This client has no agreed rate per kilo. The invoice was not created.";
+export const QBO_NO_KG = "This guía has no chargeable kilos. The invoice was not created.";
+export const QBO_NOT_ISSUED = "Issue the guía before invoicing.";
+export const QBO_DUPLICATE = "This guía already has an invoice in QuickBooks.";
+export const QBO_IN_PROGRESS = "The invoice for this guía is already being created in QuickBooks.";
+export const QBO_NO_CLIENT = "This guía has no client. The invoice was not created.";
+export const QBO_WRONG_COMPANY = "The QuickBooks connection is not for this company. The invoice was not created.";
+export const QBO_DOWN = "QuickBooks did not respond. The invoice was not created.";
+export const QBO_NO_INCOME = "QuickBooks has no income account for the freight. The invoice was not created.";
 
 export type CompanyKey = "ack" | "kope";
 
@@ -30,7 +30,7 @@ export function companyTitle(agentKey: string): string {
 }
 
 export function qboNotConnected(agentKey: string): string {
-  return `QuickBooks de ${companyTitle(agentKey)} no está conectado.`;
+  return `QuickBooks for ${companyTitle(agentKey)} is not connected.`;
 }
 
 export function qboRedirectUri(authUrl: string): string {
@@ -174,7 +174,7 @@ export function draftInvoiceBody(plan: Extract<InvoicePlan, { ok: true }>, custo
   return {
     CustomerRef: { value: customerId },
     EmailStatus: "NotSet" as const,
-    PrivateNote: "Borrador creado desde ACK Freight App. No se envía por correo.",
+    PrivateNote: "Draft created from ACK Freight App. It is not sent by email.",
     Line: [
       {
         Amount: plan.amount,

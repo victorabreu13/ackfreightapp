@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { miamiDate, signatureFor } from "@/lib/awb/document";
 import { destinationCountry, routingTo } from "@/lib/guias/awb-face";
-import { assignDraftAwb, issueErrorInSpanish, issueWaybillAtomic, releaseDraftAwb } from "@/lib/awb/issue";
+import { assignDraftAwb, issueErrorMessage, issueWaybillAtomic, releaseDraftAwb } from "@/lib/awb/issue";
 import { canManageGuias, isAdmin } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -27,7 +27,7 @@ import { aircraftFrom, driveKinds } from "@/lib/guias/guia-pack";
 import { roundUpText } from "@/lib/guias/round-up";
 
 /** Every guía belongs to a client of the book. The client portal and its emails depend on it. */
-const CLIENT_REQUIRED = "Escribe el cliente de la guía.";
+const CLIENT_REQUIRED = "Type the client of the guía.";
 
 function text(value: FormDataEntryValue | null): string {
   return String(value ?? "").trim();
@@ -139,7 +139,7 @@ export async function saveNewGuia(formData: FormData) {
       await assignAwbToGuia(created.id, wantedAwb, wantedPrefix);
     } catch (error) {
       revalidatePath("/guias");
-      redirect(`/guias/${created.id}?error=${encodeURIComponent(`La guía se guardó, pero no se asignó el AWB. ${issueErrorInSpanish(error)}`)}`);
+      redirect(`/guias/${created.id}?error=${encodeURIComponent(`The guía was saved, but the AWB was not assigned. ${issueErrorMessage(error)}`)}`);
     }
     revalidatePath("/guias");
     redirect(`/guias/${created.id}?assigned=1`);
@@ -299,7 +299,7 @@ export async function assignGuiaAwb(formData: FormData) {
   try {
     await assignAwbToGuia(id, text(formData.get("manualAwb")), text(formData.get("prefix")));
   } catch (error) {
-    redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorInSpanish(error))}`);
+    redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorMessage(error))}`);
   }
   revalidatePath(`/guias/${id}`);
   redirect(`/guias/${id}?assigned=1`);
@@ -315,7 +315,7 @@ export async function releaseGuiaAwb(formData: FormData) {
     // Giving the number back clears the carrier block. The one the team picked stays.
     if (before?.carrierId) await applyCarrier(id, before.carrierId, before.carrierId);
   } catch (error) {
-    redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorInSpanish(error))}`);
+    redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorMessage(error))}`);
   }
   revalidatePath(`/guias/${id}`);
   redirect(`/guias/${id}?released=1`);
@@ -358,7 +358,7 @@ export async function issueGuia(formData: FormData) {
       },
     });
   } catch (error) {
-    redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorInSpanish(error))}`);
+    redirect(`/guias/${id}?error=${encodeURIComponent(issueErrorMessage(error))}`);
   }
   await prisma.airWaybillDocument.updateMany({
     where: { id, agentKey: agent.key, product: "guia" },
@@ -390,7 +390,7 @@ export async function setGuiaCompleted(formData: FormData) {
   const id = text(formData.get("id"));
   const done = text(formData.get("done")) === "1";
   const guia = await prisma.airWaybillDocument.findFirst({ where: { id, product: "guia" }, select: { id: true, awb: true } });
-  if (!guia) redirect(`/guias?error=${encodeURIComponent("No se encontró la guía.")}`);
+  if (!guia) redirect(`/guias?error=${encodeURIComponent("The guía was not found.")}`);
   await prisma.airWaybillDocument.update({
     where: { id },
     data: done ? { completedAt: new Date(), completedBy: user.email } : { completedAt: null, completedBy: null },
@@ -399,7 +399,7 @@ export async function setGuiaCompleted(formData: FormData) {
   revalidatePath(`/guias/${id}`);
   const target = safeGuiaReturn(text(formData.get("returnTo")), done ? "/guias" : `/guias/${id}`);
   if (done && target === "/guias") {
-    redirect(`/guias?notice=${encodeURIComponent(`Guía ${guia.awb || "en borrador"} marcada como completada. Ya no aparece en esta pantalla; sigue en Documentos.`)}`);
+    redirect(`/guias?notice=${encodeURIComponent(`Guía ${guia.awb || "draft"} marked as completed. It no longer appears on this screen; it stays in Documents.`)}`);
   }
   redirect(target);
 }
@@ -412,10 +412,10 @@ export async function deleteGuia(formData: FormData) {
   const user = await requireGuiaTeam();
   const id = text(formData.get("id"));
   const guia = await prisma.airWaybillDocument.findFirst({ where: { id, product: "guia" }, select: { id: true, awb: true, status: true } });
-  if (!guia) redirect(`/guias?error=${encodeURIComponent("No se encontró la guía.")}`);
+  if (!guia) redirect(`/guias?error=${encodeURIComponent("The guía was not found.")}`);
   const label = guia.awb || "en borrador";
   if (guia.status === "issued" && !isAdmin(user)) {
-    redirect(`/guias?error=${encodeURIComponent(`Solo un Admin puede eliminar una guía emitida (${label}).`)}`);
+    redirect(`/guias?error=${encodeURIComponent(`Only an Admin can delete an issued guía (${label}).`)}`);
   }
   const [returned] = await prisma.$transaction([
     // The number goes back to stock, reserved or already issued.
@@ -426,7 +426,7 @@ export async function deleteGuia(formData: FormData) {
   ]);
   revalidatePath("/guias");
   revalidatePath("/guias/documents");
-  redirect(`/guias?notice=${encodeURIComponent(`Guía ${label} eliminada, con sus documentos.${returned.count ? " El número AWB volvió al stock." : ""}`)}`);
+  redirect(`/guias?notice=${encodeURIComponent(`Guía ${label} deleted, with its documents.${returned.count ? " The AWB number went back to stock." : ""}`)}`);
 }
 
 export async function saveGuiaToDrive(formData: FormData) {
@@ -459,8 +459,8 @@ export async function saveCompanyProfile(formData: FormData) {
   let signature: Uint8Array<ArrayBuffer> | undefined;
   let signatureMime: string | undefined;
   if (signatureFile instanceof File && signatureFile.size > 0) {
-    if (!["image/png", "image/jpeg"].includes(signatureFile.type)) redirect("/guias/settings?error=La%20firma%20debe%20ser%20una%20imagen%20PNG%20o%20JPG");
-    if (signatureFile.size > 2_000_000) redirect("/guias/settings?error=La%20firma%20pesa%20m%C3%A1s%20de%202%20MB");
+    if (!["image/png", "image/jpeg"].includes(signatureFile.type)) redirect("/guias/settings?error=The%20signature%20must%20be%20a%20PNG%20or%20JPG%20image");
+    if (signatureFile.size > 2_000_000) redirect("/guias/settings?error=The%20signature%20is%20over%202%20MB");
     signature = new Uint8Array(await signatureFile.arrayBuffer());
     signatureMime = signatureFile.type;
   }

@@ -19,7 +19,7 @@ export default async function NewWarehouseReceiptPage({ searchParams }: { search
     <div className="space-y-4">
       <div>
         <GuiaEyebrow />
-        <h1 className="font-display text-4xl">Nuevo warehouse receipt</h1>
+        <h1 className="font-display text-4xl">New warehouse receipt</h1>
       </div>
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
       <WarehouseReceiptForm initial={{ ...EMPTY_RECEIPT, receivedBy: user.name || "" }} pickups={pickups} />

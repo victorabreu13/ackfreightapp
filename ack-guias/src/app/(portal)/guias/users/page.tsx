@@ -35,14 +35,14 @@ export default async function UsersPage({
     <div className="space-y-6">
       <div>
         <GuiaEyebrow />
-        <h1 className="font-display text-4xl">Usuarios</h1>
+        <h1 className="font-display text-4xl">Users</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Solo entra quien esté en esta lista o en ADMIN_EMAILS. Admin ve todo. Operations arma guías y stock. Accounting
-          factura y ve las guías sin editarlas. Viewer solo lee las guías.
+          Only people on this list or in ADMIN_EMAILS can log in. Admin sees everything. Operations builds guías and stock. Accounting
+          invoices and sees the guías without editing them. Viewer only reads the guías.
         </p>
       </div>
       <section className="rounded-lg border border-border bg-card p-4">
-        <h2 className="font-display text-2xl">Qué puede hacer cada rol</h2>
+        <h2 className="font-display text-2xl">What each role can do</h2>
         <dl className="mt-3 space-y-2 text-sm">
           {ROLE_DETAIL.map((item) => (
             <div key={item.role} className="grid gap-1 md:grid-cols-[8rem_1fr]">
@@ -53,19 +53,19 @@ export default async function UsersPage({
         </dl>
         {customers > 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">
-            {customers} {customers === 1 ? "cliente tiene" : "clientes tienen"} acceso al portal. No salen en esta lista porque no son del equipo: se ven y se quitan en el Directorio.
+            {customers} {customers === 1 ? "client has" : "clients have"} access to the portal. They are not on this list because they are not on the team: they are seen and removed in the Directory.
           </p>
         ) : null}
       </section>
-      {one(params, "saved") ? <p className="text-sm text-muted-foreground">Guardado.</p> : null}
+      {one(params, "saved") ? <p className="text-sm text-muted-foreground">Saved.</p> : null}
       {one(params, "error") ? <p className="text-sm text-stuck">{one(params, "error")}</p> : null}
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
             <tr>
-              <th className="px-3 py-2">Correo</th>
-              <th className="px-3 py-2">Nombre</th>
-              <th className="px-3 py-2">Rol</th>
+              <th className="px-3 py-2">Email</th>
+              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">Role</th>
               <th className="px-3 py-2"></th>
             </tr>
           </thead>
@@ -73,7 +73,7 @@ export default async function UsersPage({
             {users.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-3 py-6 text-muted-foreground">
-                  Todavía no hay usuarios. Las cuentas de ADMIN_EMAILS se crean al entrar.
+                  There are no users yet. ADMIN_EMAILS accounts are created when they log in.
                 </td>
               </tr>
             ) : (
@@ -82,8 +82,8 @@ export default async function UsersPage({
                   <td className="px-3 py-2" colSpan={4}>
                     <form action={updateUser} className="grid items-center gap-2 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_10rem_auto]">
                       <input type="hidden" name="id" value={row.id} />
-                      <Input name="email" type="email" required defaultValue={row.email} aria-label={`Correo de ${row.email}`} />
-                      <Input name="name" defaultValue={row.name ?? ""} aria-label={`Nombre de ${row.email}`} placeholder="Nombre" />
+                      <Input name="email" type="email" required defaultValue={row.email} aria-label={`Email of ${row.email}`} />
+                      <Input name="name" defaultValue={row.name ?? ""} aria-label={`Name of ${row.email}`} placeholder="Name" />
                       <select name="role" defaultValue={row.role} aria-label={`Rol de ${row.email}`} className={selectClass}>
                         {USER_ROLES.map((role) => (
                           <option key={role} value={role}>
@@ -92,13 +92,13 @@ export default async function UsersPage({
                         ))}
                       </select>
                       <Button type="submit" variant="outline" size="sm">
-                        Guardar
+                        Save
                       </Button>
                     </form>
                     <form action={removeUser} className="mt-2">
                       <input type="hidden" name="id" value={row.id} />
                       <Button type="submit" variant="outline" size="sm">
-                        Quitar
+                        Remove
                       </Button>
                     </form>
                   </td>
@@ -110,15 +110,15 @@ export default async function UsersPage({
       </div>
       <form action={createUser} className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_10rem_auto] lg:items-end">
         <div className="space-y-1 sm:col-span-2 lg:col-span-1">
-          <Label htmlFor="new-email">Correo</Label>
+          <Label htmlFor="new-email">Email</Label>
           <Input id="new-email" name="email" type="email" required placeholder="nombre@ackfreight.com" />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="new-name">Nombre</Label>
+          <Label htmlFor="new-name">Name</Label>
           <Input id="new-name" name="name" placeholder="Opcional" />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="new-role">Rol</Label>
+          <Label htmlFor="new-role">Role</Label>
           <select id="new-role" name="role" defaultValue="OPERATIONS" className={selectClass}>
             {USER_ROLES.map((role) => (
               <option key={role} value={role}>
@@ -127,7 +127,7 @@ export default async function UsersPage({
             ))}
           </select>
         </div>
-        <Button type="submit">Agregar</Button>
+        <Button type="submit">Add</Button>
       </form>
     </div>
   );

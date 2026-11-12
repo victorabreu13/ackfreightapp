@@ -13,14 +13,14 @@ export const USER_ROLE_LABEL: Record<Role, string> = {
 
 /** What each role can do, for the Usuarios screen. Customer is not a staff role: it is a client who registered in the portal. */
 export const ROLE_DETAIL: Array<{ role: Role; summary: string }> = [
-  { role: "ADMIN", summary: "Ve y hace todo: guías, stock, documentos, facturación, clientes y tarifas, Company y Usuarios." },
-  { role: "OPERATIONS", summary: "Arma guías y las emite, maneja el stock de AWB, los documentos, el Directorio, Carriers y los labels. No factura, no ve Clientes y tarifas, Company ni Usuarios." },
-  { role: "ACCOUNTING", summary: "Ve las guías de ACK sin editarlas y las factura. Menú: Guías, Documentos, AWB Status y Templates." },
-  { role: "VIEWER", summary: "Solo lee: Guías, Documentos, AWB Status y Templates. No edita ni factura." },
-  { role: "CUSTOMER", summary: "Un cliente que se registró con el link de invitación. Entra al portal, no a esta app: ve solo el AWB y el estado del vuelo de sus propias guías, sin documentos. Su acceso se maneja desde el Directorio." },
+  { role: "ADMIN", summary: "Sees and does everything: guías, stock, documents, billing, clients and rates, Company and Users." },
+  { role: "OPERATIONS", summary: "Builds and issues guías, manages the AWB stock, the documents, the Directory, Carriers and the labels. Does not invoice, does not see Clients and rates, Company or Users." },
+  { role: "ACCOUNTING", summary: "Sees the ACK guías without editing them and invoices them. Menu: Guías, Documents, AWB Status and Templates." },
+  { role: "VIEWER", summary: "Read only: Guías, Documents, AWB Status and Templates. Does not edit or invoice." },
+  { role: "CUSTOMER", summary: "A client who registered with the invitation link. Enters the portal, not this app: sees only the AWB and the flight status of their own guías, without documents. Their access is managed from the Directory." },
 ];
 
-export const CUSTOMER_ROLE_ERROR = "Es un cliente del portal. No se cambia aquí: su acceso se maneja desde el Directorio.";
+export const CUSTOMER_ROLE_ERROR = "It is a portal client. It is not changed here: its access is managed from the Directory.";
 
 export function parseUserRole(value: string): Role | null {
   return (USER_ROLES as readonly string[]).includes(value) ? (value as Role) : null;
@@ -42,10 +42,10 @@ export function userRoleChangeError(input: {
 }): string | null {
   if (input.from === "CUSTOMER") return CUSTOMER_ROLE_ERROR;
   if (input.adminEmails.has(input.email.trim().toLowerCase()) && input.to !== "ADMIN") {
-    return "Esa cuenta está en ADMIN_EMAILS y se queda como Admin.";
+    return "That account is in ADMIN_EMAILS and stays as Admin.";
   }
   if (input.from === "ADMIN" && input.to !== "ADMIN" && input.activeAdminCount <= 1) {
-    return "Tiene que quedar al menos un Admin.";
+    return "At least one Admin must remain.";
   }
   return null;
 }
@@ -59,12 +59,12 @@ export function userRemoveError(input: {
   targetId: string;
 }): string | null {
   if (input.role === "CUSTOMER") return CUSTOMER_ROLE_ERROR;
-  if (input.actorId === input.targetId) return "No puedes quitar tu propia cuenta.";
+  if (input.actorId === input.targetId) return "You cannot remove your own account.";
   if (input.adminEmails.has(input.email.trim().toLowerCase())) {
-    return "Esa cuenta está en ADMIN_EMAILS y no se puede quitar.";
+    return "That account is in ADMIN_EMAILS and cannot be removed.";
   }
   if (input.role === "ADMIN" && input.activeAdminCount <= 1) {
-    return "Tiene que quedar al menos un Admin.";
+    return "At least one Admin must remain.";
   }
   return null;
 }

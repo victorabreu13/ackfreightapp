@@ -17,9 +17,9 @@ test("bill-to names fold punctuation and keep LLC", () => {
 
 test("clients and rates are ACK only", () => {
   const form = readFileSync(new URL("../../components/guia-client-rate-form.tsx", import.meta.url), "utf8");
-  assert.match(form, /Tarifa acordada \(USD\/kg cobrable\)/);
+  assert.match(form, /Agreed rate \(USD\/chargeable kg\)/);
   const page = readFileSync(new URL("../../app/(portal)/guias/clients/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /Clientes y tarifas/);
+  assert.match(page, /Clients and rates/);
   assert.match(page, /isAdmin/);
   assert.match(page, /agentKey: "ack"/);
   assert.equal(page.includes('title="Kope"'), false);

@@ -61,17 +61,17 @@ export async function releaseUnattachedStock(stockId: string | null | undefined)
 }
 
 /** Spanish text for the guía page. Review flags are not an issue failure. */
-export function issueErrorInSpanish(error: unknown): string {
-  if (!(error instanceof IssueConflict)) return "No se pudo emitir la guía.";
+export function issueErrorMessage(error: unknown): string {
+  if (!(error instanceof IssueConflict)) return "The guía could not be issued.";
   const text = error.message;
-  if (error.code === "already_issued" || text === "already issued") return "Esta guía ya fue emitida.";
-  if (error.code === "number_taken" || text === "number already issued") return "Ese número ya fue emitido.";
-  if (text === "That number is not in stock") return "Ese número no está en el stock.";
-  if (error.code === "no_stock" || text === "No stock left") return "No queda stock para ese prefijo.";
-  if (text === "Enter a valid mod-7 AWB") return "El número no es un AWB válido (mod-7).";
-  if (text === "Choose an airline prefix") return "Elige un prefijo de aerolínea.";
-  if (text === "Waybill not found") return "No se encontró la guía.";
-  if (text === "This guía already has an AWB number") return "Esta guía ya tiene un AWB asignado. Libera el número antes de asignar otro.";
+  if (error.code === "already_issued" || text === "already issued") return "This guía is already issued.";
+  if (error.code === "number_taken" || text === "number already issued") return "That number was already issued.";
+  if (text === "That number is not in stock") return "That number is not in stock.";
+  if (error.code === "no_stock" || text === "No stock left") return "There is no stock left for that prefix.";
+  if (text === "Enter a valid mod-7 AWB") return "The number is not a valid AWB (mod-7).";
+  if (text === "Choose an airline prefix") return "Choose an airline prefix.";
+  if (text === "Waybill not found") return "The guía was not found.";
+  if (text === "This guía already has an AWB number") return "This guía already has an AWB assigned. Release the number before assigning another.";
   return text;
 }
 

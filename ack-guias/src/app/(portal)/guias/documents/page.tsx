@@ -104,7 +104,7 @@ export default async function GuiaDocumentsPage({
   const issuedRows = guiaIds.length
     ? await prisma.airWaybillDocument.findMany({ where: { id: { in: guiaIds } }, select: { id: true, status: true, executedOn: true, updatedAt: true } })
     : [];
-  const issuedOn = new Map(issuedRows.map((row) => [row.id, row.status === "issued" ? row.executedOn?.trim() || miamiDate(row.updatedAt) : "Borrador"]));
+  const issuedOn = new Map(issuedRows.map((row) => [row.id, row.status === "issued" ? row.executedOn?.trim() || miamiDate(row.updatedAt) : "Draft"]));
 
   return (
     <div className="space-y-6">
@@ -113,12 +113,12 @@ export default async function GuiaDocumentsPage({
         <h1 className="font-display text-4xl">Documentos</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           {accountingCompany
-            ? "Solo los documentos de tu empresa."
-            : "Every PDF Guías generates is saved here and uploaded to Drive under ACK Guías / client / AWB. Files the team uploads on a guía are listed too, under type Archivo. A failed upload stays on this list so it can be retried."}
+            ? "Only your company documents."
+            : "Every PDF Guías generates is saved here and uploaded to Drive under ACK Guías / client / AWB. Files the team uploads on a guía are listed too, under type File. A failed upload stays on this list so it can be retried."}
         </p>
       </div>
       {removed ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{removed}</p> : null}
-      {uploadFlag === "deleted" ? <p className="text-sm text-muted-foreground">Archivo eliminado.</p> : null}
+      {uploadFlag === "deleted" ? <p className="text-sm text-muted-foreground">File deleted.</p> : null}
       {uploadError ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{uploadError}</p> : null}
       {imported === "1" ? <p className="text-sm text-muted-foreground">Imported and uploaded to Drive.</p> : null}
       {retried === "1" ? <p className="text-sm text-muted-foreground">Retried and uploaded to Drive.</p> : null}
@@ -219,29 +219,29 @@ export default async function GuiaDocumentsPage({
               <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 px-4 py-3">
                 <span className="font-display text-2xl">{folder.client}</span>
                 <span className="text-sm text-muted-foreground">
-                  {folder.guias.length} {folder.guias.length === 1 ? "guía" : "guías"} · {folder.count} {folder.count === 1 ? "documento" : "documentos"}
+                  {folder.guias.length} {folder.guias.length === 1 ? "guía" : "guías"} · {folder.count} {folder.count === 1 ? "document" : "documents"}
                 </span>
               </summary>
               <div className="space-y-2 border-t border-border px-3 py-3">
                 {folder.guias.map((guia) => (
                   <details key={guia.key} open={guiaFiltered || folder.guias.length === 1} className="rounded-md border border-border bg-background">
                     <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 px-3 py-2">
-                      <span className="w-28 shrink-0 text-sm text-muted-foreground" title="Fecha en que se emitió la guía">
+                      <span className="w-28 shrink-0 text-sm text-muted-foreground" title="Date the guía was issued">
                         {(guia.guiaId && issuedOn.get(guia.guiaId)) || "—"}
                       </span>
                       <span className="font-medium">{guia.awb}</span>
                       {guia.guiaId ? (
                         <Link href={`/guias/${guia.guiaId}`} className="text-sm underline-offset-2 hover:underline">
-                          Abrir guía
+                          Open guía
                         </Link>
                       ) : null}
                       <span className="text-sm text-muted-foreground">
-                        {guia.documents.length} {guia.documents.length === 1 ? "documento" : "documentos"}
+                        {guia.documents.length} {guia.documents.length === 1 ? "document" : "documents"}
                       </span>
                     </summary>
                     {!guia.guiaId && admin ? (
                       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground">
-                        <span>La guía ya no existe en el sistema.</span>
+                        <span>The guía no longer exists in the system.</span>
                         <OrphanRemoveButton awb={guia.awb} count={guia.documents.length} />
                       </div>
                     ) : null}
@@ -290,10 +290,10 @@ export default async function GuiaDocumentsPage({
                                     <div className="flex flex-col items-start gap-1">
                                       {row.driveFileId || row.stored ? (
                                         <a className="underline-offset-2 hover:underline" href={`/api/guias/uploads/${row.id}`}>
-                                          Descargar
+                                          Download
                                         </a>
                                       ) : (
-                                        <span className="text-muted-foreground">Sin archivo</span>
+                                        <span className="text-muted-foreground">No file</span>
                                       )}
                                       {canDeleteGuiaUpload(user, row.generatedBy) ? (
                                         <DeleteUploadButton id={row.id} fileName={row.fileName} returnTo={pageHref(filters, page)} />

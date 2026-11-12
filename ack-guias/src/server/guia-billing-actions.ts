@@ -44,13 +44,13 @@ async function guiaForBilling(id: string) {
 export async function saveAgreedRate(formData: FormData) {
   const id = text(formData.get("id"));
   const { user, guia } = await guiaForBilling(id);
-  if (!canEditAgreedRate(user)) back(id, "No puedes cambiar la tarifa acordada.");
+  if (!canEditAgreedRate(user)) back(id, "You cannot change the agreed rate.");
   const guiaClientId = text(formData.get("guiaClientId"));
-  if (!guiaClientId) back(id, "Elige un cliente.");
+  if (!guiaClientId) back(id, "Choose a client.");
   const chosen = await prisma.guiaClient.findUnique({ where: { id: guiaClientId } });
-  if (!chosen || chosen.agentKey !== guia.agentKey) back(id, "Ese cliente es de la otra empresa.");
+  if (!chosen || chosen.agentKey !== guia.agentKey) back(id, "That client belongs to the other company.");
   const rate = Number(text(formData.get("ratePerKg")).replace(/,/g, ""));
-  if (!Number.isFinite(rate) || rate <= 0) back(id, "Escribe una tarifa por kilo mayor que cero.");
+  if (!Number.isFinite(rate) || rate <= 0) back(id, "Type a rate per kilo greater than zero.");
   await prisma.airWaybillDocument.updateMany({
     where: { id: guia.id, agentKey: guia.agentKey, product: "guia" },
     data: { guiaClientId: chosen.id, clientLabel: chosen.name },
@@ -66,14 +66,14 @@ export async function saveAgreedRate(formData: FormData) {
 export async function markGuiaInvoiced(formData: FormData) {
   const id = text(formData.get("id"));
   const { user, guia } = await guiaForBilling(id);
-  if (!canInvoiceGuia(user, guia.agentKey)) back(id, "No puedes facturar esta guía.");
-  if (guia.status !== "issued") back(id, "Emite la guía antes de facturar.");
+  if (!canInvoiceGuia(user, guia.agentKey)) back(id, "You cannot invoice this guía.");
+  if (guia.status !== "issued") back(id, "Issue the guía before invoicing.");
   const invoiceNumber = text(formData.get("invoiceNumber"));
   const invoiceDate = text(formData.get("invoiceDate"));
   const amount = Number(text(formData.get("invoiceAmount")).replace(/,/g, ""));
-  if (!invoiceNumber) back(id, "Escribe el número de factura.");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(invoiceDate)) back(id, "Elige la fecha de la factura.");
-  if (!Number.isFinite(amount) || amount <= 0) back(id, "Escribe el monto de la factura.");
+  if (!invoiceNumber) back(id, "Type the invoice number.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(invoiceDate)) back(id, "Choose the invoice date.");
+  if (!Number.isFinite(amount) || amount <= 0) back(id, "Type the invoice amount.");
   await prisma.airWaybillDocument.updateMany({
     where: { id: guia.id, agentKey: guia.agentKey, product: "guia" },
     data: {
@@ -90,9 +90,9 @@ export async function markGuiaInvoiced(formData: FormData) {
 export async function createQboInvoice(formData: FormData) {
   const id = text(formData.get("id"));
   const { user, guia } = await guiaForBilling(id);
-  if (!canInvoiceGuia(user, guia.agentKey)) back(id, "No puedes facturar esta guía.");
+  if (!canInvoiceGuia(user, guia.agentKey)) back(id, "You cannot invoice this guía.");
   const agentKey = companyKeyOrNull(guia.agentKey);
-  if (!agentKey) back(id, "No puedes facturar esta guía.");
+  if (!agentKey) back(id, "You cannot invoice this guía.");
   const pieces = guia.lines.reduce((sum, line) => sum + (line.pieces ?? 0), 0);
   const chargeableKg = guia.lines.reduce((sum, line) => sum + (line.chargeableWeight ?? 0), 0);
   const lineRate = guia.lines.find((line) => line.rate != null)?.rate ?? null;
@@ -188,7 +188,7 @@ export async function createQboInvoice(formData: FormData) {
       data: { qboInvoiceId: null, qboClaimedAt: null },
     });
     const message = error instanceof Error ? error.message : "";
-    back(id, message.startsWith("Este ") || message.startsWith("Emite ") || message.startsWith("QuickBooks") || message.startsWith("La conexión") ? message : "QuickBooks no respondió. No se creó la factura.");
+    back(id, message.startsWith("This ") || message.startsWith("Issue ") || message.startsWith("QuickBooks") || message.startsWith("The QuickBooks connection") ? message : "QuickBooks did not respond. The invoice was not created.");
   }
   back(id, undefined, "qbo");
 }
@@ -196,7 +196,7 @@ export async function createQboInvoice(formData: FormData) {
 export async function disconnectQuickBooks(formData: FormData) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (!isAdmin(user)) redirect("/guias/settings?error=Solo%20un%20administrador%20puede%20desconectar%20QuickBooks.");
+  if (!isAdmin(user)) redirect("/guias/settings?error=Only%20an%20administrator%20can%20disconnect%20QuickBooks.");
   const agentKey = companyKeyOrNull(text(formData.get("agentKey")));
   if (agentKey !== "ack") redirect("/guias/settings?error=ACK%20TEAM%20LLC%20es%20la%20%C3%BAnica%20empresa.");
   await prisma.quickBooksConnection.deleteMany({ where: { agentKey } });

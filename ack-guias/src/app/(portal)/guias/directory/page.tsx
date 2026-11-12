@@ -26,10 +26,10 @@ const SAVED_TEXT: Record<string, string> = {
   renamed: "Client renamed.",
   client: "Client created.",
   exists: "That client already exists.",
-  invited: "Invitación creada y enviada por correo.",
-  "invited-nomail": "Invitación creada. El correo no está configurado: copie el enlace de abajo y envíeselo al cliente.",
-  "invite-canceled": "Invitación cancelada.",
-  "access-removed": "Acceso del cliente eliminado.",
+  invited: "Invitation created and sent by email.",
+  "invited-nomail": "Invitation created. Email is not configured: copy the link below and send it to the client.",
+  "invite-canceled": "Invitation canceled.",
+  "access-removed": "Client access removed.",
 };
 
 const AREA = "block w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
@@ -106,7 +106,7 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
     return <MigrationPending />;
   }
   const clientId = selected === "none" ? "none" : (selectedClient?.id ?? "");
-  const heading = selected === "none" ? "Sin cliente" : (selectedClient?.name ?? "");
+  const heading = selected === "none" ? "No client" : (selectedClient?.name ?? "");
 
   return (
     <div className="space-y-6">
@@ -114,7 +114,7 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Directorio</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Clientes con sus shippers, consignatarios y notify. Al escribir en una guía nueva, estos nombres aparecen como sugerencias y llenan la dirección. Cada guía que guardas agrega lo que falte aquí.
+          Clients with their shippers, consignees and notify parties. When you type in a new guía, these names appear as suggestions and fill in the address. Each guía you save adds whatever is missing here.
         </p>
       </div>
       {saved ? <p className="text-sm text-muted-foreground">{SAVED_TEXT[saved] ?? "Saved."}</p> : null}
@@ -122,7 +122,7 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
 
       <form action="/guias/directory" className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
         <label className="space-y-1 text-sm">
-          <span className="text-muted-foreground">Buscar cliente, shipper o consignatario</span>
+          <span className="text-muted-foreground">Search client, shipper or consignee</span>
           <Input name="q" defaultValue={q} className="w-72" placeholder="Pacifiko" />
         </label>
         <Button type="submit" variant="outline">
@@ -130,21 +130,21 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
         </Button>
         {q ? (
           <Button asChild variant="ghost">
-            <Link href="/guias/directory">Quitar filtro</Link>
+            <Link href="/guias/directory">Clear filter</Link>
           </Button>
         ) : null}
       </form>
 
       {q && matches.length ? (
         <section className="space-y-2 rounded-lg border border-border bg-card p-4">
-          <h2 className="font-display text-2xl">Shippers y consignatarios que coinciden</h2>
+          <h2 className="font-display text-2xl">Matching shippers and consignees</h2>
           <ul className="space-y-1 text-sm">
             {matches.map((row) => (
               <li key={row.id} className="flex flex-wrap gap-x-3">
                 <span className="font-medium">{row.name}</span>
                 <span className="text-muted-foreground">{PARTY_ROLE_LABEL[row.role as keyof typeof PARTY_ROLE_LABEL] ?? row.role}</span>
                 <Link className="underline-offset-2 hover:underline" href={`/guias/directory?client=${row.clientId ?? "none"}`}>
-                  {row.clientName || "Sin cliente"}
+                  {row.clientName || "No client"}
                 </Link>
               </li>
             ))}
@@ -171,17 +171,17 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
             {unassigned > 0 ? (
               <li>
                 <Link href="/guias/directory?client=none" className={`flex justify-between px-3 py-2 hover:bg-muted ${selected === "none" ? "bg-muted font-medium" : ""}`}>
-                  <span>Sin cliente</span>
+                  <span>No client</span>
                   <span className="text-xs text-muted-foreground">{unassigned}</span>
                 </Link>
               </li>
             ) : null}
-            {clients.length === 0 && unassigned === 0 ? <li className="px-3 py-3 text-muted-foreground">No hay clientes todavía.</li> : null}
+            {clients.length === 0 && unassigned === 0 ? <li className="px-3 py-3 text-muted-foreground">No clients yet.</li> : null}
           </ul>
           <form action={createDirectoryClient} className="space-y-2 rounded-lg border border-border bg-card p-3">
             <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground">Nuevo cliente</span>
-              <Input name="name" required placeholder="Nombre para facturar" />
+              <span className="text-muted-foreground">New client</span>
+              <Input name="name" required placeholder="Billing name" />
             </label>
             <Button type="submit" variant="outline" size="sm">
               Crear
@@ -192,7 +192,7 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
         <section className="space-y-6">
           {!clientId ? (
             <p className="rounded-lg border border-dashed border-border bg-card px-4 py-10 text-sm text-muted-foreground">
-              Elige un cliente de la lista para ver y editar sus shippers, consignatarios y notify.
+              Pick a client from the list to see and edit their shippers, consignees and notify parties.
             </p>
           ) : (
             <>
@@ -202,11 +202,11 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
                   <form action={renameDirectoryClient} className="flex flex-wrap items-end gap-2">
                     <input type="hidden" name="clientId" value={selectedClient.id} />
                     <label className="space-y-1 text-sm">
-                      <span className="text-muted-foreground">Nombre del cliente</span>
+                      <span className="text-muted-foreground">Client name</span>
                       <Input name="name" defaultValue={selectedClient.name} required className="w-80" />
                     </label>
                     <Button type="submit" variant="outline" size="sm">
-                      Cambiar nombre
+                      Rename
                     </Button>
                   </form>
                 ) : null}
@@ -215,9 +215,9 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
               {selectedClient ? (
                 <section className="space-y-3 rounded-lg border border-border bg-card p-4">
                   <div>
-                    <h3 className="font-display text-2xl">Acceso del cliente</h3>
+                    <h3 className="font-display text-2xl">Client access</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Invita a un contacto de {selectedClient.name}. Recibe un enlace para crear su clave y entra a ver solo el AWB y el estatus del vuelo de sus embarques. Cuando el vuelo cambie de estatus, le llega un correo.
+                      Invite a contact of {selectedClient.name}. They receive a link to create their password and log in to see only the AWB and the flight status of their shipments. When the flight status changes, they get an email.
                     </p>
                   </div>
                   {customers.length ? (
@@ -226,13 +226,13 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
                         <li key={customer.id} className="flex flex-wrap items-center gap-3">
                           <span className="font-medium">{customer.email}</span>
                           <span className="text-muted-foreground">
-                            {customer.active ? (customer.lastLoginAt ? `Último ingreso ${customer.lastLoginAt.toISOString().slice(0, 16).replace("T", " ")} UTC` : "Todavía no ha entrado") : "Sin acceso"}
+                            {customer.active ? (customer.lastLoginAt ? `Last login ${customer.lastLoginAt.toISOString().slice(0, 16).replace("T", " ")} UTC` : "Has not logged in yet") : "No access"}
                           </span>
                           {customer.active ? (
                             <form action={revokeCustomerAccess}>
                               <input type="hidden" name="userId" value={customer.id} />
                               <Button type="submit" variant="ghost" size="sm" className="text-stuck">
-                                Quitar acceso
+                                Remove access
                               </Button>
                             </form>
                           ) : null}
@@ -240,11 +240,11 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Todavía no hay usuarios del cliente.</p>
+                    <p className="text-sm text-muted-foreground">There are no users for this client yet.</p>
                   )}
                   {invites.length ? (
                     <div className="space-y-2">
-                      <h4 className="text-sm font-semibold">Invitaciones pendientes</h4>
+                      <h4 className="text-sm font-semibold">Pending invitations</h4>
                       {invites.map((invite) => (
                         <div key={invite.id} className="space-y-1 rounded-md border border-border bg-background p-2 text-sm">
                           <div className="flex flex-wrap items-center gap-3">
@@ -253,7 +253,7 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
                             <form action={cancelCustomerInvite}>
                               <input type="hidden" name="id" value={invite.id} />
                               <Button type="submit" variant="ghost" size="sm" className="text-stuck">
-                                Cancelar
+                                Cancel
                               </Button>
                             </form>
                           </div>
@@ -265,11 +265,11 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
                   <form action={createCustomerInvite} className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
                     <input type="hidden" name="clientId" value={selectedClient.id} />
                     <label className="space-y-1 text-sm">
-                      <span className="text-muted-foreground">Correo del contacto</span>
+                      <span className="text-muted-foreground">Contact email</span>
                       <Input name="email" type="email" required placeholder="nombre@empresa.com" className="w-72" />
                     </label>
                     <Button type="submit" variant="outline" size="sm">
-                      Enviar invitación
+                      Send invitation
                     </Button>
                   </form>
                 </section>
@@ -280,21 +280,21 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
                 return (
                   <section key={role} className="space-y-3 rounded-lg border border-border bg-card p-4">
                     <h3 className="font-display text-2xl">{PARTY_ROLE_LABEL[role]}</h3>
-                    {rows.length === 0 ? <p className="text-sm text-muted-foreground">Ninguno todavía.</p> : null}
+                    {rows.length === 0 ? <p className="text-sm text-muted-foreground">None yet.</p> : null}
                     {rows.map((party) => (
                       <div key={party.id} className="grid gap-2 border-b border-border pb-3 last:border-0 md:grid-cols-2">
                         <form action={saveParty} className="contents">
                           <input type="hidden" name="id" value={party.id} />
                           <label className="space-y-1 text-sm">
-                            <span className="text-muted-foreground">Nombre</span>
+                            <span className="text-muted-foreground">Name</span>
                             <Input name="name" defaultValue={party.name} required />
                           </label>
                           <label className="space-y-1 text-sm">
-                            <span className="text-muted-foreground">Dirección</span>
+                            <span className="text-muted-foreground">Address</span>
                             <textarea name="address" rows={2} defaultValue={party.address ?? ""} className={AREA} />
                           </label>
                           <label className="space-y-1 text-sm">
-                            <span className="text-muted-foreground">Teléfono</span>
+                            <span className="text-muted-foreground">Phone</span>
                             <Input name="phone" defaultValue={party.phone ?? ""} />
                           </label>
                           <label className="space-y-1 text-sm">
@@ -303,14 +303,14 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
                           </label>
                           <div className="flex gap-2 md:col-span-2">
                             <Button type="submit" size="sm">
-                              Guardar
+                              Save
                             </Button>
                           </div>
                         </form>
                         <form action={deleteParty} className="md:col-span-2">
                           <input type="hidden" name="id" value={party.id} />
                           <Button type="submit" variant="ghost" size="sm" className="text-stuck">
-                            Eliminar
+                            Delete
                           </Button>
                         </form>
                       </div>
@@ -319,15 +319,15 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
                       <input type="hidden" name="clientId" value={clientId} />
                       <input type="hidden" name="role" value={role} />
                       <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">Nuevo {PARTY_ROLE_LABEL[role].toLowerCase()}</span>
-                        <Input name="name" required placeholder="Nombre" />
+                        <span className="text-muted-foreground">New {PARTY_ROLE_LABEL[role].toLowerCase()}</span>
+                        <Input name="name" required placeholder="Name" />
                       </label>
                       <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">Dirección</span>
+                        <span className="text-muted-foreground">Address</span>
                         <textarea name="address" rows={2} className={AREA} />
                       </label>
                       <label className="space-y-1 text-sm">
-                        <span className="text-muted-foreground">Teléfono</span>
+                        <span className="text-muted-foreground">Phone</span>
                         <Input name="phone" />
                       </label>
                       <label className="space-y-1 text-sm">
@@ -336,7 +336,7 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
                       </label>
                       <div className="md:col-span-2">
                         <Button type="submit" variant="outline" size="sm">
-                          Agregar
+                          Add
                         </Button>
                       </div>
                     </form>

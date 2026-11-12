@@ -38,8 +38,8 @@ export function CategoryUpload({
     const chosen = list ? [...list] : [];
     if (chosen.length === 0) return;
     for (const file of chosen) {
-      if (file.size <= 0) return setError(`«${file.name}» está vacío.`);
-      if (file.size > MAX_UPLOAD_BYTES) return setError(`«${file.name}» supera 20 MB.`);
+      if (file.size <= 0) return setError(`«${file.name}» is empty.`);
+      if (file.size > MAX_UPLOAD_BYTES) return setError(`«${file.name}» is over 20 MB.`);
     }
     setError(null);
     const data = new FormData();
@@ -56,7 +56,7 @@ export function CategoryUpload({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-input px-3 py-3 text-sm">
         <span>
           <span className="font-medium">{title}</span>
-          <span className="ml-3 text-xs text-muted-foreground">{done ? `${files.length} ${files.length === 1 ? "archivo" : "archivos"}` : missing}</span>
+          <span className="ml-3 text-xs text-muted-foreground">{done ? `${files.length} ${files.length === 1 ? "file" : "files"}` : missing}</span>
         </span>
         <input
           ref={inputRef}
@@ -69,7 +69,7 @@ export function CategoryUpload({
           }}
         />
         <Button type="button" variant="outline" size="sm" disabled={submitting} onClick={() => inputRef.current?.click()}>
-          {submitting ? "Subiendo…" : done ? "Subir otro" : buttonLabel}
+          {submitting ? "Subiendo…" : done ? "Upload another" : buttonLabel}
         </Button>
       </div>
       {error ? <p className="px-1 text-xs text-stuck">{error}</p> : null}
@@ -78,12 +78,12 @@ export function CategoryUpload({
           <span>{file.fileName}</span>
           {file.canDownload ? (
             <a className="underline-offset-2 hover:underline" href={`/api/guias/uploads/${file.id}`}>
-              Descargar
+              Download
             </a>
           ) : null}
           {file.driveUrl ? (
             <a className="underline-offset-2 hover:underline" href={file.driveUrl} target="_blank" rel="noreferrer">
-              Ver en Drive
+              View in Drive
             </a>
           ) : null}
           {file.canDelete ? <DeleteUploadButton id={file.id} fileName={file.fileName} returnTo={`/guias/${guiaId}`} /> : null}

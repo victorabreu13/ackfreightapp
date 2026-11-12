@@ -24,14 +24,14 @@ export function DeleteUploadButton({ id, fileName, returnTo }: { id: string; fil
     <form
       action={deleteGuiaUpload}
       onSubmit={(event) => {
-        const ok = window.confirm(`¿Eliminar «${fileName}»? Se quita de la guía y de Drive.`);
+        const ok = window.confirm(`Delete «${fileName}»? It is removed from the guía and from Drive.`);
         if (!ok) event.preventDefault();
       }}
     >
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="returnTo" value={returnTo} />
       <button type="submit" className="text-stuck underline-offset-2 hover:underline">
-        Eliminar
+        Delete
       </button>
     </form>
   );
@@ -64,11 +64,11 @@ export function GuiaUploads({
     const problems: string[] = [];
     for (const file of incoming) {
       if (file.size > MAX_UPLOAD_BYTES) {
-        problems.push(`«${file.name}» supera 20 MB.`);
+        problems.push(`«${file.name}» is over 20 MB.`);
         continue;
       }
       if (file.size <= 0) {
-        problems.push(`«${file.name || "archivo"}» está vacío.`);
+        problems.push(`«${file.name || "file"}» is empty.`);
         continue;
       }
       const already = next.some((item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified);
@@ -81,11 +81,11 @@ export function GuiaUploads({
   return (
     <section className="space-y-4 rounded-lg border border-border bg-card p-4">
       <div>
-        <h2 className="font-display text-2xl">Archivos / Upload</h2>
+        <h2 className="font-display text-2xl">Files / Upload</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {readOnly
-            ? "Archivos de esta guía. Puedes descargarlos."
-            : "El equipo puede subir PDF, imágenes, Excel u otros archivos. Varios a la vez. Se guardan en Drive bajo ACK Guías / cliente / AWB y quedan en esta guía y en Documentos."}
+            ? "Files of this guía. You can download them."
+            : "The team can upload PDFs, images, Excel or other files. Several at a time. They are saved in Drive under ACK Guías / client / AWB and stay on this guía and in Documents."}
         </p>
       </div>
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
@@ -116,7 +116,7 @@ export function GuiaUploads({
         onSubmit={(event) => {
           event.preventDefault();
           if (pending.length === 0) {
-            setLocalError("Elige al menos un archivo.");
+            setLocalError("Choose at least one file.");
             return;
           }
           const data = new FormData();
@@ -140,8 +140,8 @@ export function GuiaUploads({
           }}
           className={`rounded-md border border-dashed px-4 py-6 text-center ${dragging ? "border-primary bg-secondary" : "border-input bg-background"}`}
         >
-          <p className="text-sm">Arrastra archivos aquí o elige varios.</p>
-          <p className="mt-1 text-xs text-muted-foreground">Hasta 20 MB por archivo.</p>
+          <p className="text-sm">Drag files here or choose several.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Up to 20 MB per file.</p>
           <input
             ref={inputRef}
             type="file"
@@ -165,19 +165,19 @@ export function GuiaUploads({
                   className="text-xs underline-offset-2 hover:underline"
                   onClick={() => setPending((current) => current.filter((item) => item !== file))}
                 >
-                  Quitar
+                  Remove
                 </button>
               </li>
             ))}
           </ul>
         ) : null}
         <Button type="submit" disabled={pending.length === 0 || submitting}>
-          {submitting ? "Subiendo…" : "Subir archivos"}
+          {submitting ? "Subiendo…" : "Upload files"}
         </Button>
       </form>
       )}
       {files.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Todavía no hay archivos en esta guía.</p>
+        <p className="text-sm text-muted-foreground">There are no files on this guía yet.</p>
       ) : (
         <ul className="space-y-3">
           {files.map((file) => (
@@ -185,22 +185,22 @@ export function GuiaUploads({
               <div className="min-w-0">
                 <p className="truncate font-medium">{file.fileName}</p>
                 <p className="text-xs text-muted-foreground">
-                  {file.mime || "tipo desconocido"} · {formatBytes(file.size)} · {file.uploadedBy} · {file.createdAt}
-                  {file.status === "FAILED" ? " · Falló" : ""}
+                  {file.mime || "unknown type"} · {formatBytes(file.size)} · {file.uploadedBy} · {file.createdAt}
+                  {file.status === "FAILED" ? " · Failed" : ""}
                 </p>
                 {file.error ? <p className="text-xs text-stuck">{file.error}</p> : null}
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 {file.canDownload ? (
                   <a className="underline-offset-2 hover:underline" href={`/api/guias/uploads/${file.id}`}>
-                    Descargar
+                    Download
                   </a>
                 ) : (
-                  <span className="text-xs text-muted-foreground">Sin archivo en Drive</span>
+                  <span className="text-xs text-muted-foreground">No file in Drive</span>
                 )}
                 {file.driveUrl ? (
                   <a className="underline-offset-2 hover:underline" href={file.driveUrl} target="_blank" rel="noreferrer">
-                    Ver en Drive
+                    View in Drive
                   </a>
                 ) : null}
                 {file.canDelete ? <DeleteUploadButton id={file.id} fileName={file.fileName} returnTo={`/guias/${guiaId}`} /> : null}

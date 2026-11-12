@@ -8,13 +8,13 @@ export function OrphanRemoveButton({ awb, count }: { awb: string; count: number 
     <form
       action={removeOrphanDocuments}
       onSubmit={(event) => {
-        const ok = window.confirm(`¿Eliminar de Documentos los ${count} documentos de ${awb}?\n\nLa guía ya no existe. Si el número AWB está en el stock, vuelve a quedar disponible. No se puede deshacer. Las copias de Google Drive no se tocan.`);
+        const ok = window.confirm(`Delete the ${count} documents of ${awb} from Documents?\n\nThe guía no longer exists. If the AWB number is in stock, it becomes available again. This cannot be undone. Google Drive copies are not touched.`);
         if (!ok) event.preventDefault();
       }}
     >
       <input type="hidden" name="awb" value={awb} />
       <button type="submit" className="rounded-md border border-input px-2 py-1 text-xs text-stuck hover:bg-secondary">
-        Eliminar de Documentos
+        Delete from Documents
       </button>
     </form>
   );

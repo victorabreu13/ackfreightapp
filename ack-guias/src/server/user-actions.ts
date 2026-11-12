@@ -35,10 +35,10 @@ export async function createUser(formData: FormData) {
   const email = normalizeAckEmail(text(formData.get("email")));
   const role = parseUserRole(text(formData.get("role")));
   const name = text(formData.get("name")) || null;
-  if (!email) back("El correo tiene que ser @ackfreight.com.");
-  if (!role) back("Elige un rol.");
+  if (!email) back("The email must be @ackfreight.com.");
+  if (!role) back("Choose a role.");
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) back("Ese correo ya está en la lista. Edítalo en la tabla.");
+  if (existing) back("That email is already on the list. Edit it in the table.");
   await prisma.user.create({
     data: {
       email,
@@ -59,11 +59,11 @@ export async function updateUser(formData: FormData) {
   const email = normalizeAckEmail(text(formData.get("email")));
   const role = parseUserRole(text(formData.get("role")));
   const name = text(formData.get("name")) || null;
-  if (!id) back("Falta el usuario.");
-  if (!email) back("El correo tiene que ser @ackfreight.com.");
-  if (!role) back("Elige un rol.");
+  if (!id) back("The user is missing.");
+  if (!email) back("The email must be @ackfreight.com.");
+  if (!role) back("Choose a role.");
   const current = await prisma.user.findUnique({ where: { id } });
-  if (!current) back("Ese usuario ya no está.");
+  if (!current) back("That user is no longer there.");
   const admins = adminEmailSet();
   const activeAdminCount = await prisma.user.count({ where: { role: "ADMIN", active: true } });
   const blocked = userRoleChangeError({
@@ -75,10 +75,10 @@ export async function updateUser(formData: FormData) {
   });
   if (blocked) back(blocked);
   if (admins.has(current.email) && email !== current.email) {
-    back("El correo de una cuenta ADMIN_EMAILS no se cambia aquí.");
+    back("The email of an ADMIN_EMAILS account is not changed here.");
   }
   const taken = await prisma.user.findUnique({ where: { email } });
-  if (taken && taken.id !== current.id) back("Ese correo ya está en la lista.");
+  if (taken && taken.id !== current.id) back("That email is already on the list.");
   await prisma.user.update({
     where: { id: current.id },
     data: {
@@ -96,9 +96,9 @@ export async function updateUser(formData: FormData) {
 export async function removeUser(formData: FormData) {
   const actor = await requireAdmin();
   const id = text(formData.get("id"));
-  if (!id) back("Falta el usuario.");
+  if (!id) back("The user is missing.");
   const current = await prisma.user.findUnique({ where: { id } });
-  if (!current) back("Ese usuario ya no está.");
+  if (!current) back("That user is no longer there.");
   const activeAdminCount = await prisma.user.count({ where: { role: "ADMIN", active: true } });
   const blocked = userRemoveError({
     email: current.email,

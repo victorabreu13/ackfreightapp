@@ -36,7 +36,7 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Pickup requests</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Cada pickup request crea el borrador de su guía. De ahí sale el Pickup Order, y cuando la carga llega a la bodega se le liga su Warehouse Receipt.
+          Each pickup request creates the draft of its guía. The Pickup Order comes from it, and when the cargo reaches the warehouse its Warehouse Receipt is linked.
         </p>
       </div>
       {notice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{notice}</p> : null}
@@ -50,10 +50,10 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
             <tr>
               <th className="px-3 py-2">Pickup</th>
               <th className="px-3 py-2">Creado</th>
-              <th className="px-3 py-2">Cliente</th>
+              <th className="px-3 py-2">Client</th>
               <th className="px-3 py-2">Shipper</th>
               <th className="px-3 py-2">Destino</th>
-              <th className="px-3 py-2">Piezas / kg</th>
+              <th className="px-3 py-2">Pieces / kg</th>
               <th className="px-3 py-2">Pickup</th>
               <th className="px-3 py-2">Guía</th>
               <th className="px-3 py-2">Warehouse</th>
@@ -64,7 +64,7 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
             {requests.length === 0 ? (
               <tr>
                 <td colSpan={10} className="px-3 py-6 text-muted-foreground">
-                  Todavía no hay pickup requests.
+                  There are no pickup requests yet.
                 </td>
               </tr>
             ) : (
@@ -87,14 +87,14 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
                     {request.guia ? (
                       <div className="flex flex-col gap-1">
                         <Link href={`/guias/${request.guia.id}`} className="underline-offset-2 hover:underline">
-                          {request.guia.awb || "Borrador"}
+                          {request.guia.awb || "Draft"}
                         </Link>
                         {request.truckerName ? (
                           <a href={`/api/guias/${request.guia.id}/file?kind=pickup`} target="_blank" rel="noreferrer" className="text-xs underline-offset-2 hover:underline">
                             Pickup order (PDF)
                           </a>
                         ) : (
-                          <span className="text-xs text-muted-foreground">Falta el trucker para el pickup order</span>
+                          <span className="text-xs text-muted-foreground">The trucker is missing for the pickup order</span>
                         )}
                       </div>
                     ) : (
@@ -118,7 +118,7 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
                     <form action={deletePickupRequest}>
                       <input type="hidden" name="id" value={request.id} />
                       <button type="submit" className="text-xs text-stuck underline-offset-2 hover:underline">
-                        Eliminar
+                        Delete
                       </button>
                     </form>
                   </td>

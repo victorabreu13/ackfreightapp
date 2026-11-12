@@ -36,8 +36,8 @@ export function GuiaRowMenu({ id, label, issued, canDelete }: { id: string; labe
     setOpen((current) => !current);
   }
 
-  const completeMessage = `¿Marcar la guía ${label} como completada?\n\nSale de la pantalla Guías. Sigue en Documentos.`;
-  const deleteMessage = `¿Eliminar la guía ${label}?\n\nSe borra también de Documentos con todos sus documentos y el número AWB vuelve al stock.${issued ? "\nYa está emitida." : ""}\nNo se puede deshacer. Las copias que ya están en Google Drive no se tocan.`;
+  const completeMessage = `Mark guía ${label} as completed?\n\nIt leaves the Guías screen. It stays in Documents.`;
+  const deleteMessage = `Delete guía ${label}?\n\nIt is also deleted from Documents with all its documents and the AWB number returns to stock.${issued ? "\nIt is already issued." : ""}\nThis cannot be undone. Copies already in Google Drive are not touched.`;
 
   return (
     <div className="inline-block text-left">
@@ -68,7 +68,7 @@ export function GuiaRowMenu({ id, label, issued, canDelete }: { id: string; labe
               <input type="hidden" name="done" value="1" />
               <input type="hidden" name="returnTo" value="/guias" />
               <button type="submit" role="menuitem" className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-secondary">
-                Marcar completada
+                Mark completed
               </button>
             </form>
             {canDelete ? (
@@ -83,7 +83,7 @@ export function GuiaRowMenu({ id, label, issued, canDelete }: { id: string; labe
               >
                 <input type="hidden" name="id" value={id} />
                 <button type="submit" role="menuitem" className="block w-full rounded px-3 py-2 text-left text-sm text-stuck hover:bg-secondary">
-                  Eliminar
+                  Delete
                 </button>
               </form>
             ) : null}

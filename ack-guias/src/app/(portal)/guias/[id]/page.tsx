@@ -138,7 +138,7 @@ export default async function GuiaDetailPage({
     qboDocNumber: document.qboDocNumber,
   };
   if (!canManageGuias(user)) {
-    const uploadNotice = one(query, "upload") === "ok" ? "Archivos guardados en la guía." : one(query, "invoiced") ? "Factura guardada." : one(query, "qbo") ? "Factura creada en QuickBooks." : one(query, "rate") ? "Tarifa guardada." : null;
+    const uploadNotice = one(query, "upload") === "ok" ? "Files saved on the guía." : one(query, "invoiced") ? "Invoice saved." : one(query, "qbo") ? "Invoice created in QuickBooks." : one(query, "rate") ? "Rate saved." : null;
     return (
       <GuiaAccountingView
         {...billing}
@@ -203,7 +203,7 @@ export default async function GuiaDetailPage({
   const uploadFlag = one(query, "upload");
   const uploadError = one(query, "uploadError");
   const uploadNotice =
-    uploadFlag === "ok" ? "Archivos guardados en la guía." : uploadFlag === "deleted" ? "Archivo eliminado." : null;
+    uploadFlag === "ok" ? "Files saved on the guía." : uploadFlag === "deleted" ? "File deleted." : null;
 
   return (
     <div className="space-y-8">
@@ -243,36 +243,36 @@ export default async function GuiaDetailPage({
           {one(query, "ackMsg") ?? ""}
         </p>
       ) : null}
-      {one(query, "flight") === "ok" ? <p className="text-sm text-muted-foreground">Estatus del vuelo revisado.</p> : null}
+      {one(query, "flight") === "ok" ? <p className="text-sm text-muted-foreground">Flight status checked.</p> : null}
       {one(query, "flight") && one(query, "flight") !== "ok" ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">Vuelo: {one(query, "flight")}</p> : null}
-      {one(query, "assigned") ? <p className="text-sm text-muted-foreground">AWB asignado. El borrador y los labels ya salen con ese número.</p> : null}
-      {one(query, "released") ? <p className="text-sm text-muted-foreground">AWB devuelto al stock.</p> : null}
+      {one(query, "assigned") ? <p className="text-sm text-muted-foreground">AWB assigned. The draft and the labels already print with that number.</p> : null}
+      {one(query, "released") ? <p className="text-sm text-muted-foreground">AWB returned to stock.</p> : null}
       {one(query, "issued") ? <p className="text-sm text-muted-foreground">Issued. The PDF download does not depend on Drive.</p> : null}
       {drive && drive !== "ok" ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">Drive: {drive}</p> : null}
       {drive === "ok" ? <p className="text-sm text-muted-foreground">Saved to Drive.</p> : null}
-      {one(query, "invoiced") ? <p className="text-sm text-muted-foreground">Factura guardada.</p> : null}
-      {one(query, "qbo") ? <p className="text-sm text-muted-foreground">Factura creada en QuickBooks.</p> : null}
-      {one(query, "rate") ? <p className="text-sm text-muted-foreground">Tarifa guardada.</p> : null}
+      {one(query, "invoiced") ? <p className="text-sm text-muted-foreground">Invoice saved.</p> : null}
+      {one(query, "qbo") ? <p className="text-sm text-muted-foreground">Invoice created in QuickBooks.</p> : null}
+      {one(query, "rate") ? <p className="text-sm text-muted-foreground">Rate saved.</p> : null}
 
       {document.status === "issued" && document.flightNumber ? (
         <section className="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-card p-4">
           <div>
-            <h2 className="font-display text-2xl">Estatus del vuelo</h2>
+            <h2 className="font-display text-2xl">Flight status</h2>
             <p className="text-sm text-muted-foreground">
               {document.flightNumber}
               {document.flightDate ? ` · ${document.flightDate}` : ""}
-              {document.flightCheckedAt ? ` · revisado ${formatNy(document.flightCheckedAt)}` : " · todavía no se ha revisado"}
+              {document.flightCheckedAt ? ` · checked ${formatNy(document.flightCheckedAt)}` : " · not checked yet"}
             </p>
           </div>
-          <p className="text-xl font-semibold">{isFlightStatus(document.flightStatus) ? FLIGHT_STATUS_LABEL[document.flightStatus] : "Sin información"}</p>
+          <p className="text-xl font-semibold">{isFlightStatus(document.flightStatus) ? FLIGHT_STATUS_LABEL[document.flightStatus] : "No information"}</p>
           <form action={checkGuiaFlight}>
             <input type="hidden" name="id" value={document.id} />
             <Button type="submit" variant="outline" size="sm">
-              Revisar ahora
+              Check now
             </Button>
           </form>
           <p className="w-full text-xs text-muted-foreground">
-            Se revisa solo cada pocas horas, desde el día antes del vuelo hasta el día después. Cuando cambia, el cliente recibe un correo.
+            It is checked on its own every few hours, from the day before the flight to the day after. When it changes, the client gets an email.
           </p>
         </section>
       ) : null}
@@ -283,11 +283,11 @@ export default async function GuiaDetailPage({
           {assigned ? (
             <div className="flex flex-wrap items-center gap-4">
               <p className="font-mono text-xl font-semibold">{document.awb}</p>
-              <p className="text-sm text-muted-foreground">Reservado para esta guía. El borrador, los labels y el Folder Label salen con este número.</p>
+              <p className="text-sm text-muted-foreground">Reserved for this guía. The draft, the labels and the Folder Label print with this number.</p>
               <form action={releaseGuiaAwb}>
                 <input type="hidden" name="id" value={document.id} />
                 <Button type="submit" variant="outline" size="sm">
-                  Devolver al stock
+                  Return to stock
                 </Button>
               </form>
             </div>
@@ -313,7 +313,7 @@ export default async function GuiaDetailPage({
                 <input name="manualAwb" className="block h-10 rounded-md border border-input bg-background px-3 font-mono" placeholder="123-12345675" />
               </label>
               <SubmitButton variant="outline" size="lg" pendingLabel="Asignando…">
-                Asignar AWB
+                Assign AWB
               </SubmitButton>
             </form>
           )}
@@ -321,20 +321,20 @@ export default async function GuiaDetailPage({
       ) : null}
 
       <section className="space-y-3 rounded-lg border-2 border-primary bg-card p-4">
-        <h2 className="font-display text-2xl">Emitir</h2>
+        <h2 className="font-display text-2xl">Issue</h2>
         {document.status === "issued" ? (
           <p className="text-sm text-muted-foreground">This guía is already issued as {document.awb}.</p>
         ) : (
           <>
             {review.length ? (
-              <p className="text-sm text-amber-800">Hay campos en revisión. No impiden emitir.</p>
+              <p className="text-sm text-amber-800">Some fields are under review. They do not stop you from issuing.</p>
             ) : null}
             <form action={issueGuia} className="flex flex-col gap-3 md:flex-row md:items-end">
               <input type="hidden" name="id" value={document.id} />
               <input type="hidden" name="agentKey" value={document.agentKey} />
               {assigned ? (
                 <p className="text-sm">
-                  Se emite con el AWB asignado <span className="font-mono font-semibold">{document.awb}</span>.
+                  It is issued with the assigned AWB <span className="font-mono font-semibold">{document.awb}</span>.
                 </p>
               ) : (
                 <>
@@ -358,7 +358,7 @@ export default async function GuiaDetailPage({
                   </label>
                 </>
               )}
-              <SubmitButton size="lg" pendingLabel="Emitiendo… no cierres la página">
+              <SubmitButton size="lg" pendingLabel="Issuing… do not close the page">
                 Issue
               </SubmitButton>
             </form>
@@ -368,11 +368,11 @@ export default async function GuiaDetailPage({
 
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
         <div>
-          <h2 className="font-display text-2xl">Pantalla Guías</h2>
+          <h2 className="font-display text-2xl">Guías screen</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {document.completedAt
-              ? `Marcada completada${document.completedBy ? ` por ${document.completedBy}` : ""}. No aparece en la pantalla Guías.`
-              : "Los borradores y las guías que no han volado aparecen en la pantalla Guías. Una guía sale sola el día después de su vuelo, o la marcas completada."}
+              ? `Marked completed${document.completedBy ? ` by ${document.completedBy}` : ""}. It does not appear on the Guías screen.`
+              : "Drafts and guías that have not flown yet appear on the Guías screen. A guía leaves on its own the day after its flight, or you mark it completed."}
           </p>
         </div>
         <form action={setGuiaCompleted}>
@@ -380,7 +380,7 @@ export default async function GuiaDetailPage({
           <input type="hidden" name="done" value={document.completedAt ? "0" : "1"} />
           <input type="hidden" name="returnTo" value={document.completedAt ? `/guias/${document.id}` : "/guias"} />
           <Button type="submit" variant="outline">
-            {document.completedAt ? "Volver a la lista" : "Marcar completada"}
+            {document.completedAt ? "Back to the list" : "Mark completed"}
           </Button>
         </form>
       </section>
@@ -388,9 +388,9 @@ export default async function GuiaDetailPage({
       {document.status !== "issued" ? (
         <section className="space-y-3 rounded-lg border border-border bg-card p-4">
           <div>
-            <h2 className="font-display text-2xl">Imprimir sin emitir</h2>
+            <h2 className="font-display text-2xl">Print without issuing</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Labels, Folder Label y borrador de la guía. No usan stock ni emiten el número, y no se guardan en Documentos ni en Drive.
+              Labels, Folder Label and guía draft. They do not use stock or issue the number, and they are not saved to Documents or Drive.
             </p>
           </div>
           <div className="flex flex-col gap-4 md:flex-row md:items-end">
@@ -409,7 +409,7 @@ export default async function GuiaDetailPage({
             </form>
             <Button asChild variant="outline" size="lg">
               <a href={`${fileBase}?kind=awb&draft=1`} target="_blank" rel="noreferrer">
-                Imprimir borrador de la guía (1 copia)
+                Print guía draft (1 copy)
               </a>
             </Button>
           </div>
@@ -437,7 +437,7 @@ export default async function GuiaDetailPage({
           <div>
             <h2 className="font-display text-2xl">Warehouse receipts</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              La carga recibida en la bodega para esta guía. {document.status === "issued" ? "La guía ya está emitida: ligar o soltar un receipt no la modifica, solo guarda la relación." : "Mientras sea borrador, toma de sus receipts las piezas, los pesos, el shipper, el consignee y la mercancía. Lo que escribes a mano en piezas o pesos no se sobrescribe."}
+              The cargo received at the warehouse for this guía. {document.status === "issued" ? "The guía is already issued: linking or releasing a receipt does not modify it, it only saves the relation." : "While it is a draft, it takes the pieces, the weights, the shipper, the consignee and the goods from its receipts. What you type by hand in pieces or weights is not overwritten."}
             </p>
           </div>
           {receiptsNotice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{receiptsNotice}</p> : null}
@@ -449,7 +449,7 @@ export default async function GuiaDetailPage({
                 <p>
                   <strong>{field.label}.</strong> Guía: {conflict.guia}
                   {unit} / WR: {conflict.wr}
-                  {unit}. La guía se queda con el valor que escribiste.
+                  {unit}. The guía keeps the value you typed.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <form action={keepGuiaValueOverReceipt}>
@@ -457,14 +457,14 @@ export default async function GuiaDetailPage({
                     <input type="hidden" name="field" value={conflict.field} />
                     <input type="hidden" name="receiptValue" value={conflict.wr} />
                     <Button type="submit" variant="outline" size="sm">
-                      Mantener el de la guía
+                      Keep the guía value
                     </Button>
                   </form>
                   <form action={resetGuiaFromReceipts}>
                     <input type="hidden" name="guiaId" value={document.id} />
                     <input type="hidden" name="field" value={conflict.field} />
                     <Button type="submit" variant="outline" size="sm">
-                      Usar el del WR
+                      Use the WR value
                     </Button>
                   </form>
                 </div>
@@ -473,20 +473,20 @@ export default async function GuiaDetailPage({
           })}
           {dgSuggestion ? (
             <p className="rounded-md border border-amber-500 bg-[#fff8e6] px-3 py-2 text-sm">
-              <strong>Sugerencia.</strong> Un warehouse receipt trae {dgSuggestion.text}
-              {dgSuggestion.unNumbers.length ? ` (${dgSuggestion.unNumbers.join(", ")})` : ""}. Si aplica, marca Dangerous Goods{dgSuggestion.unNumbers.length ? " y los UN numbers" : ""} en la guía. No se cambió solo.
+              <strong>Suggestion.</strong> A warehouse receipt carries {dgSuggestion.text}
+              {dgSuggestion.unNumbers.length ? ` (${dgSuggestion.unNumbers.join(", ")})` : ""}. If it applies, check Dangerous Goods{dgSuggestion.unNumbers.length ? " and the UN numbers" : ""} on the guía. It was not changed on its own.
             </p>
           ) : null}
           {!issuedGuia && linkedReceipts.length && manualKeys.size ? (
             <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="text-muted-foreground">Escritos a mano:</span>
+              <span className="text-muted-foreground">Typed by hand:</span>
               {MANUAL_FIELDS.filter((field) => manualKeys.has(field.key)).map((field) => (
                 <form key={field.key} action={resetGuiaFromReceipts} className="flex items-center gap-1.5">
                   <input type="hidden" name="guiaId" value={document.id} />
                   <input type="hidden" name="field" value={field.key} />
                   <span>{field.label}</span>
                   <button type="submit" className="text-xs underline-offset-2 hover:underline">
-                    Restablecer desde WR
+                    Reset from WR
                   </button>
                 </form>
               ))}
@@ -495,7 +495,7 @@ export default async function GuiaDetailPage({
                   <input type="hidden" name="guiaId" value={document.id} />
                   <input type="hidden" name="field" value="all" />
                   <Button type="submit" variant="outline" size="sm">
-                    Restablecer todo desde WR
+                    Reset everything from WR
                   </Button>
                 </form>
               ) : null}
@@ -512,7 +512,7 @@ export default async function GuiaDetailPage({
                         {receiptNumber(receipt.seq)}
                       </Link>
                       <span className="ml-3 text-muted-foreground">
-                        {totals.pieces} pzas · {totals.weightKg.toFixed(2)} kg · {totals.volumeWeightKg.toFixed(2)} VKg
+                        {totals.pieces} pcs · {totals.weightKg.toFixed(2)} kg · {totals.volumeWeightKg.toFixed(2)} VKg
                       </span>
                     </span>
                     <span className="flex items-center gap-3">
@@ -523,7 +523,7 @@ export default async function GuiaDetailPage({
                         <input type="hidden" name="guiaId" value={document.id} />
                         <input type="hidden" name="receiptId" value={receipt.id} />
                         <button type="submit" className="text-xs text-stuck underline-offset-2 hover:underline">
-                          Soltar
+                          Release
                         </button>
                       </form>
                     </span>
@@ -532,25 +532,25 @@ export default async function GuiaDetailPage({
               })}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">Esta guía todavía no tiene warehouse receipts.</p>
+            <p className="text-sm text-muted-foreground">This guía has no warehouse receipts yet.</p>
           )}
           <div className="flex flex-wrap items-end gap-3">
             {freeReceipts.length ? (
               <form action={linkReceiptToGuia} className="flex flex-wrap items-end gap-2">
                 <input type="hidden" name="guiaId" value={document.id} />
                 <label className="space-y-1 text-sm">
-                  <span className="text-muted-foreground">Ligar un receipt sin guía</span>
+                  <span className="text-muted-foreground">Link a receipt with no guía</span>
                   <select name="receiptId" required className="block h-10 rounded-md border border-input bg-background px-3 text-sm">
-                    <option value="">Elige</option>
+                    <option value="">Choose</option>
                     {freeReceipts.map((receipt) => (
                       <option key={receipt.id} value={receipt.id}>
-                        {receiptNumber(receipt.seq)} · {receipt.clientLabel || receipt.shipperName || "sin cliente"}
+                        {receiptNumber(receipt.seq)} · {receipt.clientLabel || receipt.shipperName || "no client"}
                       </option>
                     ))}
                   </select>
                 </label>
                 <Button type="submit" variant="outline">
-                  Ligar
+                  Link
                 </Button>
               </form>
             ) : null}
@@ -558,12 +558,12 @@ export default async function GuiaDetailPage({
               <form action={refreshGuiaFromReceipts}>
                 <input type="hidden" name="guiaId" value={document.id} />
                 <Button type="submit" variant="outline">
-                  Actualizar la guía desde sus receipts
+                  Update the guía from its receipts
                 </Button>
               </form>
             ) : null}
             <Button asChild variant="outline">
-              <Link href="/guias/warehouse/new">Nuevo warehouse receipt</Link>
+              <Link href="/guias/warehouse/new">New warehouse receipt</Link>
             </Button>
           </div>
         </section>
@@ -574,18 +574,18 @@ export default async function GuiaDetailPage({
           <div>
             <h2 className="font-display text-2xl">Documents</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Printing as ACK TEAM LLC. Solo los documentos que esta carga necesita.
+              Printing as ACK TEAM LLC. Only the documents this cargo needs.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             {document.status === "issued" ? (
               <Button asChild>
-                <a href={`${fileBase}?kind=all`}>Descargar todos los documentos</a>
+                <a href={`${fileBase}?kind=all`}>Download all documents</a>
               </Button>
             ) : (
-              <span title="Emite la guía para descargar todos los documentos" className="inline-flex cursor-not-allowed">
+              <span title="Issue the guía to download all documents" className="inline-flex cursor-not-allowed">
                 <Button type="button" disabled>
-                  Descargar todos los documentos
+                  Download all documents
                 </Button>
               </span>
             )}
@@ -598,11 +598,11 @@ export default async function GuiaDetailPage({
             const masterAwb = "";
             const needsIssue = ((kind === "awb" || kind === "labels") && document.status !== "issued") || (kind === "folder-label" && !document.awb);
             const needsTrucker = (kind === "delivery" || kind === "pickup") && !document.truckerName?.trim();
-            const note = needsIssue ? "Emite la guía o usa Imprimir sin emitir" : needsTrucker ? "Enter a trucker and save" : saved ? "On Drive" : "Ready";
+            const note = needsIssue ? "Issue the guía or use Print without issuing" : needsTrucker ? "Enter a trucker and save" : saved ? "On Drive" : "Ready";
             return (
               <div key={kind} className="flex flex-col gap-1">
                 {needsIssue ? (
-                  <span title="Emite la guía o usa Imprimir sin emitir" className="inline-flex w-full cursor-not-allowed">
+                  <span title="Issue the guía or use Print without issuing" className="inline-flex w-full cursor-not-allowed">
                     <Button type="button" disabled variant="outline" className="h-auto w-full justify-between px-3 py-3">
                       <span>{GUIA_FILE_LABELS[kind]}</span>
                       <span className="text-xs font-normal text-muted-foreground">{note}</span>
@@ -619,7 +619,7 @@ export default async function GuiaDetailPage({
                 <span className="px-1 text-xs text-muted-foreground">{guiaFileName(kind, document.awb, masterAwb)}</span>
                 {kind === "labels" && masterAwb ? (
                   needsIssue ? (
-                    <span title="Emite la guía o usa Imprimir sin emitir" className="inline-flex cursor-not-allowed">
+                    <span title="Issue the guía or use Print without issuing" className="inline-flex cursor-not-allowed">
                       <Button type="button" disabled variant="outline" size="sm">
                         Master labels (MIA)
                       </Button>
@@ -636,20 +636,20 @@ export default async function GuiaDetailPage({
             );
           })}
           {document.dgDeclarable ? (
-            <CategoryUpload guiaId={document.id} category="dgd" title="DGD firmado" missing="Falta: dos copias firmadas por el shipper" files={dgdFiles} buttonLabel="Subir DGD firmado" />
+            <CategoryUpload guiaId={document.id} category="dgd" title="Signed DGD" missing="Missing: two copies signed by the shipper" files={dgdFiles} buttonLabel="Upload signed DGD" />
           ) : null}
           <CategoryUpload
             guiaId={document.id}
             category="invoice"
-            title="Facturas o manifiestos"
-            missing="Sube las facturas o los manifiestos del cliente"
+            title="Invoices or manifests"
+            missing="Upload the client invoices or manifests"
             files={invoiceFiles}
             multiple
-            buttonLabel="Subir facturas o manifiestos"
+            buttonLabel="Upload invoices or manifests"
           />
         </div>
         <p className="text-xs text-muted-foreground">
-          Descargar todos los documentos baja un zip con lo de arriba, más lo que subiste (DGD firmado, facturas o manifiestos). La carta TSA depende del avión y el CCSF y el CCSP salen solo si la carga va screened: se cambian en el formulario de la guía. El delivery order necesita un trucker y la guía espera a que se emita. El pickup order y los warehouse receipts se guardan, pero no van con los documentos: el pickup está en Pickups y los receipts en la sección de arriba. Al abrir un archivo también se sube a Drive en ACK Guías / cliente / AWB.
+          Download all documents downloads one zip with the files above, plus what you uploaded (signed DGD, invoices or manifests). The TSA letter depends on the aircraft, and the CCSF and the CCSP only come when the cargo goes screened: both are set in the guía form. The delivery order needs a trucker and the guía waits until it is issued. The pickup order and the warehouse receipts are kept, but they do not go with the documents: the pickup is in Pickups and the receipts are in the section above. Opening a file also uploads it to Drive under ACK Guías / client / AWB.
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {OPTIONAL_KINDS.map((kind) => (
@@ -703,7 +703,7 @@ export default async function GuiaDetailPage({
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-display text-2xl">Labels</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Se imprimen aparte, no van con los documentos.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Printed on their own, not with the documents.</p>
           </div>
           {document.dgDeclarable && document.unNumbers ? (
             <Button asChild variant="outline">
@@ -714,11 +714,11 @@ export default async function GuiaDetailPage({
         <div className="grid gap-2 sm:grid-cols-2">
           {LABEL_KINDS.map((kind) => {
             const needsIssue = (kind === "labels" && document.status !== "issued") || (kind === "folder-label" && !document.awb);
-            const note = needsIssue ? "Emite la guía o usa Imprimir sin emitir" : "Ready";
+            const note = needsIssue ? "Issue the guía or use Print without issuing" : "Ready";
             return (
               <div key={kind} className="flex flex-col gap-1">
                 {needsIssue ? (
-                  <span title="Emite la guía o usa Imprimir sin emitir" className="inline-flex w-full cursor-not-allowed">
+                  <span title="Issue the guía or use Print without issuing" className="inline-flex w-full cursor-not-allowed">
                     <Button type="button" disabled variant="outline" className="h-auto w-full justify-between px-3 py-3">
                       <span>{GUIA_FILE_LABELS[kind]}</span>
                       <span className="text-xs font-normal text-muted-foreground">{note}</span>
@@ -750,8 +750,8 @@ export default async function GuiaDetailPage({
         <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card p-4">
           <span className="font-display text-2xl">Factura {companyTitle(document.agentKey)}</span>
           <span className="rounded-md border border-border px-3 py-1.5 text-sm font-medium">
-            <span className="group-open:hidden">Ver factura</span>
-            <span className="hidden group-open:inline">Ocultar factura</span>
+            <span className="group-open:hidden">View invoice</span>
+            <span className="hidden group-open:inline">Hide invoice</span>
           </span>
         </summary>
         <GuiaBilling {...billing} />
@@ -762,20 +762,20 @@ export default async function GuiaDetailPage({
           <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2">
             <span className="font-display text-2xl">Historial de cambios</span>
             <span className="rounded-md border border-border px-3 py-1.5 text-sm font-medium">
-              <span className="group-open:hidden">Ver historial ({changeHistory.length})</span>
-              <span className="hidden group-open:inline">Ocultar historial</span>
+              <span className="group-open:hidden">View history ({changeHistory.length})</span>
+              <span className="hidden group-open:inline">Hide history</span>
             </span>
           </summary>
-          <p className="mt-3 text-sm text-muted-foreground">Quién cambió cada campo de la guía, cuándo, y de qué valor a cuál. Los últimos 25.</p>
+          <p className="mt-3 text-sm text-muted-foreground">Who changed each field of the guía, when, and from which value to which. The last 25.</p>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
                 <tr>
-                  <th className="px-2 py-1.5">Cuándo</th>
-                  <th className="px-2 py-1.5">Quién</th>
+                  <th className="px-2 py-1.5">When</th>
+                  <th className="px-2 py-1.5">Who</th>
                   <th className="px-2 py-1.5">Campo</th>
-                  <th className="px-2 py-1.5">Antes</th>
-                  <th className="px-2 py-1.5">Después</th>
+                  <th className="px-2 py-1.5">Before</th>
+                  <th className="px-2 py-1.5">After</th>
                   <th className="px-2 py-1.5">Origen</th>
                 </tr>
               </thead>
@@ -787,7 +787,7 @@ export default async function GuiaDetailPage({
                     <td className="px-2 py-1.5">{guiaFieldLabel(entry.field)}</td>
                     <td className="max-w-[16rem] truncate px-2 py-1.5">{entry.oldValue || "—"}</td>
                     <td className="max-w-[16rem] truncate px-2 py-1.5">{entry.newValue || "—"}</td>
-                    <td className="px-2 py-1.5">{entry.source === "receipt" ? "Warehouse receipt" : entry.source === "reset" ? "Restablecido desde WR" : "A mano"}</td>
+                    <td className="px-2 py-1.5">{entry.source === "receipt" ? "Warehouse receipt" : entry.source === "reset" ? "Reset from WR" : "By hand"}</td>
                   </tr>
                 ))}
               </tbody>

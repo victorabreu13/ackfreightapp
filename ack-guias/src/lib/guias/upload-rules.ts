@@ -37,8 +37,8 @@ export function acceptUpload(input: { name: string; type: string; byteLength: nu
   | { ok: true; fileName: string; mime: string; size: number }
   | { ok: false; error: string } {
   const fileName = safeUploadFileName(input.name);
-  if (input.byteLength <= 0) return { ok: false, error: `«${fileName}» está vacío.` };
-  if (input.byteLength > MAX_UPLOAD_BYTES) return { ok: false, error: `«${fileName}» supera 20 MB.` };
+  if (input.byteLength <= 0) return { ok: false, error: `«${fileName}» is empty.` };
+  if (input.byteLength > MAX_UPLOAD_BYTES) return { ok: false, error: `«${fileName}» is over 20 MB.` };
   return { ok: true, fileName, mime: mimeForUpload(fileName, input.type), size: input.byteLength };
 }
 
@@ -74,29 +74,29 @@ export function contentDisposition(fileName: string): string {
 export function uploadFailureMessage(error: string | null | undefined): string {
   const text = error?.trim() ?? "";
   if (!text || text === "Drive is not configured" || text === "Drive upload failed") {
-    return "Drive no está configurado. El archivo quedó registrado en la guía.";
+    return "Drive is not configured. The file was recorded on the guía.";
   }
-  return `No se pudo subir a Drive. ${text}`;
+  return `Could not upload to Drive. ${text}`;
 }
 
 export function uploadMissingPage(guiaId: string | null): string {
   const id = (guiaId ?? "").replace(/[^a-zA-Z0-9_-]/g, "");
   const back = id ? `/guias/${id}` : "/guias/documents";
-  const label = id ? "Volver a la guía" : "Volver a Documentos";
+  const label = id ? "Back to the guía" : "Back to Documents";
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>No se encontró el archivo</title>
+<title>File not found</title>
 <style>
   body { font-family: Georgia, "Times New Roman", serif; max-width: 36rem; margin: 4rem auto; padding: 0 1.25rem; color: #1c1917; }
   a { color: #1a3848; }
 </style>
 </head>
 <body>
-  <h1>No se encontró el archivo</h1>
-  <p>Ese archivo no está en Drive, o ya se eliminó. Sigue en la guía solo si la subida quedó registrada.</p>
+  <h1>File not found</h1>
+  <p>That file is not in Drive, or it was already deleted. It stays on the guía only if the upload was recorded.</p>
   <p><a href="${back}">${label}</a></p>
 </body>
 </html>

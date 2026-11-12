@@ -29,11 +29,11 @@ export async function uploadGuiaFiles(formData: FormData) {
     include: { guiaClient: true },
   });
   if (!document || document.product !== "guia") {
-    redirect(`/guias?error=${encodeURIComponent("No se encontró la guía.")}`);
+    redirect(`/guias?error=${encodeURIComponent("The guía was not found.")}`);
   }
   const files = formData.getAll("files").filter((item): item is File => item instanceof File);
   if (files.length === 0) {
-    redirect(withQuery(back, `uploadError=${encodeURIComponent("Elige al menos un archivo.")}`));
+    redirect(withQuery(back, `uploadError=${encodeURIComponent("Choose at least one file.")}`));
   }
   // A field of the guía's Documents sends its files with its name, and they are saved with that name in front.
   const requested = text(formData.get("category"));
@@ -58,13 +58,13 @@ export async function uploadGuiaFiles(formData: FormData) {
       bytes,
       uploadedBy: user.email,
     });
-    if (row.status === "FAILED") errors.push(`«${accepted.fileName}»: ${row.error ?? "No se pudo subir a Drive."}`);
+    if (row.status === "FAILED") errors.push(`«${accepted.fileName}»: ${row.error ?? "Could not upload to Drive."}`);
     else saved += 1;
   }
   revalidatePath(back);
   revalidatePath("/guias/documents");
   if (saved === 0) {
-    redirect(withQuery(back, `uploadError=${encodeURIComponent(errors.join(" ") || "No se pudo subir el archivo.")}`));
+    redirect(withQuery(back, `uploadError=${encodeURIComponent(errors.join(" ") || "The file could not be uploaded.")}`));
   }
   if (errors.length) {
     redirect(withQuery(back, `upload=partial&uploadError=${encodeURIComponent(errors.join(" "))}`));

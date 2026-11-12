@@ -29,26 +29,26 @@ export async function saveCarrier(formData: FormData) {
   const address = String(formData.get("address") ?? "").replace(/\r\n?/g, "\n").trim();
   const prefix = text(formData.get("prefix"));
   const iata = text(formData.get("iata")).toUpperCase();
-  if (!name) back("Escribe el nombre del carrier.", "error");
-  if (prefix && !/^\d{3}$/.test(prefix)) back("El prefijo del AWB son 3 números, como 045.", "error");
-  if (iata && !/^[A-Z0-9]{2}$/.test(iata)) back("El código IATA son 2 letras o números, como LA.", "error");
+  if (!name) back("Type the carrier name.", "error");
+  if (prefix && !/^\d{3}$/.test(prefix)) back("The AWB prefix is 3 digits, like 045.", "error");
+  if (iata && !/^[A-Z0-9]{2}$/.test(iata)) back("The IATA code is 2 letters or digits, like LA.", "error");
   const data = { name, address, prefix: prefix || null, iata: iata || null };
   if (id) {
     const existing = await prisma.carrier.findUnique({ where: { id }, select: { id: true } });
-    if (!existing) back("No se encontró el carrier.", "error");
+    if (!existing) back("Carrier not found.", "error");
     await prisma.carrier.update({ where: { id }, data });
   } else {
     await prisma.carrier.create({ data });
   }
   revalidatePath("/guias/carriers");
-  back(id ? "Carrier guardado. Las guías que ya lo usan se actualizan al guardarlas de nuevo." : "Carrier agregado.");
+  back(id ? "Carrier saved. Guías that already use it update when saved again." : "Carrier added.");
 }
 
 export async function deleteCarrier(formData: FormData) {
   await requireTeam();
   const id = text(formData.get("id"));
   const used = await prisma.airWaybillDocument.count({ where: { carrierId: id } });
-  if (used > 0) back(`No se puede borrar: ${used} ${used === 1 ? "guía lo usa" : "guías lo usan"}.`, "error");
+  if (used > 0) back(`Cannot delete: ${used} ${used === 1 ? "guía uses it" : "guías use it"}.`, "error");
   await prisma.carrier.deleteMany({ where: { id } });
   revalidatePath("/guias/carriers");
   back("Carrier borrado.");

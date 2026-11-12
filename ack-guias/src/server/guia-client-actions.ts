@@ -21,7 +21,7 @@ function back(error?: string): never {
 async function requireAdmin() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (!isAdmin(user)) redirect("/guias?error=Clientes%20y%20tarifas%20es%20solo%20para%20administradores");
+  if (!isAdmin(user)) redirect("/guias?error=Clients%20and%20rates%20is%20only%20for%20administrators");
   return user;
 }
 
@@ -42,11 +42,11 @@ export async function createCompanyClient(formData: FormData) {
   const agentKey = companyKey(text(formData.get("agentKey")));
   if (!agentKey) back("Empresa desconocida.");
   const name = text(formData.get("name"));
-  if (!normalizeBillToName(name)) back("Escribe el nombre del cliente.");
+  if (!normalizeBillToName(name)) back("Type the client name.");
   const rate = rateOrNull(text(formData.get("ratePerKg")));
-  if (rate === "bad") back("Escribe una tarifa por kilo mayor que cero.");
+  if (rate === "bad") back("Type a rate per kilo greater than zero.");
   const client = await ensureGuiaClient(agentKey, name);
-  if (!client || client.agentKey !== agentKey) back("No se pudo guardar el cliente.");
+  if (!client || client.agentKey !== agentKey) back("The client could not be saved.");
   if (rate != null) {
     await prisma.clientAgreedRate.upsert({
       where: { agentKey_guiaClientId: { agentKey: client.agentKey, guiaClientId: client.id } },
@@ -63,10 +63,10 @@ export async function saveCompanyClientRate(formData: FormData) {
   const id = text(formData.get("guiaClientId"));
   const postedKey = text(formData.get("agentKey"));
   const row = await prisma.guiaClient.findUnique({ where: { id } });
-  if (!row) back("No se encontró el cliente.");
-  if (row.agentKey !== "ack" || postedKey !== "ack") back("Ese cliente no es de ACK TEAM LLC.");
+  if (!row) back("Client not found.");
+  if (row.agentKey !== "ack" || postedKey !== "ack") back("That client does not belong to ACK TEAM LLC.");
   const rate = rateOrNull(text(formData.get("ratePerKg")));
-  if (rate === "bad" || rate == null) back("Escribe una tarifa por kilo mayor que cero.");
+  if (rate === "bad" || rate == null) back("Type a rate per kilo greater than zero.");
   await prisma.clientAgreedRate.upsert({
     where: { agentKey_guiaClientId: { agentKey: row.agentKey, guiaClientId: row.id } },
     create: { agentKey: row.agentKey, guiaClientId: row.id, ratePerKg: rate, updatedBy: user.email },

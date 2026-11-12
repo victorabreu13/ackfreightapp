@@ -109,13 +109,13 @@ export default async function GuiaSettingsPage({
                 <input id={`${agent.key}-signature`} name="signature" type="file" accept="image/png,image/jpeg" className="block text-sm" />
                 <p className="text-xs text-muted-foreground">
                   {profile?.signature
-                    ? "Esta firma sale sola en la guía emitida y en el documento de baterías de litio. Sube otra imagen para cambiarla."
-                    : "Sube la imagen de tu firma (PNG o JPG, mejor con fondo transparente). Saldrá sola en la guía emitida y en el documento de baterías de litio."}
+                    ? "This signature prints on its own on the issued guía and on the lithium battery document. Upload another image to change it."
+                    : "Upload the image of your signature (PNG or JPG, best with a transparent background). It will print on its own on the issued guía and on the lithium battery document."}
                 </p>
                 {profile?.signature ? (
                   <label className="flex items-center gap-2 text-xs">
                     <input type="checkbox" name="removeSignature" value="1" />
-                    Quitar la firma
+                    Remove the signature
                   </label>
                 ) : null}
               </div>
@@ -128,10 +128,10 @@ export default async function GuiaSettingsPage({
         <div>
           <h2 className="font-display text-3xl">QuickBooks</h2>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            QuickBooks se conecta solo a ACK TEAM LLC. El redirect de Intuit es {redirectUri || "AUTH_URL/api/guias/qbo/callback"}.
+            QuickBooks connects only to ACK TEAM LLC. The Intuit redirect is {redirectUri || "AUTH_URL/api/guias/qbo/callback"}.
           </p>
           {qboTokenKeyIsDedicated() ? null : (
-            <p className="mt-2 text-sm text-stuck">Falta el secreto QBO_TOKEN_KEY. Sin esa clave los tokens no quedan cifrados con una llave propia.</p>
+            <p className="mt-2 text-sm text-stuck">The secret QBO_TOKEN_KEY is missing. Without that key the tokens are not encrypted with their own key.</p>
           )}
         </div>
         {one(params, "saved") === "qbo" ? <p className="text-sm text-muted-foreground">QuickBooks de {companyTitle(one(params, "company") || "")} actualizado.</p> : null}
@@ -144,17 +144,17 @@ export default async function GuiaSettingsPage({
                 <h3 className="font-display text-2xl">ACK TEAM LLC</h3>
                 {connection ? (
                   <p className="text-sm text-muted-foreground">
-                    Conectado. Compañía QuickBooks {connection.realmId}. Por {connection.connectedBy}.
+                    Connected. QuickBooks company {connection.realmId}. By {connection.connectedBy}.
                   </p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Sin conectar.</p>
+                  <p className="text-sm text-muted-foreground">Not connected.</p>
                 )}
                 {creds ? (
                   <a href={`/api/guias/qbo/connect?agentKey=${agent.key}`} className="inline-flex rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
                     {connection ? "Volver a conectar" : "Conectar QuickBooks"}
                   </a>
                 ) : (
-                  <p className="text-sm text-stuck">Faltan QBO_CLIENT_ID y QBO_CLIENT_SECRET para ACK.</p>
+                  <p className="text-sm text-stuck">QBO_CLIENT_ID and QBO_CLIENT_SECRET are missing for ACK.</p>
                 )}
                 {connection ? (
                   <form action={disconnectQuickBooks}>

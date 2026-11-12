@@ -79,27 +79,27 @@ export default async function WarehouseReceiptPage({
           <p className="mt-2 text-sm text-muted-foreground">
             {receipt.guia ? (
               <>
-                Ligado a la guía{" "}
+                Linked to the guía{" "}
                 <Link href={`/guias/${receipt.guia.id}`} className="underline-offset-2 hover:underline">
-                  {receipt.guia.awb || "en borrador"}
+                  {receipt.guia.awb || "draft"}
                 </Link>
-                . {receipt.guia.status === "issued" ? "Ya está emitida: los cambios del receipt no la modifican." : "Al guardar, la guía se actualiza con los datos del receipt."}
+                . {receipt.guia.status === "issued" ? "It is already issued: changes to the receipt do not modify it." : "When you save, the guía is updated with the receipt data."}
               </>
             ) : (
-              "Sin guía. Se liga desde la guía, en la sección Warehouse receipts, o con un pickup request."
+              "No guía. It is linked from the guía, in the Warehouse receipts section, or with a pickup request."
             )}
           </p>
         </div>
         <div className="flex gap-2">
           <a href={`/api/guias/warehouse/${receipt.id}/pdf`} target="_blank" rel="noreferrer" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
-            Abrir PDF (receipt y checklist)
+            Open PDF (receipt and checklist)
           </a>
           <a href={`/api/guias/warehouse/${receipt.id}/pdf?download=1`} className="rounded-md border border-input px-3 py-2 text-sm hover:bg-secondary">
-            Descargar
+            Download
           </a>
         </div>
       </div>
-      {saved ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">Guardado.</p> : null}
+      {saved ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">Saved.</p> : null}
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
       <WarehouseReceiptForm initial={initial} pickups={pickups} />
     </div>

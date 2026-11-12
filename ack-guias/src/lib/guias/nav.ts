@@ -13,24 +13,24 @@ export function isNavGroup(item: NavItem): item is NavGroup {
  */
 export const GUIAS_MENU: NavItem[] = [
   { href: "/guias", label: "Guías" },
-  { href: "/guias/documents", label: "Documentos", team: true, accounting: true, viewer: true },
+  { href: "/guias/documents", label: "Documents", team: true, accounting: true, viewer: true },
   { href: "/guias/awb-status", label: "AWB Status", team: true, accounting: true, viewer: true },
   {
-    label: "Operaciones",
+    label: "Operations",
     links: [
       { href: "/guias/pickups", label: "Pickup requests", team: true },
       { href: "/guias/warehouse", label: "Warehouse receipts", team: true },
     ],
   },
   {
-    label: "Clientes",
+    label: "Clients",
     links: [
-      { href: "/guias/clients", label: "Clientes y tarifas", admin: true },
-      { href: "/guias/directory", label: "Directorio", team: true },
+      { href: "/guias/clients", label: "Clients and rates", admin: true },
+      { href: "/guias/directory", label: "Directory", team: true },
     ],
   },
   {
-    label: "Recursos",
+    label: "Resources",
     links: [
       { href: "/awb/stock", label: "AWB stock", team: true },
       { href: "/guias/carriers", label: "Carriers", team: true },

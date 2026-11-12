@@ -51,17 +51,17 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
             }}
             className="block h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           >
-            <option value="">Sin pickup</option>
+            <option value="">No pickup</option>
             {pickups.map((pickup) => (
               <option key={pickup.id} value={pickup.id}>
                 {pickup.label}
               </option>
             ))}
           </select>
-          <p className="text-xs text-muted-foreground">Con un pickup, el receipt se liga a su borrador de guía y lo alimenta.</p>
+          <p className="text-xs text-muted-foreground">With a pickup, the receipt is linked to its guía draft and feeds it.</p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="client">Cliente</Label>
+          <Label htmlFor="client">Client</Label>
           <GuiaLookupInput id="client" name="client" type="client" value={values.client} onChange={(value) => set("client", value)} onPick={(item) => set("client", item.name)} />
         </div>
         <div className="space-y-1.5">
@@ -79,7 +79,7 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
             onChange={(value) => set("shipper", value)}
             onPick={(item) => setValues((current) => ({ ...current, shipper: item.name, shipperAddress: item.address || current.shipperAddress }))}
           />
-          <textarea name="shipperAddress" rows={3} value={values.shipperAddress} onChange={(event) => set("shipperAddress", event.target.value)} className={AREA} placeholder="Dirección" />
+          <textarea name="shipperAddress" rows={3} value={values.shipperAddress} onChange={(event) => set("shipperAddress", event.target.value)} className={AREA} placeholder="Address" />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="consignee">Consignee</Label>
@@ -92,7 +92,7 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
             onChange={(value) => set("consignee", value)}
             onPick={(item) => setValues((current) => ({ ...current, consignee: item.name, consigneeAddress: item.address || current.consigneeAddress }))}
           />
-          <textarea name="consigneeAddress" rows={3} value={values.consigneeAddress} onChange={(event) => set("consigneeAddress", event.target.value)} className={AREA} placeholder="Dirección" />
+          <textarea name="consigneeAddress" rows={3} value={values.consigneeAddress} onChange={(event) => set("consigneeAddress", event.target.value)} className={AREA} placeholder="Address" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <DriverFields
@@ -125,7 +125,7 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
               className={values.pickupRequestId ? "bg-muted" : ""}
             />
             <p className="text-xs text-muted-foreground">
-              {values.pickupRequestId ? "Lo da el pickup request (PU-0001, PU-0002…). No se escribe a mano." : "Se llena solo al elegir un pickup request. Sin pickup puedes escribir el número de otro sistema."}
+              {values.pickupRequestId ? "Given by the pickup request (PU-0001, PU-0002…). It is not typed by hand." : "It fills in on its own when you choose a pickup request. Without a pickup you can type the number from another system."}
             </p>
           </div>
         </div>
@@ -135,7 +135,7 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="receivedBy">Received by</Label>
-          <Input id="receivedBy" name="receivedBy" value={values.receivedBy} onChange={(event) => set("receivedBy", event.target.value)} placeholder="Tu nombre, si lo dejas vacío" />
+          <Input id="receivedBy" name="receivedBy" value={values.receivedBy} onChange={(event) => set("receivedBy", event.target.value)} placeholder="Your name, if you leave it empty" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <label className="flex items-center gap-2 pt-7 text-sm">
@@ -158,12 +158,12 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
       </section>
 
       <section className="space-y-3 rounded-lg border border-border bg-card p-4">
-        <h2 className="font-display text-2xl">Líneas</h2>
-        <p className="text-xs text-muted-foreground">Una línea es una unidad de manejo, como un pallet: sus piezas, sus medidas en pulgadas y su peso en kg. El volumen y el peso volumétrico salen de las medidas.</p>
+        <h2 className="font-display text-2xl">Lines</h2>
+        <p className="text-xs text-muted-foreground">A line is a handling unit, like a pallet: its pieces, its measures in inches and its weight in kg. The volume and the volume weight come from the measures.</p>
         <div className="space-y-3">
           {values.lines.map((line, index) => (
             <div key={index} className="grid gap-2 rounded-md border border-border p-3 md:grid-cols-6">
-              <Input name="linePieces" aria-label="Piezas" placeholder="Pcs" inputMode="numeric" value={line.pieces} onChange={(event) => setLine(index, "pieces", event.target.value)} />
+              <Input name="linePieces" aria-label="Pieces" placeholder="Pcs" inputMode="numeric" value={line.pieces} onChange={(event) => setLine(index, "pieces", event.target.value)} />
               <select
                 name="linePackage"
                 aria-label="Package"
@@ -180,10 +180,10 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
                   </option>
                 ))}
               </select>
-              <Input name="lineLength" aria-label="Largo in" placeholder="Largo in" inputMode="decimal" value={line.length} onChange={(event) => setLine(index, "length", event.target.value)} onBlur={() => setLine(index, "length", roundUpText(line.length))} />
-              <Input name="lineWidth" aria-label="Ancho in" placeholder="Ancho in" inputMode="decimal" value={line.width} onChange={(event) => setLine(index, "width", event.target.value)} onBlur={() => setLine(index, "width", roundUpText(line.width))} />
-              <Input name="lineHeight" aria-label="Alto in" placeholder="Alto in" inputMode="decimal" value={line.height} onChange={(event) => setLine(index, "height", event.target.value)} onBlur={() => setLine(index, "height", roundUpText(line.height))} />
-              <Input name="lineWeight" aria-label="Peso kg" placeholder="Peso kg" inputMode="decimal" value={line.weightKg} onChange={(event) => setLine(index, "weightKg", event.target.value)} onBlur={() => setLine(index, "weightKg", roundUpText(line.weightKg))} />
+              <Input name="lineLength" aria-label="Length in" placeholder="Length in" inputMode="decimal" value={line.length} onChange={(event) => setLine(index, "length", event.target.value)} onBlur={() => setLine(index, "length", roundUpText(line.length))} />
+              <Input name="lineWidth" aria-label="Width in" placeholder="Width in" inputMode="decimal" value={line.width} onChange={(event) => setLine(index, "width", event.target.value)} onBlur={() => setLine(index, "width", roundUpText(line.width))} />
+              <Input name="lineHeight" aria-label="Height in" placeholder="Height in" inputMode="decimal" value={line.height} onChange={(event) => setLine(index, "height", event.target.value)} onBlur={() => setLine(index, "height", roundUpText(line.height))} />
+              <Input name="lineWeight" aria-label="Weight kg" placeholder="Weight kg" inputMode="decimal" value={line.weightKg} onChange={(event) => setLine(index, "weightKg", event.target.value)} onBlur={() => setLine(index, "weightKg", roundUpText(line.weightKg))} />
               <Input name="lineLocation" aria-label="Location" placeholder="Location" value={line.location} onChange={(event) => setLine(index, "location", event.target.value)} />
               <Input name="lineDescription" aria-label="Description" placeholder="Description" className="md:col-span-2" value={line.description} onChange={(event) => setLine(index, "description", event.target.value)} />
               <Input name="lineNotes" aria-label="Notes" placeholder="Notes" className="md:col-span-2" value={line.notes} onChange={(event) => setLine(index, "notes", event.target.value)} />
@@ -191,7 +191,7 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
               <div className="md:col-span-6">
                 {values.lines.length > 1 ? (
                   <button type="button" className="text-xs text-stuck underline-offset-2 hover:underline" onClick={() => setValues((current) => ({ ...current, lines: current.lines.filter((_, at) => at !== index) }))}>
-                    Quitar línea
+                    Remove line
                   </button>
                 ) : null}
               </div>
@@ -199,10 +199,10 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
           ))}
         </div>
         <Button type="button" variant="outline" onClick={() => setValues((current) => ({ ...current, lines: [...current.lines, { ...EMPTY_RECEIPT_LINE }] }))}>
-          Agregar línea
+          Add line
         </Button>
         <p className="rounded-md bg-secondary px-3 py-2 text-sm">
-          Total: {totals.pieces} pzas · {totals.weightKg.toFixed(2)} kg · {totals.volumeM3.toFixed(2)} m³ · {totals.volumeWeightKg.toFixed(2)} VKg · cobrable {totals.chargeableKg.toFixed(2)} kg
+          Total: {totals.pieces} pcs · {totals.weightKg.toFixed(2)} kg · {totals.volumeM3.toFixed(2)} m³ · {totals.volumeWeightKg.toFixed(2)} VKg · chargeable {totals.chargeableKg.toFixed(2)} kg
         </p>
       </section>
 
@@ -210,7 +210,7 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
         <Label htmlFor="notes">Notas</Label>
         <textarea id="notes" name="notes" rows={3} value={values.notes} onChange={(event) => set("notes", event.target.value)} className={AREA} />
       </section>
-      <Button type="submit">Guardar warehouse receipt</Button>
+      <Button type="submit">Save warehouse receipt</Button>
     </form>
   );
 }

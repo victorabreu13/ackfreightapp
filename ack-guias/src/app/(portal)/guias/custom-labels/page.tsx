@@ -32,7 +32,7 @@ export default async function CustomLabelsPage({ searchParams }: { searchParams:
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Custom Labels</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Un label de 4 x 6 pulgadas para la impresora térmica, con el texto que escribas. Elige vertical u horizontal, la letra y el tamaño.
+          A 4 x 6 inch label for the thermal printer, with the text you write. Pick portrait or landscape, the font and the size.
         </p>
       </div>
 
@@ -40,7 +40,7 @@ export default async function CustomLabelsPage({ searchParams }: { searchParams:
         <form action="/guias/custom-labels" className="space-y-4 rounded-lg border border-border bg-card p-4">
           <input type="hidden" name="form" value="1" />
           <label className="block space-y-1 text-sm">
-            <span className="text-muted-foreground">Texto (una línea por renglón)</span>
+            <span className="text-muted-foreground">Text (one line per row)</span>
             <textarea
               name="text"
               rows={6}
@@ -51,18 +51,18 @@ export default async function CustomLabelsPage({ searchParams }: { searchParams:
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground">Orientación</span>
+              <span className="text-muted-foreground">Orientation</span>
               <select name="orientation" defaultValue={spec.orientation} className={SELECT}>
-                <option value="landscape">Horizontal (6 x 4)</option>
-                <option value="portrait">Vertical (4 x 6)</option>
+                <option value="landscape">Landscape (6 x 4)</option>
+                <option value="portrait">Portrait (4 x 6)</option>
               </select>
             </label>
             <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground">Copias</span>
+              <span className="text-muted-foreground">Copies</span>
               <input name="copies" type="number" min={1} max={MAX_COPIES} defaultValue={spec.copies} className={FIELD} />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground">Letra</span>
+              <span className="text-muted-foreground">Font</span>
               <select name="family" defaultValue={spec.family} className={SELECT}>
                 <option value="Helvetica">Helvetica (sans)</option>
                 <option value="Times">Times (serif)</option>
@@ -70,33 +70,33 @@ export default async function CustomLabelsPage({ searchParams }: { searchParams:
               </select>
             </label>
             <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground">Tamaño (pt, 0 = automático)</span>
+              <span className="text-muted-foreground">Size (pt, 0 = automatic)</span>
               <input name="size" type="number" min={0} max={MAX_SIZE} step={1} defaultValue={spec.size} className={FIELD} />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground">Alineación</span>
+              <span className="text-muted-foreground">Alignment</span>
               <select name="align" defaultValue={spec.align} className={SELECT}>
-                <option value="left">Izquierda</option>
-                <option value="center">Centro</option>
-                <option value="right">Derecha</option>
+                <option value="left">Left</option>
+                <option value="center">Center</option>
+                <option value="right">Right</option>
               </select>
             </label>
             <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground">Posición vertical</span>
+              <span className="text-muted-foreground">Vertical position</span>
               <select name="valign" defaultValue={spec.valign} className={SELECT}>
-                <option value="top">Arriba</option>
-                <option value="middle">Al centro</option>
-                <option value="bottom">Abajo</option>
+                <option value="top">Top</option>
+                <option value="middle">Centered</option>
+                <option value="bottom">Bottom</option>
               </select>
             </label>
             <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground">Espacio entre líneas (1 a 2)</span>
+              <span className="text-muted-foreground">Line spacing (1 to 2)</span>
               <input name="spacing" type="number" min={1} max={2} step={0.05} defaultValue={spec.spacing} className={FIELD} />
             </label>
             <label className="space-y-1 text-sm">
-              <span className="text-muted-foreground">Borde</span>
+              <span className="text-muted-foreground">Border</span>
               <select name="border" defaultValue={spec.border} className={SELECT}>
-                <option value="none">Sin borde</option>
+                <option value="none">No border</option>
                 <option value="thin">Fino</option>
                 <option value="thick">Grueso</option>
               </select>
@@ -105,7 +105,7 @@ export default async function CustomLabelsPage({ searchParams }: { searchParams:
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
             <label className="flex items-center gap-2">
               <input type="checkbox" name="bold" value="1" defaultChecked={spec.bold} />
-              <span className="font-bold">Negrita</span>
+              <span className="font-bold">Bold</span>
             </label>
             <label className="flex items-center gap-2">
               <input type="checkbox" name="italic" value="1" defaultChecked={spec.italic} />
@@ -117,13 +117,13 @@ export default async function CustomLabelsPage({ searchParams }: { searchParams:
             </label>
             <label className="flex items-center gap-2">
               <input type="checkbox" name="uppercase" value="1" defaultChecked={spec.uppercase} />
-              <span>MAYÚSCULAS</span>
+              <span>UPPERCASE</span>
             </label>
           </div>
           <p className="text-xs text-muted-foreground">
-            Con tamaño automático la letra llena el label. Con un tamaño fijo ({MIN_SIZE} a {MAX_SIZE} pt), si el texto no cabe se reduce hasta que quepa.
+            With automatic size the font fills the label. With a fixed size ({MIN_SIZE} to {MAX_SIZE} pt), if the text does not fit it is reduced until it does.
           </p>
-          <Button type="submit">Ver label</Button>
+          <Button type="submit">Preview label</Button>
         </form>
 
         <section className="space-y-3">
@@ -132,21 +132,21 @@ export default async function CustomLabelsPage({ searchParams }: { searchParams:
               <div className="flex flex-wrap items-center gap-3">
                 <Button asChild>
                   <a href={`/api/guias/custom-labels?${query}`} target="_blank" rel="noreferrer">
-                    Abrir PDF para imprimir
+                    Open PDF to print
                   </a>
                 </Button>
                 <Button asChild variant="outline">
-                  <a href={`/api/guias/custom-labels?${query}&download=1`}>Descargar</a>
+                  <a href={`/api/guias/custom-labels?${query}&download=1`}>Download</a>
                 </Button>
                 <span className="text-sm text-muted-foreground">
-                  Letra de {layout.size} pt{spec.size === 0 ? " (automática)" : ""} · {spec.copies} {spec.copies === 1 ? "copia" : "copias"} · 4 x 6 {landscape ? "horizontal" : "vertical"}
+                  Font {layout.size} pt{spec.size === 0 ? " (automatic)" : ""} · {spec.copies} {spec.copies === 1 ? "copy" : "copies"} · 4 x 6 {landscape ? "landscape" : "portrait"}
                 </span>
               </div>
               {layout.reduced ? (
-                <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">El texto no cabía a {spec.size} pt y se redujo a {layout.size} pt.</p>
+                <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">The text did not fit at {spec.size} pt and was reduced to {layout.size} pt.</p>
               ) : null}
               <iframe
-                title="Vista previa del label"
+                title="Label preview"
                 src={`/api/guias/custom-labels?${query}#toolbar=0&navpanes=0&view=Fit`}
                 className="w-full rounded-md border border-border bg-white"
                 style={{ aspectRatio: landscape ? "6 / 4" : "4 / 6", maxHeight: "70vh" }}
@@ -154,7 +154,7 @@ export default async function CustomLabelsPage({ searchParams }: { searchParams:
             </>
           ) : (
             <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              Escribe el texto y pulsa Ver label para ver cómo queda.
+              Type the text and press Preview label to see how it looks.
             </p>
           )}
         </section>

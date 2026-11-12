@@ -72,7 +72,7 @@ export async function saveWarehouseReceipt(formData: FormData) {
   const id = text(formData.get("id"));
   const lines = linesFromForm(formData);
   if (lines.length === 0) {
-    redirect(`${id ? `/guias/warehouse/${id}` : "/guias/warehouse/new"}?error=${encodeURIComponent("Agrega al menos una línea con piezas, peso o medidas.")}`);
+    redirect(`${id ? `/guias/warehouse/${id}` : "/guias/warehouse/new"}?error=${encodeURIComponent("Add at least one line with pieces, weight or measures.")}`);
   }
   const pickupId = text(formData.get("pickupRequestId"));
   const pickup = pickupId ? await prisma.pickupRequest.findUnique({ where: { id: pickupId } }) : null;
@@ -104,7 +104,7 @@ export async function saveWarehouseReceipt(formData: FormData) {
   let guiaId: string | null = null;
   if (id) {
     const existing = await prisma.warehouseReceipt.findUnique({ where: { id }, select: { guiaId: true } });
-    if (!existing) listBack("No se encontró el warehouse receipt.", "error");
+    if (!existing) listBack("Warehouse receipt not found.", "error");
     guiaId = existing.guiaId;
     await prisma.$transaction([
       prisma.warehouseReceiptLine.deleteMany({ where: { receiptId: id } }),
@@ -139,7 +139,7 @@ export async function deleteWarehouseReceipt(formData: FormData) {
   const user = await requireTeam();
   const id = text(formData.get("id"));
   const found = await prisma.warehouseReceipt.findUnique({ where: { id }, select: { seq: true, guiaId: true } });
-  if (!found) listBack("No se encontró el warehouse receipt.", "error");
+  if (!found) listBack("Warehouse receipt not found.", "error");
   await prisma.warehouseReceipt.delete({ where: { id } });
   if (found.guiaId) {
     await removeReceiptFromGuia(found.guiaId, found.seq);
@@ -159,9 +159,9 @@ export async function linkReceiptToGuia(formData: FormData) {
   const back = `/guias/${guiaId}`;
   const guia = await prisma.airWaybillDocument.findFirst({ where: { id: guiaId, product: "guia" }, select: { id: true } });
   const receipt = await prisma.warehouseReceipt.findUnique({ where: { id: receiptId }, select: { id: true, seq: true, guiaId: true } });
-  if (!guia || !receipt) redirect(`${back}?error=${encodeURIComponent("No se encontró la guía o el warehouse receipt.")}`);
+  if (!guia || !receipt) redirect(`${back}?error=${encodeURIComponent("Guía or warehouse receipt not found.")}`);
   if (receipt.guiaId && receipt.guiaId !== guiaId) {
-    redirect(`${back}?error=${encodeURIComponent(`${receiptNumber(receipt.seq)} ya está ligado a otra guía. Suéltalo allá primero.`)}`);
+    redirect(`${back}?error=${encodeURIComponent(`${receiptNumber(receipt.seq)} is already linked to another guía. Release it there first.`)}`);
   }
   await prisma.warehouseReceipt.update({ where: { id: receiptId }, data: { guiaId } });
   const synced = await syncGuiaFromReceipts(guiaId, user.email);
@@ -169,7 +169,7 @@ export async function linkReceiptToGuia(formData: FormData) {
   revalidatePath(back);
   revalidatePath("/guias/documents");
   revalidatePath("/guias/warehouse");
-  redirect(`${back}?receipts=${encodeURIComponent(synced.skipped ? `${receiptNumber(receipt.seq)} ligado. La guía ya está emitida, no se cambió.` : `${receiptNumber(receipt.seq)} ligado y la guía se actualizó. Lo que escribiste a mano se quedó como estaba.`)}`);
+  redirect(`${back}?receipts=${encodeURIComponent(synced.skipped ? `${receiptNumber(receipt.seq)} linked. The guía is already issued, it was not changed.` : `${receiptNumber(receipt.seq)} linked and the guía was updated. What you typed by hand stayed as it was.`)}`);
 }
 
 export async function unlinkReceiptFromGuia(formData: FormData) {
@@ -183,7 +183,7 @@ export async function unlinkReceiptFromGuia(formData: FormData) {
   revalidatePath("/guias/documents");
   revalidatePath(`/guias/${guiaId}`);
   revalidatePath("/guias/warehouse");
-  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent("Warehouse receipt soltado de la guía.")}`);
+  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent("Warehouse receipt released from the guía.")}`);
 }
 
 /** Feeds the guía again from its receipts. What was typed by hand stays. */
@@ -192,7 +192,7 @@ export async function refreshGuiaFromReceipts(formData: FormData) {
   const guiaId = text(formData.get("guiaId"));
   const result = await syncGuiaFromReceipts(guiaId, user.email);
   revalidatePath(`/guias/${guiaId}`);
-  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent(result.skipped ? "La guía ya está emitida: no se cambia." : result.changed.length ? "Guía actualizada desde sus warehouse receipts." : "La guía ya tenía los datos de sus warehouse receipts.")}`);
+  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent(result.skipped ? "The guía is already issued: it is not changed." : result.changed.length ? "Guía updated from its warehouse receipts." : "The guía already had the data of its warehouse receipts.")}`);
 }
 
 /**
@@ -204,10 +204,10 @@ export async function resetGuiaFromReceipts(formData: FormData) {
   const guiaId = text(formData.get("guiaId"));
   const field = text(formData.get("field"));
   const keys = field === "all" ? "all" : isManualKey(field) ? [field] : null;
-  if (!keys) redirect(`/guias/${guiaId}?error=${encodeURIComponent("Ese campo no se toma de los warehouse receipts.")}`);
+  if (!keys) redirect(`/guias/${guiaId}?error=${encodeURIComponent("That field is not taken from the warehouse receipts.")}`);
   const result = await syncGuiaFromReceipts(guiaId, user.email, { source: "reset", reset: keys });
   revalidatePath(`/guias/${guiaId}`);
-  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent(result.skipped ? "La guía ya está emitida: no se cambia." : "Se tomaron otra vez los valores de los warehouse receipts.")}`);
+  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent(result.skipped ? "The guía is already issued: it is not changed." : "The warehouse receipt values were taken again.")}`);
 }
 
 /** Keeps the guía's own number over the receipt's. The notice returns only if the receipt changes. */
@@ -218,5 +218,5 @@ export async function keepGuiaValueOverReceipt(formData: FormData) {
   const receiptValue = text(formData.get("receiptValue"));
   if (isManualKey(field) && receiptValue) await keepGuiaValue(guiaId, field, receiptValue);
   revalidatePath(`/guias/${guiaId}`);
-  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent("Se mantiene el valor de la guía.")}`);
+  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent("The guía value is kept.")}`);
 }

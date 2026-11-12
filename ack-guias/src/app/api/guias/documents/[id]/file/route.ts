@@ -8,7 +8,7 @@ import { contentDisposition, uploadMissingPage } from "@/lib/guias/upload-rules"
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
   if (!user || !canReadGuias(user)) {
-    return new NextResponse("Solo el equipo puede abrir este archivo.", {
+    return new NextResponse("Only the team can open this file.", {
       status: 401,
       headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" },
     });

@@ -5,9 +5,9 @@ import type { GuiaValues } from "@/lib/guias/extract";
  * receipts stop overwriting it. The guía has no volume field, so the volume of a receipt is never copied.
  */
 export const MANUAL_FIELDS = [
-  { key: "pieces", flag: "piecesManual", label: "Piezas", unit: "" },
-  { key: "grossKg", flag: "grossManual", label: "Peso bruto", unit: "kg" },
-  { key: "chargeableKg", flag: "chargeableManual", label: "Peso cobrable", unit: "kg" },
+  { key: "pieces", flag: "piecesManual", label: "Pieces", unit: "" },
+  { key: "grossKg", flag: "grossManual", label: "Gross weight", unit: "kg" },
+  { key: "chargeableKg", flag: "chargeableManual", label: "Chargeable weight", unit: "kg" },
 ] as const;
 
 export type ManualKey = (typeof MANUAL_FIELDS)[number]["key"];
@@ -81,27 +81,27 @@ export function guiaFieldLabel(field: string): string {
   const manual = MANUAL_FIELDS.find((item) => item.key === field);
   if (manual) return manual.label;
   const labels: Record<string, string> = {
-    client: "Cliente",
+    client: "Client",
     shipper: "Shipper",
-    shipperAddress: "Dirección del shipper",
+    shipperAddress: "Shipper address",
     consignee: "Consignee",
-    consigneeAddress: "Dirección del consignee",
+    consigneeAddress: "Consignee address",
     notify: "Notify",
-    notifyAddress: "Dirección del notify",
+    notifyAddress: "Notify address",
     origin: "Origen",
     destination: "Destino",
-    flightNumber: "Vuelo",
-    flightDate: "Fecha de vuelo",
+    flightNumber: "Flight",
+    flightDate: "Flight date",
     rate: "Rate",
-    goods: "Mercancía",
+    goods: "Goods",
     handling: "Handling",
     aesItn: "AES ITN",
     hawb: "HAWB",
     dg: "Dangerous Goods",
     unNumbers: "UN numbers",
     bup: "BUP",
-    bupItems: "Elementos del BUP",
-    lithiumPi: "Baterías de litio",
+    bupItems: "BUP items",
+    lithiumPi: "Lithium batteries",
   };
   return labels[field] ?? field;
 }

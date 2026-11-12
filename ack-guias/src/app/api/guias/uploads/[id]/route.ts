@@ -8,7 +8,7 @@ import { UPLOAD_KIND, contentDisposition, uploadMissingPage } from "@/lib/guias/
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
   if (!user || !canReadGuias(user)) {
-    return new NextResponse("Solo el equipo puede descargar este archivo.", {
+    return new NextResponse("Only the team can download this file.", {
       status: 401,
       headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" },
     });

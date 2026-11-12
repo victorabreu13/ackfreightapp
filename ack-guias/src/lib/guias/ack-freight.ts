@@ -112,9 +112,9 @@ export function pickupTripPayload(p: PickupInput, warehouse: string = ACK_FREIGH
   const notes = [
     p.awb ? `AWB reservado: ${p.awb}` : "",
     p.consigneeName || p.destination ? `Consignee: ${[p.consigneeName, p.destination].filter(Boolean).join(" · ")}` : "",
-    p.description ? `Carga: ${oneLine(p.description)}` : "",
+    p.description ? `Cargo: ${oneLine(p.description)}` : "",
     p.contactName || p.contactPhone || p.contactEmail
-      ? `Contacto en el shipper: ${[p.contactName, p.contactPhone, p.contactEmail].filter(Boolean).join(" · ")}`
+      ? `Shipper contact: ${[p.contactName, p.contactPhone, p.contactEmail].filter(Boolean).join(" · ")}`
       : "",
     p.truckerName || p.driverName ? `Trucker: ${[p.truckerName, p.driverName, p.truckerPhone].filter(Boolean).join(" · ")}` : "",
     p.notes ? oneLine(p.notes) : "",
@@ -159,8 +159,8 @@ export function deliveryTripPayload(g: DeliveryInput, warehouse: string = ACK_FR
   const kg = g.lines.reduce((n, l) => n + (l.kgLb === "L" ? (l.grossWeight ?? 0) / 2.20462 : (l.grossWeight ?? 0)), 0);
   const flight = [g.flightNumber, g.flightDate].filter(Boolean).join(" · ");
   const notes = [
-    `AWB ${g.awb}${g.destination ? ` · destino ${g.destination}` : ""}`,
-    flight ? `Vuelo: ${flight}` : "",
+    `AWB ${g.awb}${g.destination ? ` · destination ${g.destination}` : ""}`,
+    flight ? `Flight: ${flight}` : "",
     g.shipperName || g.consigneeName ? `Shipper: ${g.shipperName ?? "-"} · Consignee: ${g.consigneeName ?? "-"}` : "",
     g.seal ? `Seal: ${g.seal}` : "",
   ]
@@ -201,7 +201,7 @@ export async function sendTripRequest(
 ): Promise<SendResult> {
   const env = options.env ?? process.env;
   const secret = env.ACK_FREIGHT_INTAKE_SECRET?.trim();
-  if (!secret) return { state: "skipped", message: "La conexión con ACK Freight no está configurada." };
+  if (!secret) return { state: "skipped", message: "The connection to ACK Freight is not configured." };
   const url = env.ACK_FREIGHT_INTAKE_URL?.trim() || ACK_FREIGHT_DEFAULT_URL;
   const fetchImpl = options.fetchImpl ?? (fetch as unknown as FetchLike);
   const controller = new AbortController();
@@ -215,11 +215,11 @@ export async function sendTripRequest(
     });
     const body = (await response.json().catch(() => ({}))) as { id?: string; created?: boolean; message?: string; error?: string };
     if (response.status === 201) return { state: "sent", id: body.id, message: "Trip request creado en ACK Freight." };
-    if (response.status === 200) return { state: "exists", id: body.id, message: "Ese trip request ya estaba en ACK Freight." };
-    return { state: "failed", message: body.message || body.error || `ACK Freight respondió ${response.status}.` };
+    if (response.status === 200) return { state: "exists", id: body.id, message: "That trip request was already in ACK Freight." };
+    return { state: "failed", message: body.message || body.error || `ACK Freight responded ${response.status}.` };
   } catch (error) {
     const timedOut = error instanceof Error && error.name === "AbortError";
-    return { state: "failed", message: timedOut ? "ACK Freight no respondió a tiempo." : "No se pudo conectar con ACK Freight." };
+    return { state: "failed", message: timedOut ? "ACK Freight did not respond in time." : "Could not connect to ACK Freight." };
   } finally {
     clearTimeout(timer);
   }

@@ -56,7 +56,7 @@ export default async function GuiasPage({
           <h1 className="font-display text-4xl">Guías</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             {accounting
-              ? "Solo las guías de tu empresa. Puedes ver kilos cobrables, la tarifa acordada y los documentos."
+              ? "Only the guías of your company. You can see chargeable kilos, the agreed rate and the documents."
               : readOnly
                 ? "Guías are read-only for this role."
                 : "Draft a guía from client instructions, issue a number from airline stock, and print the AWB, orders, letters, and labels."}
@@ -64,7 +64,7 @@ export default async function GuiasPage({
         </div>
         {canManageGuias(user) ? (
           <Link href="/guias/new" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
-            Nueva guía
+            New guía
           </Link>
         ) : null}
       </div>
@@ -72,22 +72,22 @@ export default async function GuiasPage({
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
       {guias.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-card px-4 py-10 text-sm text-muted-foreground">
-          {accounting ? "No hay guías de tu empresa." : readOnly ? "No guías yet." : "No guías yet. Nueva guía starts from a pasted email. A sheet arrival is not required."}
+          {accounting ? "There are no guías for your company." : readOnly ? "No guías yet." : "No guías yet. New guía starts from a pasted email. A sheet arrival is not required."}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <table className="w-full min-w-[800px] text-left text-sm">
             <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
               <tr>
-                <th className="px-3 py-2">{accounting ? "Fecha" : "Date"}</th>
+                <th className="px-3 py-2">Date</th>
                 <th className="px-3 py-2">AWB</th>
-                <th className="px-3 py-2">{accounting ? "Cliente" : "Client"}</th>
+                <th className="px-3 py-2">Client</th>
                 <th className="px-3 py-2">{accounting ? "Ruta" : "Route"}</th>
-                <th className="px-3 py-2">{accounting ? "Piezas" : "Pieces"}</th>
-                <th className="px-3 py-2">{accounting ? "Kilos cobrables" : "Chargeable kg"}</th>
+                <th className="px-3 py-2">Pieces</th>
+                <th className="px-3 py-2">Chargeable kg</th>
                 {accounting ? null : <th className="px-3 py-2">Company</th>}
                 <th className="px-3 py-2">{accounting ? "Estado" : "Status"}</th>
-                {accounting ? <th className="px-3 py-2">Factura</th> : null}
+                {accounting ? <th className="px-3 py-2">Invoice</th> : null}
                 {readOnly || accounting ? null : <th className="px-3 py-2" />}
               </tr>
             </thead>
@@ -110,11 +110,11 @@ export default async function GuiasPage({
                     <td className="px-3 py-2">{pieces || "—"}</td>
                     <td className="px-3 py-2">{kg || "—"}</td>
                     {accounting ? null : <td className="px-3 py-2">{guia.agent.legalName}</td>}
-                    <td className="px-3 py-2">{guia.status === "issued" ? (accounting ? "Emitida" : "Issued") : accounting ? "Borrador" : "Draft"}</td>
+                    <td className="px-3 py-2">{guia.status === "issued" ? "Issued" : "Draft"}</td>
                     {accounting ? <td className="px-3 py-2">{guia.invoiceNumber || guia.qboDocNumber || "—"}</td> : null}
                     {readOnly || accounting ? null : (
                       <td className="px-3 py-2 text-right">
-                        <GuiaRowMenu id={guia.id} label={guia.awb || "en borrador"} issued={guia.status === "issued"} canDelete={guia.status !== "issued" || isAdmin(user)} />
+                        <GuiaRowMenu id={guia.id} label={guia.awb || "draft"} issued={guia.status === "issued"} canDelete={guia.status !== "issued" || isAdmin(user)} />
                       </td>
                     )}
                   </tr>

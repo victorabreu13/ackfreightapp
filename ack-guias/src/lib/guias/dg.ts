@@ -47,14 +47,14 @@ export const LITHIUM_SECTION_II = [
  * checked as a comma list of these codes, such as "967,970". The "IB" ones are Section IB, which ship with a DGD.
  */
 export const LITHIUM_TYPES = [
-  { code: "965", pi: "965", section: "II", ion: true, short: "Ion: celdas/baterías solas (PI 965)" },
-  { code: "966", pi: "966", section: "II", ion: true, short: "Ion: con equipo (PI 966)" },
-  { code: "967", pi: "967", section: "II", ion: true, short: "Ion: dentro del equipo (PI 967)" },
-  { code: "968", pi: "968", section: "II", ion: false, short: "Metal: celdas/baterías solas (PI 968)" },
-  { code: "969", pi: "969", section: "II", ion: false, short: "Metal: con equipo (PI 969)" },
-  { code: "970", pi: "970", section: "II", ion: false, short: "Metal: dentro del equipo (PI 970)" },
-  { code: "965IB", pi: "965", section: "IB", ion: true, short: "Ion: solas, Sección IB (PI 965)" },
-  { code: "968IB", pi: "968", section: "IB", ion: false, short: "Metal: solas, Sección IB (PI 968)" },
+  { code: "965", pi: "965", section: "II", ion: true, short: "Ion: cells/batteries alone (PI 965)" },
+  { code: "966", pi: "966", section: "II", ion: true, short: "Ion: packed with equipment (PI 966)" },
+  { code: "967", pi: "967", section: "II", ion: true, short: "Ion: contained in equipment (PI 967)" },
+  { code: "968", pi: "968", section: "II", ion: false, short: "Metal: cells/batteries alone (PI 968)" },
+  { code: "969", pi: "969", section: "II", ion: false, short: "Metal: packed with equipment (PI 969)" },
+  { code: "970", pi: "970", section: "II", ion: false, short: "Metal: contained in equipment (PI 970)" },
+  { code: "965IB", pi: "965", section: "IB", ion: true, short: "Ion: alone, Section IB (PI 965)" },
+  { code: "968IB", pi: "968", section: "IB", ion: false, short: "Metal: alone, Section IB (PI 968)" },
 ] as const;
 
 export type LithiumTypeCode = (typeof LITHIUM_TYPES)[number]["code"];

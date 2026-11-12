@@ -61,24 +61,24 @@ export function GuiaBilling({
       <div>
         <h2 className="font-display text-2xl">Factura {company}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          La tarifa acordada es de {company}. El importe es kilos cobrables por esa tarifa. La tarifa de la guía aérea no se usa.
+          The agreed rate belongs to {company}. The amount is chargeable kilos times that rate. The air waybill rate is not used.
         </p>
       </div>
       <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <dt className="text-muted-foreground">Cliente</dt>
-          <dd className="font-medium">{clientName || "Sin cliente guardado"}</dd>
+          <dt className="text-muted-foreground">Client</dt>
+          <dd className="font-medium">{clientName || "No client saved"}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Kilos cobrables</dt>
+          <dt className="text-muted-foreground">Chargeable kilos</dt>
           <dd className="font-medium">{chargeableKg || "—"}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Tarifa acordada</dt>
-          <dd className="font-medium">{agreedRatePerKg != null ? `${money(agreedRatePerKg)} / kg` : "Sin tarifa acordada"}</dd>
+          <dt className="text-muted-foreground">Agreed rate</dt>
+          <dd className="font-medium">{agreedRatePerKg != null ? `${money(agreedRatePerKg)} / kg` : "No agreed rate"}</dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Importe</dt>
+          <dt className="text-muted-foreground">Amount</dt>
           <dd className="font-medium">{estimate != null ? money(estimate) : "—"}</dd>
         </div>
       </dl>
@@ -87,7 +87,7 @@ export function GuiaBilling({
         companyClients && companyClients.length > 0 ? (
           <GuiaClientRateForm guiaId={guiaId} clients={companyClients} selectedId={selectedClientId ?? null} />
         ) : (
-          <p className="text-sm text-muted-foreground">Guarda el cliente en la guía para crearlo en {company}.</p>
+          <p className="text-sm text-muted-foreground">Save the client on the guía to create it in {company}.</p>
         )
       ) : null}
       {invoiceNumber ? (
@@ -98,35 +98,35 @@ export function GuiaBilling({
         </p>
       ) : null}
       {qboDone ? <p className="text-sm">Factura en QuickBooks {qboDocNumber || qboInvoiceId}.</p> : null}
-      {qboPending ? <p className="text-sm text-stuck">Ya se está creando la factura de esta guía en QuickBooks.</p> : null}
+      {qboPending ? <p className="text-sm text-stuck">The invoice for this guía is already being created in QuickBooks.</p> : null}
       {canInvoice && issued ? (
         <form action={markGuiaInvoiced} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <input type="hidden" name="id" value={guiaId} />
           <div className="space-y-1">
-            <Label htmlFor={`inv-${guiaId}`}>Número de factura</Label>
+            <Label htmlFor={`inv-${guiaId}`}>Invoice number</Label>
             <Input id={`inv-${guiaId}`} name="invoiceNumber" defaultValue={invoiceNumber ?? ""} required />
           </div>
           <div className="space-y-1">
-            <Label htmlFor={`date-${guiaId}`}>Fecha</Label>
+            <Label htmlFor={`date-${guiaId}`}>Date</Label>
             <Input id={`date-${guiaId}`} name="invoiceDate" type="date" defaultValue={isoDay(invoiceDate)} required />
           </div>
           <div className="space-y-1">
-            <Label htmlFor={`amt-${guiaId}`}>Monto USD</Label>
+            <Label htmlFor={`amt-${guiaId}`}>Amount USD</Label>
             <Input id={`amt-${guiaId}`} name="invoiceAmount" inputMode="decimal" defaultValue={invoiceAmount ?? estimate ?? ""} required />
           </div>
           <div className="flex items-end">
             <Button type="submit" variant="outline" className="w-full">
-              Marcar como facturada
+              Mark as invoiced
             </Button>
           </div>
         </form>
       ) : null}
-      {canInvoice && !issued ? <p className="text-sm text-muted-foreground">Emite la guía antes de facturar.</p> : null}
+      {canInvoice && !issued ? <p className="text-sm text-muted-foreground">Issue the guía before invoicing.</p> : null}
       {canInvoice && issued && !qboDone && !qboPending ? (
         <form action={createQboInvoice}>
           <input type="hidden" name="id" value={guiaId} />
-          <Button type="submit">Crear factura en QuickBooks</Button>
-          {qboConnected ? null : <p className="mt-2 text-xs text-muted-foreground">QuickBooks de {company} no está conectado. El botón no crea la factura.</p>}
+          <Button type="submit">Create invoice in QuickBooks</Button>
+          {qboConnected ? null : <p className="mt-2 text-xs text-muted-foreground">QuickBooks for {company} is not connected. The button does not create the invoice.</p>}
         </form>
       ) : null}
     </section>

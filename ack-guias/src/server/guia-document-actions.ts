@@ -111,15 +111,15 @@ export async function removeOrphanDocuments(formData: FormData) {
   if (!user) redirect("/login");
   if (!isAdmin(user)) documentsRedirect(`importError=${encodeURIComponent("Only an admin can remove documents")}`);
   const awb = text(formData.get("awb"));
-  if (!awb) documentsRedirect(`importError=${encodeURIComponent("Falta el AWB")}`);
+  if (!awb) documentsRedirect(`importError=${encodeURIComponent("The AWB is missing")}`);
   const inUse = await prisma.airWaybillDocument.findFirst({ where: { awb }, select: { id: true } });
-  if (inUse) documentsRedirect(`importError=${encodeURIComponent(`La guía ${awb} todavía existe. Elimínala desde la lista de Guías.`)}`);
+  if (inUse) documentsRedirect(`importError=${encodeURIComponent(`The guía ${awb} still exists. Delete it from the Guías list.`)}`);
   const [removed, stock] = await prisma.$transaction([
     prisma.guiaDocument.deleteMany({ where: { guiaId: null, awb } }),
     prisma.awbStockNumber.updateMany({ where: { awb, documentId: null, status: { not: "available" } }, data: { status: "available" } }),
   ]);
   revalidatePath("/guias/documents");
   documentsRedirect(
-    `removed=${encodeURIComponent(`${awb}: ${removed.count} ${removed.count === 1 ? "documento eliminado" : "documentos eliminados"}.${stock.count ? " El número AWB volvió al stock." : ""}`)}`,
+    `removed=${encodeURIComponent(`${awb}: ${removed.count} ${removed.count === 1 ? "documento eliminado" : "documentos eliminados"}.${stock.count ? " The AWB number went back to stock." : ""}`)}`,
   );
 }

@@ -32,7 +32,7 @@ export type MailSender = (message: MailMessage) => Promise<MailResult>;
 
 export const sendMail: MailSender = async (message) => {
   const settings = mailSettings();
-  if (!settings) return { ok: false, error: "El correo no está configurado (SMTP_USER y SMTP_PASSWORD)." };
+  if (!settings) return { ok: false, error: "Email is not configured (SMTP_USER and SMTP_PASSWORD)." };
   try {
     const transport = nodemailer.createTransport({
       host: settings.host,
@@ -43,6 +43,6 @@ export const sendMail: MailSender = async (message) => {
     await transport.sendMail({ from: settings.from, to: message.to, subject: message.subject, text: message.text, html: message.html });
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "No se pudo enviar el correo." };
+    return { ok: false, error: error instanceof Error ? error.message : "The email could not be sent." };
   }
 };

@@ -30,26 +30,26 @@ export async function saveTruckDriver(formData: FormData) {
   const name = text(formData.get("name"));
   const license = text(formData.get("license"));
   const phone = text(formData.get("phone"));
-  if (!name) back("Escribe el nombre del driver.", "error");
+  if (!name) back("Type the driver name.", "error");
   const carrierKey = driverKey(carrier);
   const nameKey = driverKey(name);
   const same = await prisma.truckDriver.findUnique({ where: { carrierKey_nameKey: { carrierKey, nameKey } } });
-  if (same && same.id !== id) back("Ya existe ese driver con ese carrier.", "error");
+  if (same && same.id !== id) back("That driver already exists with that carrier.", "error");
   const data = { carrier, name, license: license || null, phone: phone || null, carrierKey, nameKey };
   if (id) {
     const existing = await prisma.truckDriver.findUnique({ where: { id }, select: { id: true } });
-    if (!existing) back("No se encontró el driver.", "error");
+    if (!existing) back("Driver not found.", "error");
     await prisma.truckDriver.update({ where: { id }, data });
   } else {
     await prisma.truckDriver.create({ data });
   }
   revalidatePath("/guias/drivers");
-  back(id ? "Driver guardado." : "Driver agregado.");
+  back(id ? "Driver saved." : "Driver agregado.");
 }
 
 export async function deleteTruckDriver(formData: FormData) {
   await requireTeam();
   await prisma.truckDriver.deleteMany({ where: { id: text(formData.get("id")) } });
   revalidatePath("/guias/drivers");
-  back("Driver borrado. Los receipts que ya lo usan no cambian.");
+  back("Driver deleted. Receipts that already use it do not change.");
 }

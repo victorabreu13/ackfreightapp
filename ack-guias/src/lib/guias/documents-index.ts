@@ -17,7 +17,7 @@ export const GUIA_FILE_LABELS: Record<GuiaFileKind, string> = {
   "folder-label": "Folder label",
 };
 
-export const UPLOAD_LABEL = "Archivo";
+export const UPLOAD_LABEL = "File";
 
 /** The name of a kind of logged document, for the kinds that are not one of the guía files. */
 export function documentKindLabel(kind: string): string {

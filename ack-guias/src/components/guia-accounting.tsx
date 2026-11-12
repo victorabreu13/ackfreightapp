@@ -5,14 +5,14 @@ import { Button } from "@/components/ui/button";
 import { companyTitle } from "@/lib/guias/qbo";
 
 const LABELS: Record<string, string> = {
-  awb: "Guía aérea (12 páginas)",
-  delivery: "Orden de entrega",
-  pickup: "Orden de recogida",
+  awb: "Air waybill (12 pages)",
+  delivery: "Delivery order",
+  pickup: "Pickup order",
   tsa: "Carta TSA",
   "tsa-unknown": "Carta TSA embarcador desconocido",
   ccsp: "Certificado CCSF",
-  "ccsf-alternate": "Certificación CCSP",
-  lithium: "Carta de baterías de litio",
+  "ccsf-alternate": "CCSP certification",
+  lithium: "Lithium battery letter",
   labels: "Etiquetas",
 };
 
@@ -68,9 +68,9 @@ export function GuiaAccountingView({
         <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
           <Link href="/guias">Guías {companyTitle(agentKey)}</Link>
         </p>
-        <h1 className="font-display text-4xl">{awb || "Borrador"}</h1>
+        <h1 className="font-display text-4xl">{awb || "Draft"}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          {issued ? "Emitida" : "Borrador"} · {origin || "—"} → {destination || "—"} · {clientName || "Sin cliente"}
+          {issued ? "Issued" : "Draft"} · {origin || "—"} → {destination || "—"} · {clientName || "No client"}
         </p>
       </div>
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
@@ -99,7 +99,7 @@ export function GuiaAccountingView({
             const needsIssue = (kind === "awb" || kind === "labels") && !issued;
             const label = LABELS[kind] ?? kind;
             return needsIssue ? (
-              <span key={kind} title="Emite la guía primero" className="inline-flex cursor-not-allowed">
+              <span key={kind} title="Issue the guía first" className="inline-flex cursor-not-allowed">
                 <Button type="button" disabled variant="outline" className="w-full justify-start">
                   {label}
                 </Button>

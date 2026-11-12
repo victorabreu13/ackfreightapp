@@ -24,7 +24,7 @@ export async function sendPickupToAckFreight(pickup: PickupInput): Promise<SendR
     return await sendTripRequest(pickupTripPayload(pickup, warehouse()));
   } catch (error) {
     console.error("ACK Freight link (pickup)", error);
-    return { state: "failed", message: "No se pudo enviar el trip request a ACK Freight." };
+    return { state: "failed", message: "The trip request could not be sent to ACK Freight." };
   }
 }
 
@@ -54,8 +54,8 @@ export async function sendGuiaToAckFreight(guiaId: string): Promise<SendResult> 
       where: { id: guiaId, product: "guia" },
       include: { lines: true, guiaClient: true },
     });
-    if (!guia) return { state: "failed", message: "No se encontró la guía." };
-    if (!guia.awb.trim()) return { state: "failed", message: "Asigna el AWB a la guía antes de solicitar el trip request." };
+    if (!guia) return { state: "failed", message: "The guía was not found." };
+    if (!guia.awb.trim()) return { state: "failed", message: "Assign the AWB to the guía before requesting the trip request." };
     const documents = await loadTripDocuments(guia.id);
     return await sendTripRequest(
       deliveryTripPayload(
@@ -81,6 +81,6 @@ export async function sendGuiaToAckFreight(guiaId: string): Promise<SendResult> 
     );
   } catch (error) {
     console.error("ACK Freight link (guía)", error);
-    return { state: "failed", message: "No se pudo enviar el trip request a ACK Freight." };
+    return { state: "failed", message: "The trip request could not be sent to ACK Freight." };
   }
 }

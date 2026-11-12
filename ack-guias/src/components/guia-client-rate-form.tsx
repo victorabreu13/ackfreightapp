@@ -29,7 +29,7 @@ export function GuiaClientRateForm({
     <form action={saveAgreedRate} className="grid gap-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:items-end">
       <input type="hidden" name="id" value={guiaId} />
       <div className="space-y-1">
-        <Label htmlFor={`client-${guiaId}`}>Cliente</Label>
+        <Label htmlFor={`client-${guiaId}`}>Client</Label>
         <select
           id={`client-${guiaId}`}
           name="guiaClientId"
@@ -43,7 +43,7 @@ export function GuiaClientRateForm({
             setRate(next?.ratePerKg != null ? String(next.ratePerKg) : "");
           }}
         >
-          <option value="">Elige un cliente</option>
+          <option value="">Choose a client</option>
           {clients.map((row) => (
             <option key={row.id} value={row.id}>
               {row.name}
@@ -52,7 +52,7 @@ export function GuiaClientRateForm({
         </select>
       </div>
       <div className="space-y-1">
-        <Label htmlFor={`rate-${guiaId}`}>Tarifa acordada (USD/kg cobrable)</Label>
+        <Label htmlFor={`rate-${guiaId}`}>Agreed rate (USD/chargeable kg)</Label>
         <Input
           id={`rate-${guiaId}`}
           name="ratePerKg"
@@ -63,7 +63,7 @@ export function GuiaClientRateForm({
         />
       </div>
       <Button type="submit" variant="outline">
-        Guardar
+        Save
       </Button>
     </form>
   );

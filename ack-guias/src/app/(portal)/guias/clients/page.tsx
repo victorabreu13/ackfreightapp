@@ -29,17 +29,17 @@ function CompanyClients({ agentKey, title, rows }: { agentKey: "ack"; title: str
     <section className="space-y-4 rounded-lg border border-border bg-card p-4">
       <div>
         <h2 className="font-display text-2xl">{title}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Clientes y tarifas de ACK TEAM LLC. La tarifa es dólares por kilo cobrable.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Clients and rates of ACK TEAM LLC. The rate is dollars per chargeable kilo.</p>
       </div>
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Todavía no hay clientes de {title}.</p>
+        <p className="text-sm text-muted-foreground">There are no clients of {title} yet.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-left text-sm">
             <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
               <tr>
-                <th className="px-2 py-2">Cliente</th>
-                <th className="px-2 py-2">Tarifa acordada</th>
+                <th className="px-2 py-2">Client</th>
+                <th className="px-2 py-2">Agreed rate</th>
                 <th className="px-2 py-2"></th>
               </tr>
             </thead>
@@ -54,15 +54,15 @@ function CompanyClients({ agentKey, title, rows }: { agentKey: "ack"; title: str
                       <Input
                         name="ratePerKg"
                         inputMode="decimal"
-                        aria-label={`Tarifa acordada (USD/kg cobrable) de ${row.name}`}
+                        aria-label={`Agreed rate (USD/chargeable kg) for ${row.name}`}
                         defaultValue={row.ratePerKg ?? ""}
                         placeholder="USD/kg"
                         required
                         className="sm:max-w-40"
                       />
-                      <span className="text-xs text-muted-foreground">{row.ratePerKg != null ? `${money(row.ratePerKg)} / kg` : "Sin tarifa acordada"}</span>
+                      <span className="text-xs text-muted-foreground">{row.ratePerKg != null ? `${money(row.ratePerKg)} / kg` : "No agreed rate"}</span>
                       <Button type="submit" variant="outline" size="sm">
-                        Guardar
+                        Save
                       </Button>
                     </form>
                   </td>
@@ -75,14 +75,14 @@ function CompanyClients({ agentKey, title, rows }: { agentKey: "ack"; title: str
       <form action={createCompanyClient} className="grid gap-3 border-t border-border pt-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:items-end">
         <input type="hidden" name="agentKey" value={agentKey} />
         <div className="space-y-1">
-          <Label htmlFor={`name-${agentKey}`}>Nuevo cliente</Label>
-          <Input id={`name-${agentKey}`} name="name" required placeholder="Nombre para facturar" />
+          <Label htmlFor={`name-${agentKey}`}>New client</Label>
+          <Input id={`name-${agentKey}`} name="name" required placeholder="Billing name" />
         </div>
         <div className="space-y-1">
-          <Label htmlFor={`rate-${agentKey}`}>Tarifa acordada (USD/kg cobrable)</Label>
+          <Label htmlFor={`rate-${agentKey}`}>Agreed rate (USD/chargeable kg)</Label>
           <Input id={`rate-${agentKey}`} name="ratePerKg" inputMode="decimal" placeholder="Opcional" />
         </div>
-        <Button type="submit">Agregar</Button>
+        <Button type="submit">Add</Button>
       </form>
     </section>
   );
@@ -95,7 +95,7 @@ export default async function GuiaClientsPage({
 }) {
   const user = await getSessionUser();
   if (!user) return null;
-  if (!isAdmin(user)) redirect("/guias?error=Clientes%20y%20tarifas%20es%20solo%20para%20administradores");
+  if (!isAdmin(user)) redirect("/guias?error=Clients%20and%20rates%20is%20only%20for%20administrators");
   const params = await searchParams;
   const rows = await prisma.guiaClient.findMany({
     where: { agentKey: "ack" },
@@ -113,12 +113,12 @@ export default async function GuiaClientsPage({
     <div className="space-y-6">
       <div>
         <GuiaEyebrow />
-        <h1 className="font-display text-4xl">Clientes y tarifas</h1>
+        <h1 className="font-display text-4xl">Clients and rates</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          La tarifa es dólares por kilo cobrable de ACK TEAM LLC. No se mezcla con ninguna otra empresa.
+          The rate is dollars per chargeable kilo of ACK TEAM LLC. It is not mixed with any other company.
         </p>
       </div>
-      {one(params, "saved") ? <p className="text-sm text-muted-foreground">Guardado.</p> : null}
+      {one(params, "saved") ? <p className="text-sm text-muted-foreground">Saved.</p> : null}
       {one(params, "error") ? <p className="text-sm text-stuck">{one(params, "error")}</p> : null}
       <CompanyClients agentKey="ack" title="ACK TEAM LLC" rows={ack} />
     </div>

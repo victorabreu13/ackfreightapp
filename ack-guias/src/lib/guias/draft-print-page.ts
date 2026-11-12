@@ -7,16 +7,16 @@ export function draftPrintPage(guiaId: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Emite la guía primero</title>
+<title>Issue the guía first</title>
 <style>
   body { font-family: Georgia, "Times New Roman", serif; max-width: 36rem; margin: 4rem auto; padding: 0 1.25rem; color: #1c1917; }
   a { color: #1a3848; }
 </style>
 </head>
 <body>
-  <h1>Emite la guía primero</h1>
-  <p>La guía aérea final y las etiquetas finales se imprimen después de emitir el número. Antes de emitir puedes usar <strong>Imprimir sin emitir</strong> en la guía: labels con el número de AWB que escribas y un borrador de la guía de 1 copia.</p>
-  <p><a href="${back}">Volver a la guía</a></p>
+  <h1>Issue the guía first</h1>
+  <p>The final air waybill and the final labels print after the number is issued. Before issuing you can use <strong>Print without issuing</strong> on the guía: labels with the AWB number you type and a 1-copy draft of the guía.</p>
+  <p><a href="${back}">Back to the guía</a></p>
 </body>
 </html>
 `;

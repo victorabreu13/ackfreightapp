@@ -45,7 +45,7 @@ test("document log filters by client, AWB, type, company, and a New York date", 
   assert.equal(filterLoggedDocuments(rows, { kind: "not-a-kind" }).length, 0);
 });
 
-test("uploaded files stay searchable by type Archivo and by file name", () => {
+test("uploaded files stay searchable by type File and by file name", () => {
   const rows = [
     row({
       id: "sheet",
