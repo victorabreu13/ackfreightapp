@@ -65,13 +65,20 @@ function tr(doc: Doc, right: number, y: number, text: string, size = 7, font = "
   t(doc, right - doc.widthOfString(value), y, value, size, font, color);
 }
 
-function lines(doc: Doc, x: number, y: number, text: string | null, size = 7, step = 10, max = 5) {
-  (text ?? "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(0, max)
-    .forEach((line, index) => t(doc, x, y + index * step, line, size));
+/**
+ * An address in a narrow block: it wraps inside `width` so it never runs under the column next to it. A long address
+ * gets a smaller type before it gets cut.
+ */
+function addressBlock(doc: Doc, x: number, y: number, text: string | null, width: number, maxRows: number) {
+  const value = (text ?? "").trim();
+  if (!value) return;
+  for (const size of [7, 6.5, 6, 5.5]) {
+    const rows = wrapped(doc, value, size, width);
+    if (rows.length <= maxRows || size === 5.5) {
+      rows.slice(0, maxRows).forEach((row, index) => t(doc, x, y + index * (size + 3), row, size));
+      return;
+    }
+  }
 }
 
 function wrapped(doc: Doc, text: string, size: number, width: number, font = "Helvetica"): string[] {
@@ -129,10 +136,10 @@ function drawReceipt(doc: Doc, receipt: ReceiptDocument, company: CompanyView, b
 
   t(doc, 12, 103, "Shipper", 5.5, "Helvetica", GREY);
   t(doc, 12, 113, receipt.shipperName ?? "", 7.5);
-  lines(doc, 12, 129, receipt.shipperAddress, 7, 10, 4);
+  addressBlock(doc, 12, 129, receipt.shipperAddress, 185, 5);
   t(doc, 12, 186, "Consignee", 5.5, "Helvetica", GREY);
   t(doc, 12, 195, receipt.consigneeName ?? "", 7.5);
-  lines(doc, 12, 210, receipt.consigneeAddress, 7, 10, 4);
+  addressBlock(doc, 12, 210, receipt.consigneeAddress, 185, 7);
 
   const middle: Array<[string, string | null, number]> = [
     ["Carrier", receipt.carrier, 103],
@@ -195,7 +202,10 @@ function drawReceipt(doc: Doc, receipt: ReceiptDocument, company: CompanyView, b
     tr(doc, 579, y, dims ? `${number(lineVolumeM3(line))} m³` : "", 7);
     t(doc, 22, y + 11, line.location ?? "", 7);
     t(doc, 187, y + 11, line.description ?? "", 7);
-    if (line.packageType) t(doc, 42, y, line.packageType, 6);
+    if (line.packageType) {
+      doc.font("Helvetica").fontSize(6);
+      t(doc, 38 + (47 - doc.widthOfString(line.packageType)) / 2 + 2, y, line.packageType, 6);
+    }
     tr(doc, 579, y + 11, dims ? `${number(lineVolumeWeightKg(line))} VKg` : "", 7);
     if (line.pcTracking) tr(doc, 506, y + 11, line.pcTracking, 6);
     if (line.notes) t(doc, 187, y + 21, line.notes, 6, "Helvetica", GREY);
