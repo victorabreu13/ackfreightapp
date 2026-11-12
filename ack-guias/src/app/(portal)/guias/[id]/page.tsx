@@ -218,10 +218,17 @@ export default async function GuiaDetailPage({
             {linked?.name || document.clientLabel ? ` · ${linked?.name || document.clientLabel}` : ""}
           </p>
         </div>
-        <form action={requestAckTripRequest}>
-          <input type="hidden" name="id" value={document.id} />
-          <SubmitButton pendingLabel="Solicitando…">Trip request</SubmitButton>
-        </form>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline">
+            <a href="https://uldflow.lovable.app/" target="_blank" rel="noreferrer">
+              Request BUP
+            </a>
+          </Button>
+          <form action={requestAckTripRequest}>
+            <input type="hidden" name="id" value={document.id} />
+            <SubmitButton pendingLabel="Solicitando…">Trip request</SubmitButton>
+          </form>
+        </div>
       </div>
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
       {one(query, "saved") ? <p className="text-sm text-muted-foreground">Saved.</p> : null}
