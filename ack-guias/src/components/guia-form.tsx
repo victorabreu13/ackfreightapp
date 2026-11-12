@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { GuiaLookupInput, type LookupType } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PackageSelect } from "@/components/package-select";
 import { isLithiumPi, LITHIUM_TYPES, onlyLithiumUn, parseLithiumTypes } from "@/lib/guias/dg";
 import type { GuiaValues } from "@/lib/guias/extract";
 import { saveGuia, saveNewGuia } from "@/server/guia-actions";
@@ -58,7 +57,6 @@ export function GuiaForm({
   truckerName = "",
   truckerPhone = "",
   driverName = "",
-  packageType = "",
   seal = "",
   awbOptions = [],
   carrierOptions = [],
@@ -73,7 +71,6 @@ export function GuiaForm({
   truckerName?: string;
   truckerPhone?: string;
   driverName?: string;
-  packageType?: string;
   seal?: string;
   /** Airline prefixes with the numbers left in stock. Only the new guía form offers them. */
   awbOptions?: Array<{ prefix: string; airline: string; left: number }>;
@@ -346,7 +343,6 @@ export function GuiaForm({
           <Label htmlFor="driverName">Driver name</Label>
           <Input id="driverName" name="driverName" defaultValue={driverName} />
         </div>
-        <PackageSelect defaultValue={packageType} />
         <div className="space-y-1.5">
           <Label htmlFor="seal">Seal (optional)</Label>
           <Input id="seal" name="seal" defaultValue={seal} />

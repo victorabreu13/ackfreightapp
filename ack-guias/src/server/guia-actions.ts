@@ -12,7 +12,6 @@ import { assignAwbToGuia } from "@/lib/guias/assign-awb";
 import { resolveCarrier } from "@/lib/guias/carriers";
 import { blank, documentData, guiaValuesOf, lineData } from "@/lib/guias/guia-data";
 import { diffGuiaValues, manualEdits, MANUAL_FIELDS } from "@/lib/guias/guia-manual";
-import { packageTypeFrom } from "@/lib/guias/package-types";
 import { loadCompany } from "@/lib/guias/company";
 import { guiaAwbFolder, publishRenderedPdf, saveDocumentLog } from "@/lib/guias/document-log";
 import { ensureGuiaClient, guiaBillToName } from "@/lib/guias/guia-client";
@@ -121,7 +120,6 @@ export async function saveNewGuia(formData: FormData) {
       truckerName: blank(text(formData.get("truckerName"))),
       truckerPhone: blank(text(formData.get("truckerPhone"))),
       driverName: blank(text(formData.get("driverName"))),
-      packageType: blank(packageTypeFrom(formData.get("packageType"))),
       seal: blank(text(formData.get("seal"))),
       lines: { create: [lineData(values)] },
     },
@@ -175,7 +173,6 @@ export async function saveGuia(formData: FormData) {
       truckerName: blank(text(formData.get("truckerName"))),
       truckerPhone: blank(text(formData.get("truckerPhone"))),
       driverName: blank(text(formData.get("driverName"))),
-      packageType: blank(packageTypeFrom(formData.get("packageType"))),
       seal: blank(text(formData.get("seal"))),
       lines: { create: [lineData(values)] },
     },
