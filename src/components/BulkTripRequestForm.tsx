@@ -1,6 +1,6 @@
 import * as DocumentPicker from "expo-document-picker";
 import React, { useRef, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import DateField from "./DateField";
 import PlaceInput from "./PlaceInput";
 import { savePlaceIfNew } from "../services/places";
@@ -8,7 +8,7 @@ import { uploadTripRequestFile } from "../services/storage";
 import { createBulkTripRequest, extractAwbDetails } from "../services/tripRequests";
 import { RequestFile, ULD_TYPES, UldType } from "../types";
 import { notify } from "../utils/alert";
-import { awbKeyOf, DocSlot, FileRow, LeftFile, parseSheet, PickedFile, placeFiles } from "../utils/bulkAwb";
+import { awbKeyOf, DocSlot, FileRow, LeftFile, parseSheet, PickedFile, placeFiles, slotFromFileName } from "../utils/bulkAwb";
 import { toLocalDateString as formatDate } from "../utils/date";
 
 const MAX_ROWS = 100;
@@ -97,6 +97,11 @@ export default function BulkTripRequestForm({
   const [rows, setRows] = useState<Row[]>([]);
   const [left, setLeft] = useState<LeftFile[]>([]);
   const [fees, setFees] = useState<PickedFile[]>([]);
+  // One LOA / Delivery Order for the whole trip (a name with no AWB number): used by every
+  // AWB that has no document of its own.
+  const [shared, setShared] = useState<{ loa?: PickedFile; do?: PickedFile }>({});
+  // Which AWB's ULD list is open; "all" sets the ULD of every AWB.
+  const [uldFor, setUldFor] = useState<number | "all" | null>(null);
   const [showPaste, setShowPaste] = useState(false);
   const [pasted, setPasted] = useState("");
   const [busy, setBusy] = useState(false);
@@ -183,7 +188,24 @@ export default function BulkTripRequestForm({
       return;
     }
     setRows(placed.rows);
-    setLeft((prev) => [...prev, ...placed.left]);
+    // An LOA or Delivery Order with no AWB number in its name ("LOA.pdf", "Authorization to truck.pdf")
+    // is one document for the whole trip.
+    const nextShared = { ...shared };
+    const stillLeft: LeftFile[] = [];
+    for (const l of placed.left) {
+      const slot = slotFromFileName(l.file.name, fallbackSlot);
+      if (l.reason.startsWith("No AWB number") && (slot === "loa" || slot === "do")) {
+        if (nextShared[slot]) {
+          stillLeft.push({ file: l.file, reason: `Only one ${slot === "loa" ? "LOA" : "Delivery Order"} can be shared by all the AWBs (${nextShared[slot]?.name}). Put this one on its AWB row.` });
+        } else {
+          nextShared[slot] = l.file;
+        }
+      } else {
+        stillLeft.push(l);
+      }
+    }
+    setShared(nextShared);
+    setLeft((prev) => [...prev, ...stillLeft]);
     if (placed.fees.length > 0) setFees((prev) => [...prev, ...placed.fees]);
     // New AWB documents that still lack pieces or kilograms are read.
     readAwbs(
@@ -281,6 +303,13 @@ export default function BulkTripRequestForm({
         const key = `fee-${i}-${file.uri}`;
         if (!uploaded.current.has(key)) tasks.push({ key, slotName: `fee-${i}`, file });
       });
+      // Shared documents go up once, only when some AWB has none of its own.
+      (["loa", "do"] as const).forEach((slot) => {
+        const file = shared[slot];
+        if (!file || rows.every((r) => !!r.files[slot])) return;
+        const key = `shared-${slot}-${file.uri}`;
+        if (!uploaded.current.has(key)) tasks.push({ key, slotName: `${slot}-shared`, file });
+      });
       let done = 0;
       if (tasks.length > 0) setProgress(`Uploading documents 0 / ${tasks.length}`);
       const failed = await runPool(
@@ -308,8 +337,14 @@ export default function BulkTripRequestForm({
 
       // 2) the trip request itself.
       setProgress("Creating the trip request…");
-      const fileOf = (index: number, slot: DocSlot, file?: PickedFile) =>
-        file ? uploaded.current.get(`${index}-${slot}-${file.uri}`) ?? null : null;
+      const sharedFile = (slot: "loa" | "do") => {
+        const file = shared[slot];
+        return file ? uploaded.current.get(`shared-${slot}-${file.uri}`) ?? null : null;
+      };
+      const fileOf = (index: number, slot: DocSlot, file?: PickedFile) => {
+        if (file) return uploaded.current.get(`${index}-${slot}-${file.uri}`) ?? null;
+        return slot === "awb" ? null : sharedFile(slot);
+      };
       await createBulkTripRequest({
         requestId,
         customerId: asAdmin ? customerId : undefined,
@@ -447,7 +482,32 @@ export default function BulkTripRequestForm({
         <Text style={styles.secondaryButtonText}>+ Add import fee files</Text>
       </TouchableOpacity>
 
-      <Text style={styles.sectionTitle}>AWB documents ({rows.length})</Text>
+      {(shared.loa || shared.do) && (
+        <View style={styles.sharedBox}>
+          <Text style={styles.leftTitle}>For every AWB that has none of its own</Text>
+          {(["loa", "do"] as const).map((slot) =>
+            shared[slot] ? (
+              <View key={slot} style={styles.feeRow}>
+                <Text style={styles.feeName} numberOfLines={1}>
+                  {slot === "loa" ? "LOA" : "Delivery Order"}: {shared[slot]?.name}
+                </Text>
+                <TouchableOpacity onPress={() => setShared((prev) => ({ ...prev, [slot]: undefined }))} disabled={busy}>
+                  <Text style={styles.removeText}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null
+          )}
+        </View>
+      )}
+
+      <View style={styles.titleRow}>
+        <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>AWB documents ({rows.length})</Text>
+        {rows.length > 0 && (
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => setUldFor("all")} disabled={busy}>
+            <Text style={styles.secondaryButtonText}>Set ULD for all ▾</Text>
+          </TouchableOpacity>
+        )}
+      </View>
       {rows.map((r) => (
         <View key={r.id} style={styles.card}>
           <View style={styles.cardTop}>
@@ -477,10 +537,7 @@ export default function BulkTripRequestForm({
               value={r.kilograms}
               onChangeText={(v) => updateRow(r.id, { kilograms: v.replace(/[^0-9.]/g, "") })}
             />
-            <TouchableOpacity
-              style={styles.cycleButton}
-              onPress={() => updateRow(r.id, { type: ULD_TYPES[(ULD_TYPES.indexOf(r.type) + 1) % ULD_TYPES.length] })}
-            >
+            <TouchableOpacity style={styles.cycleButton} onPress={() => setUldFor(r.id)} disabled={busy}>
               <Text style={styles.cycleText}>{r.type} ▾</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -501,10 +558,11 @@ export default function BulkTripRequestForm({
           <View style={styles.docs}>
             {SLOTS.map(({ slot, label }) => {
               const file = r.files[slot];
+              const has = !!file || (slot !== "awb" && !!shared[slot]);
               return (
-                <TouchableOpacity key={slot} style={[styles.docChip, !!file && styles.docChipOn]} onPress={() => pickOne(r.id, slot)} disabled={busy}>
-                  <Text style={[styles.docChipText, !!file && styles.docChipTextOn]} numberOfLines={1}>
-                    {file ? `${label}: ${file.name}` : `+ ${label}`}
+                <TouchableOpacity key={slot} style={[styles.docChip, has && styles.docChipOn]} onPress={() => pickOne(r.id, slot)} disabled={busy}>
+                  <Text style={[styles.docChipText, has && styles.docChipTextOn]} numberOfLines={1}>
+                    {file ? `${label}: ${file.name}` : slot !== "awb" && shared[slot] ? `${label}: ${shared[slot]?.name} (shared)` : `+ ${label}`}
                   </Text>
                 </TouchableOpacity>
               );
@@ -531,6 +589,27 @@ export default function BulkTripRequestForm({
           <Text style={styles.submitButtonText}>Create Trip Request{rows.length > 0 ? ` (${rows.length} AWB${rows.length === 1 ? "" : "s"})` : ""}</Text>
         </TouchableOpacity>
       )}
+
+      <Modal visible={uldFor !== null} transparent animationType="fade" onRequestClose={() => setUldFor(null)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setUldFor(null)}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{uldFor === "all" ? "ULD type for all the AWBs" : "ULD type"}</Text>
+            {ULD_TYPES.map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={styles.modalOption}
+                onPress={() => {
+                  if (uldFor === "all") setRows((prev) => prev.map((r) => ({ ...r, type: t })));
+                  else if (uldFor !== null) updateRow(uldFor, { type: t });
+                  setUldFor(null);
+                }}
+              >
+                <Text style={styles.modalOptionText}>{t}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -578,6 +657,13 @@ const styles = StyleSheet.create({
   docChipTextOn: { color: "#14532d" },
   feeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: "#ddd", paddingVertical: 8, paddingHorizontal: 12, marginBottom: 6 },
   feeName: { flex: 1, fontSize: 13, color: "#333", fontWeight: "600" },
+  sharedBox: { backgroundColor: "#eef4ff", borderRadius: 8, borderWidth: 1, borderColor: "#c9d8fb", padding: 10, marginTop: 14 },
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 26, marginBottom: 10 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", alignItems: "center", padding: 24 },
+  modalCard: { backgroundColor: "#fff", borderRadius: 12, padding: 12, width: "100%", maxWidth: 320 },
+  modalTitle: { fontSize: 14, fontWeight: "800", color: "#111", paddingHorizontal: 8, paddingVertical: 8 },
+  modalOption: { paddingVertical: 12, paddingHorizontal: 8, borderTopWidth: 1, borderTopColor: "#eee" },
+  modalOptionText: { fontSize: 15, fontWeight: "600", color: "#111" },
   readRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   readText: { fontSize: 12, color: "#555", marginTop: 6 },
   readWarning: { color: "#b45309", fontWeight: "600" },
