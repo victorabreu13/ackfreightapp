@@ -51,19 +51,31 @@ export function slotFromFileName(name: string): DocSlot {
   return "awb";
 }
 
+// The import fee (1F) belongs to the whole request, not to one AWB: a file whose name
+// says so ("Import Fee.pdf", "1F 045-54066773.pdf", "IF 045-54066773.pdf") goes there, whatever else it says.
+export function isImportFeeFile(name: string): boolean {
+  const text = baseName(name).toLowerCase();
+  return /import[s_.-]*fees?/.test(text) || /(^|[^a-z0-9])(1f|if)([^a-z0-9]|$)/.test(text) || /(^|[^a-z])fees?([^a-z]|$)/.test(text);
+}
+
 const SLOT_LABEL: Record<DocSlot, string> = { awb: "AWB", loa: "LOA", do: "Delivery Order" };
 
-// Puts each picked file on the row of its AWB, making a row when there is none yet.
-// A file that can't be placed (no AWB number in its name, or that document is
+// Puts each picked file on the row of its AWB, making a row when there is none yet;
+// import fee files are set apart in `fees`. A file that can't be placed (no AWB number in its name, or that document is
 // already on the row) comes back in `left` with the reason.
 export function placeFiles<T extends FileRow>(
   rows: T[],
   picked: PickedFile[],
   makeRow: (awbNumber: string) => T
-): { rows: T[]; left: LeftFile[] } {
+): { rows: T[]; left: LeftFile[]; fees: PickedFile[] } {
   const next = rows.map((r) => ({ ...r, files: { ...r.files } }));
   const left: LeftFile[] = [];
+  const fees: PickedFile[] = [];
   for (const file of picked) {
+    if (isImportFeeFile(file.name)) {
+      fees.push(file);
+      continue;
+    }
     const awbNumber = awbFromFileName(file.name);
     if (!awbNumber) {
       left.push({ file, reason: "No AWB number in the file name" });
@@ -83,7 +95,7 @@ export function placeFiles<T extends FileRow>(
     }
     row.files[slot] = file;
   }
-  return { rows: next, left };
+  return { rows: next, left, fees };
 }
 
 export interface SheetRow {

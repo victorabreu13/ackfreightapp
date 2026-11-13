@@ -74,6 +74,7 @@ export default function BulkTripRequestForm({
   const [notes, setNotes] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
   const [left, setLeft] = useState<LeftFile[]>([]);
+  const [fees, setFees] = useState<PickedFile[]>([]);
   const [showPaste, setShowPaste] = useState(false);
   const [pasted, setPasted] = useState("");
   const [busy, setBusy] = useState(false);
@@ -107,6 +108,13 @@ export default function BulkTripRequestForm({
     }
     setRows(placed.rows);
     setLeft((prev) => [...prev, ...placed.left]);
+    if (placed.fees.length > 0) setFees((prev) => [...prev, ...placed.fees]);
+  };
+
+  const addFeeFiles = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"], multiple: true });
+    if (result.canceled || result.assets.length === 0) return;
+    setFees((prev) => [...prev, ...result.assets.map((a) => ({ uri: a.uri, name: a.name }))]);
   };
 
   const pickOne = async (id: number, slot: DocSlot) => {
@@ -150,6 +158,7 @@ export default function BulkTripRequestForm({
     if (!from.trim() || !to.trim()) return notify("Missing info", "Enter both the From and To locations.");
     if (!personRequesting.trim()) return notify("Missing info", "Enter the name of the person requesting the trip.");
     if (rows.length === 0) return notify("No AWBs", "Choose the AWB files or paste a list first.");
+    if (fees.length > 30) return notify("Too many files", "Attach at most 30 import fee files.");
     const seen = new Set<string>();
     for (const r of rows) {
       const key = awbKeyOf(r.awbNumber);
@@ -165,12 +174,17 @@ export default function BulkTripRequestForm({
     setBusy(true);
     try {
       // 1) documents, a few at a time; what already went up is kept for a retry.
-      const tasks: { row: Row; index: number; slot: DocSlot; file: PickedFile }[] = [];
+      const tasks: { key: string; slotName: string; file: PickedFile }[] = [];
       rows.forEach((row, index) => {
         for (const { slot } of SLOTS) {
           const file = row.files[slot];
-          if (file && !uploaded.current.has(`${index}-${slot}-${file.uri}`)) tasks.push({ row, index, slot, file });
+          const key = `${index}-${slot}-${file?.uri}`;
+          if (file && !uploaded.current.has(key)) tasks.push({ key, slotName: `${slot}-${index}`, file });
         }
+      });
+      fees.forEach((file, i) => {
+        const key = `fee-${i}-${file.uri}`;
+        if (!uploaded.current.has(key)) tasks.push({ key, slotName: `fee-${i}`, file });
       });
       let done = 0;
       if (tasks.length > 0) setProgress(`Uploading documents 0 / ${tasks.length}`);
@@ -178,8 +192,8 @@ export default function BulkTripRequestForm({
         tasks,
         PARALLEL_UPLOADS,
         async (t) => {
-          const result = await uploadTripRequestFile(t.file.uri, customerId, requestId, `${t.slot}-${t.index}`, t.file.name);
-          uploaded.current.set(`${t.index}-${t.slot}-${t.file.uri}`, result);
+          const result = await uploadTripRequestFile(t.file.uri, customerId, requestId, t.slotName, t.file.name);
+          uploaded.current.set(t.key, result);
         },
         () => {
           done += 1;
@@ -210,6 +224,7 @@ export default function BulkTripRequestForm({
         pickupTime: formatTime(pickupTime),
         personRequesting: personRequesting.trim(),
         notes: notes.trim(),
+        importFeeFiles: fees.map((file, i) => uploaded.current.get(`fee-${i}-${file.uri}`)).filter((f): f is RequestFile => !!f),
         awbLines: rows.map((r, index) => ({
           awbNumber: r.awbNumber.trim(),
           qtyPieces: parseInt(r.qtyPieces, 10),
@@ -306,6 +321,25 @@ export default function BulkTripRequestForm({
         </View>
       )}
 
+      <Text style={styles.sectionTitle}>Import Fee / 1F (shared across AWBs)</Text>
+      <Text style={styles.hint}>
+        Files with "import fee", "1F" or "IF" in the name are put here automatically.
+      </Text>
+      {fees.map((file, i) => (
+        <View key={i} style={styles.feeRow}>
+          <Text style={styles.feeName} numberOfLines={1}>
+            {file.name}
+          </Text>
+          <TouchableOpacity onPress={() => setFees((prev) => prev.filter((_, k) => k !== i))} disabled={busy}>
+            <Text style={styles.removeText}>Remove</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+      <TouchableOpacity style={styles.secondaryButton} onPress={addFeeFiles} disabled={busy}>
+        <Text style={styles.secondaryButtonText}>+ Add import fee files</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.sectionTitle}>AWB documents ({rows.length})</Text>
       {rows.map((r) => (
         <View key={r.id} style={styles.card}>
           <View style={styles.cardTop}>
@@ -426,6 +460,8 @@ const styles = StyleSheet.create({
   docChipOn: { backgroundColor: "#e7f6ec", borderColor: "#b7e0c4" },
   docChipText: { fontSize: 12, color: "#555", fontWeight: "600" },
   docChipTextOn: { color: "#14532d" },
+  feeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: "#ddd", paddingVertical: 8, paddingHorizontal: 12, marginBottom: 6 },
+  feeName: { flex: 1, fontSize: 13, color: "#333", fontWeight: "600" },
   busyRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 24, marginBottom: 40 },
   busyText: { fontSize: 14, color: "#333", fontWeight: "600" },
   submitButton: { backgroundColor: "#1d4ed8", borderRadius: 10, paddingVertical: 15, alignItems: "center", marginTop: 22, marginBottom: 40 },

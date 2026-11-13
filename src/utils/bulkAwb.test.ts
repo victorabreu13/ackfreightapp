@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { awbFromFileName, FileRow, parseSheet, placeFiles, slotFromFileName } from "./bulkAwb";
+import { awbFromFileName, FileRow, isImportFeeFile, parseSheet, placeFiles, slotFromFileName } from "./bulkAwb";
 
 const f = (name: string) => ({ uri: "blob:" + name, name });
 const make = (awbNumber: string): FileRow => ({ awbNumber, files: {} });
@@ -27,6 +27,32 @@ describe("bulk AWB: reading file names", () => {
     assert.equal(slotFromFileName("045-54066773 delivery order.pdf"), "do");
     assert.equal(slotFromFileName("045-54066773 Delivery Ticket.pdf"), "do");
     assert.equal(slotFromFileName("045-54066773 dock.pdf"), "awb");
+  });
+});
+
+describe("bulk AWB: import fee", () => {
+  it("recognizes import fee files by name", () => {
+    assert.equal(isImportFeeFile("Import Fee.pdf"), true);
+    assert.equal(isImportFeeFile("import_fee_045-54066773.pdf"), true);
+    assert.equal(isImportFeeFile("ImportFee.jpg"), true);
+    assert.equal(isImportFeeFile("1F 045-54066773.pdf"), true);
+    assert.equal(isImportFeeFile("045-54066773 1F.pdf"), true);
+    assert.equal(isImportFeeFile("fee.pdf"), true);
+    assert.equal(isImportFeeFile("IF.pdf"), true);
+    assert.equal(isImportFeeFile("045-54066773 IF.pdf"), true);
+    assert.equal(isImportFeeFile("IF_045-54066773.PDF"), true);
+    assert.equal(isImportFeeFile("045-54066773 DIF.pdf"), false);
+    assert.equal(isImportFeeFile("045-54066773 LIFE.pdf"), false);
+    assert.equal(isImportFeeFile("045-54066773 AWB.pdf"), false);
+    assert.equal(isImportFeeFile("045-54066773 LOA.pdf"), false);
+    assert.equal(isImportFeeFile("coffee 045-54066773.pdf"), false);
+  });
+
+  it("sets import fee files apart, even with an AWB number in the name", () => {
+    const { rows, fees, left } = placeFiles([], [f("045-54066773 AWB.pdf"), f("Import Fee.pdf"), f("1F 045-54066773.pdf")], make);
+    assert.equal(rows.length, 1);
+    assert.equal(fees.length, 2);
+    assert.equal(left.length, 0);
   });
 });
 

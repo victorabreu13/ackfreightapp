@@ -5,6 +5,7 @@ const { cleanNewLines } = require("./addAwbs");
 const { validDay, validTime } = require("./guiasIntake");
 
 const MAX_BULK_LINES = 100;
+const MAX_IMPORT_FEE_FILES = 30;
 
 function text(value, max) {
   return String(value ?? "").trim().slice(0, max);
@@ -46,6 +47,18 @@ function cleanBulkRequest(body, ctx) {
   if (!cleaned.ok) return cleaned;
 
   const fileCtx = { ...ctx, requestId: b.requestId };
+  const feeInput = Array.isArray(b.importFeeFiles) ? b.importFeeFiles : [];
+  if (feeInput.length > MAX_IMPORT_FEE_FILES) {
+    return { ok: false, message: `Attach at most ${MAX_IMPORT_FEE_FILES} import fee files.` };
+  }
+  const importFeeFiles = [];
+  for (const raw of feeInput) {
+    const checked = cleanFileRef(raw, fileCtx);
+    if (!checked.ok || !checked.file) {
+      return { ok: false, message: "An import fee document isn't one uploaded for this request." };
+    }
+    importFeeFiles.push(checked.file);
+  }
   const awbLines = [];
   for (let i = 0; i < cleaned.lines.length; i++) {
     const line = cleaned.lines[i];
@@ -75,6 +88,7 @@ function cleanBulkRequest(body, ctx) {
       personRequesting,
       notes: text(b.notes, 2000),
       awbLines,
+      importFeeFiles,
     },
   };
 }
@@ -111,7 +125,7 @@ function bulkRequestDoc(value, customer, now) {
       status: "submitted",
       priority: "Normal",
     })),
-    importFeeFiles: [],
+    importFeeFiles: value.importFeeFiles,
     assignedDriverIds: [],
     assignedDriverNames: [],
     status: "submitted",

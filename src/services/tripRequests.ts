@@ -357,6 +357,7 @@ const createBulkTripRequestFn = httpsCallable<
     personRequesting: string;
     notes: string;
     awbLines: BulkAwbInput[];
+    importFeeFiles: { url: string; name: string }[];
   },
   { id: string; created: boolean }
 >(functions, "createBulkTripRequest");
@@ -373,6 +374,7 @@ export async function createBulkTripRequest(input: {
   personRequesting: string;
   notes: string;
   awbLines: BulkAwbInput[];
+  importFeeFiles: { url: string; name: string }[];
 }) {
   return callWithFreshToken(createBulkTripRequestFn, input);
 }

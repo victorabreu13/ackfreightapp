@@ -63,6 +63,17 @@ test("refuses missing header fields and duplicates inside the list", () => {
   assert.equal(cleanBulkRequest(dup, ctx).ok, false);
 });
 
+test("import fee files are kept, and must be this request's own uploads", () => {
+  const fee = { url: fileUrl("cust1", REQ, "fee-0.pdf"), name: "Import Fee.pdf" };
+  const ok = cleanBulkRequest(body({ importFeeFiles: [fee] }), ctx);
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.value.importFeeFiles, [fee]);
+  const doc = bulkRequestDoc(ok.value, { id: "cust1", name: "Cust", email: "c@x.com" }, 1);
+  assert.deepEqual(doc.importFeeFiles, [fee]);
+  assert.equal(cleanBulkRequest(body({ importFeeFiles: [{ url: fileUrl("other", REQ, "f.pdf"), name: "f.pdf" }] }), ctx).ok, false);
+  assert.deepEqual(cleanBulkRequest(body(), ctx).value.importFeeFiles, []);
+});
+
 test("takes up to 100 AWBs", () => {
   const many = Array.from({ length: 100 }, (_, i) => ({ awbNumber: "176-" + String(10000000 + i), qtyPieces: 1, kilograms: 1 }));
   assert.equal(cleanBulkRequest(body({ awbLines: many }), ctx).ok, true);
