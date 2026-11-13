@@ -48,7 +48,13 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
   // Firestore's rules let a customer edit at most 10 AWBs per request, so a bigger one (a bulk
   // upload) is shown read-only, with its documents still editable and AWBs addable.
   const tooBigToEdit = request.awbLines.length > 10;
-  const locked = LOCKED_STATUSES.includes(request.status) || tooBigToEdit;
+  // Once dispatch gave a driver a line, the edit form would write back a stale copy of the lines
+  // whenever dispatch changed something while it was open, and Firestore refuses that ("Missing
+  // or insufficient permissions"). So from then on the customer adds AWBs through the server
+  // (Add AWB), which is always up to date, and keeps attaching documents.
+  const hasDriver = request.status === "assigned" || request.awbLines.some((l) => !!l.assignedDriverId);
+  const addOnly = tooBigToEdit || hasDriver;
+  const locked = LOCKED_STATUSES.includes(request.status) || addOnly;
 
   // Live-subscribed so status changes and driver location pings show up
   // without needing to back out and reopen this screen. TripRequestForm
@@ -64,7 +70,16 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
   }, [initialRequest.id]);
 
   const handleSubmit = async (values: TripRequestFormValues) => {
-    await updateTripRequest(request.id, values);
+    try {
+      await updateTripRequest(request.id, values);
+    } catch (e: any) {
+      if (e?.code === "permission-denied") {
+        throw new Error(
+          "Dispatch changed this trip while you were editing it (a driver may have been assigned). Go back, open it again and make your change; to add an AWB use the Add AWB button."
+        );
+      }
+      throw e;
+    }
     setRequest((prev) => ({ ...prev, ...values }));
     notify("Saved", "Your changes have been saved.");
   };
@@ -116,10 +131,10 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
       {locked ? (
         <>
           <TripRequestReadOnly request={request} editableDocs={request.status !== "cancelled"} />
-          {(request.status === "in_progress" || (tooBigToEdit && ["submitted", "assigned"].includes(request.status))) && (
+          {(request.status === "in_progress" || (addOnly && ["submitted", "assigned"].includes(request.status))) && (
             <AddAwbSection requestId={request.id} />
           )}
-          {tooBigToEdit && ["submitted", "assigned"].includes(request.status) && (
+          {addOnly && ["submitted", "assigned"].includes(request.status) && (
             <TouchableOpacity style={styles.cancelButton} onPress={confirmCancel}>
               <Text style={styles.cancelButtonText}>Cancel Request</Text>
             </TouchableOpacity>
