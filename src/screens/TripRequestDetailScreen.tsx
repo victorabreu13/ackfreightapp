@@ -45,7 +45,10 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
   const { profile } = useAuth();
   const initialRequest: TripRequest = route.params.request;
   const [request, setRequest] = useState(initialRequest);
-  const locked = LOCKED_STATUSES.includes(request.status);
+  // Firestore's rules let a customer edit at most 10 AWBs per request, so a bigger one (a bulk
+  // upload) is shown read-only, with its documents still editable and AWBs addable.
+  const tooBigToEdit = request.awbLines.length > 10;
+  const locked = LOCKED_STATUSES.includes(request.status) || tooBigToEdit;
 
   // Live-subscribed so status changes and driver location pings show up
   // without needing to back out and reopen this screen. TripRequestForm
@@ -113,7 +116,14 @@ export default function TripRequestDetailScreen({ route, navigation }: any) {
       {locked ? (
         <>
           <TripRequestReadOnly request={request} editableDocs={request.status !== "cancelled"} />
-          {request.status === "in_progress" && <AddAwbSection requestId={request.id} />}
+          {(request.status === "in_progress" || (tooBigToEdit && ["submitted", "assigned"].includes(request.status))) && (
+            <AddAwbSection requestId={request.id} />
+          )}
+          {tooBigToEdit && ["submitted", "assigned"].includes(request.status) && (
+            <TouchableOpacity style={styles.cancelButton} onPress={confirmCancel}>
+              <Text style={styles.cancelButtonText}>Cancel Request</Text>
+            </TouchableOpacity>
+          )}
           {request.awbLines.some((line) => line.tripLogId) && (
             <CustomerProofSection requestId={request.id} />
           )}

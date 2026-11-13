@@ -1,6 +1,7 @@
 import { goBackOrHome } from "../navigation/goBackOrHome";
-import React from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
+import React, { useState } from "react";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import BulkTripRequestForm from "../components/BulkTripRequestForm";
 import TripRequestForm, {
   TripRequestFormValues,
 } from "../components/TripRequestForm";
@@ -11,6 +12,7 @@ import { toLocalDateString } from "../utils/date";
 export default function NewTripRequestScreen({ navigation }: any) {
   const { user, profile } = useAuth();
   const requestId = React.useMemo(() => newTripRequestId(), []);
+  const [bulk, setBulk] = useState(false);
 
   if (!user || !profile) return null;
 
@@ -40,13 +42,26 @@ export default function NewTripRequestScreen({ navigation }: any) {
         Submitted: {toLocalDateString(new Date())}
       </Text>
 
-      <TripRequestForm
-        customerId={user.uid}
-        requestId={requestId}
-        submitLabel="Submit Trip Request"
-        onSubmit={handleSubmit}
-        billing={profile}
-      />
+      <View style={styles.modeRow}>
+        <TouchableOpacity style={[styles.modeButton, !bulk && styles.modeButtonOn]} onPress={() => setBulk(false)}>
+          <Text style={[styles.modeText, !bulk && styles.modeTextOn]}>One form</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.modeButton, bulk && styles.modeButtonOn]} onPress={() => setBulk(true)}>
+          <Text style={[styles.modeText, bulk && styles.modeTextOn]}>Bulk upload (many AWBs)</Text>
+        </TouchableOpacity>
+      </View>
+
+      {bulk ? (
+        <BulkTripRequestForm customerId={user.uid} requestId={requestId} onDone={() => goBackOrHome(navigation)} />
+      ) : (
+        <TripRequestForm
+          customerId={user.uid}
+          requestId={requestId}
+          submitLabel="Submit Trip Request"
+          onSubmit={handleSubmit}
+          billing={profile}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -57,4 +72,9 @@ const styles = StyleSheet.create({
   backButtonText: { color: "#1d4ed8", fontWeight: "700", fontSize: 16 },
   title: { fontSize: 22, fontWeight: "800", color: "#111" },
   meta: { fontSize: 13, color: "#666", marginTop: 4 },
+  modeRow: { flexDirection: "row", gap: 8, marginTop: 16 },
+  modeButton: { borderRadius: 8, borderWidth: 1, borderColor: "#ddd", backgroundColor: "#fff", paddingVertical: 9, paddingHorizontal: 14 },
+  modeButtonOn: { backgroundColor: "#1d4ed8", borderColor: "#1d4ed8" },
+  modeText: { fontSize: 13, fontWeight: "700", color: "#333" },
+  modeTextOn: { color: "#fff" },
 });

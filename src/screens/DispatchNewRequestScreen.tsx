@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import BulkTripRequestForm from "../components/BulkTripRequestForm";
 import TripRequestForm, {
   TripRequestFormValues,
 } from "../components/TripRequestForm";
@@ -27,6 +28,7 @@ export default function DispatchNewRequestScreen({ navigation }: any) {
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [bulk, setBulk] = useState(false);
 
   useEffect(() => {
     const unsubCustomers = subscribeToCustomers(setCustomers, () => {});
@@ -148,14 +150,32 @@ export default function DispatchNewRequestScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
 
-          <TripRequestForm
-            customerId={selectedCustomer.uid}
-            requestId={requestId}
-            submitLabel="Create Trip Request"
-            onSubmit={handleSubmit}
-            driverAssignment={{ drivers }}
-            billing={selectedCustomer}
-          />
+          <View style={styles.modeRow}>
+            <TouchableOpacity style={[styles.modeButton, !bulk && styles.modeButtonOn]} onPress={() => setBulk(false)}>
+              <Text style={[styles.modeText, !bulk && styles.modeTextOn]}>One form</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.modeButton, bulk && styles.modeButtonOn]} onPress={() => setBulk(true)}>
+              <Text style={[styles.modeText, bulk && styles.modeTextOn]}>Bulk upload (many AWBs)</Text>
+            </TouchableOpacity>
+          </View>
+
+          {bulk ? (
+            <BulkTripRequestForm
+              customerId={selectedCustomer.uid}
+              requestId={requestId}
+              asAdmin
+              onDone={() => navigation.navigate("Dispatch")}
+            />
+          ) : (
+            <TripRequestForm
+              customerId={selectedCustomer.uid}
+              requestId={requestId}
+              submitLabel="Create Trip Request"
+              onSubmit={handleSubmit}
+              driverAssignment={{ drivers }}
+              billing={selectedCustomer}
+            />
+          )}
         </>
       )}
     </ScrollView>
@@ -205,4 +225,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   changeText: { color: "#1d4ed8", fontWeight: "700", fontSize: 13 },
+  modeRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  modeButton: { borderRadius: 8, borderWidth: 1, borderColor: "#ddd", backgroundColor: "#fff", paddingVertical: 9, paddingHorizontal: 14 },
+  modeButtonOn: { backgroundColor: "#1d4ed8", borderColor: "#1d4ed8" },
+  modeText: { fontSize: 13, fontWeight: "700", color: "#333" },
+  modeTextOn: { color: "#fff" },
 });

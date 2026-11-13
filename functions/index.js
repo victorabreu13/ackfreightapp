@@ -42,6 +42,7 @@ const { MAX_TRAIL_POINTS, shouldRecordPoint, stampPoint, stampTransitions } = re
 const { quoteForRequest, uldCountForLines } = require("./quote");
 const { planReassignCompleted, planReassignTripLog } = require("./reassignCompleted");
 const { canAdd, cleanNewLines, defaultDriver, planAddLines, sameRequestDuplicates } = require("./addAwbs");
+const { bulkRequestDoc, cleanBulkRequest } = require("./bulkRequest");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
 const { estimateRoute, haversineMiles } = require("./routeEstimate");
 const {
@@ -1237,6 +1238,77 @@ exports.checkAwbInUse = onCall({ invoker: "public", timeoutSeconds: 180 }, async
   return { inUse };
 });
 
+// "One AWB, one trip" for a list of AWB numbers: one message per AWB that is already on
+// another (not cancelled) trip request or on a trip log. `exceptRequestId` is the request
+// the AWBs are being added to.
+async function awbsAlreadyUsed(db, awbNumbers, exceptRequestId) {
+  await ensureAwbKeysBackfilled(db);
+  const messages = [];
+  for (const number of awbNumbers) {
+    const key = awbKey(number);
+    const snap = await db.collection("tripRequests").where("awbKeys", "array-contains", key).get();
+    if (snap.docs.some((d) => d.id !== exceptRequestId && d.data().status !== "cancelled")) {
+      messages.push(`AWB ${number} duplicated — it's already on another trip request.`);
+      continue;
+    }
+    const dup = await findDuplicateTripAwb(db, { awbNumber: number });
+    if (dup) {
+      messages.push(`AWB ${dup.label} duplicated — it's already logged on another trip (${describeTrip(dup.data)}).`);
+    }
+  }
+  return messages;
+}
+
+// Bulk upload: one new trip request with many AWBs (up to 100). The browser or phone
+// uploads the documents to the customer's folder for this request first, then calls
+// this; it is a function (not a direct write) because Firestore's rules cap a
+// customer's own writes at 10 AWBs per request. Customers create for themselves,
+// admins for any customer. Every AWB is checked against the "one AWB, one trip"
+// rule first, and the whole list is refused with the list of duplicates if any.
+exports.createBulkTripRequest = onCall({ invoker: "public", timeoutSeconds: 180 }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  const db = admin.firestore();
+  const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+  const caller = callerSnap.data() || {};
+  if (caller.role !== "admin" && caller.role !== "customer") {
+    throw new HttpsError("permission-denied", "Only customers and admins create trip requests.");
+  }
+  const body = request.data || {};
+  const customerId = caller.role === "admin" ? String(body.customerId || "") : request.auth.uid;
+  if (!customerId) throw new HttpsError("invalid-argument", "customerId is required.");
+  const customerSnap = caller.role === "admin" ? await db.collection("users").doc(customerId).get() : callerSnap;
+  const customer = customerSnap.data();
+  if (!customer || customer.role !== "customer") throw new HttpsError("failed-precondition", "That customer wasn't found.");
+
+  const checked = cleanBulkRequest(body, { customerId, bucket: admin.storage().bucket().name });
+  if (!checked.ok) throw new HttpsError("invalid-argument", checked.message);
+  const value = checked.value;
+
+  const ref = db.collection("tripRequests").doc(value.requestId);
+  if ((await ref.get()).exists) return { id: value.requestId, created: false };
+
+  const taken = await awbsAlreadyUsed(db, value.awbLines.map((l) => l.awbNumber), value.requestId);
+  if (taken.length > 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      taken.length === 1
+        ? taken[0]
+        : `${taken.length} AWBs are already used. Remove them and send again:\n${taken.join("\n")}`
+    );
+  }
+
+  try {
+    await ref.create(
+      bulkRequestDoc(value, { id: customerId, name: String(customer.name || ""), email: String(customer.email || "") }, Date.now())
+    );
+  } catch (err) {
+    if (err && (err.code === 6 || /already exists/i.test(String(err.message)))) return { id: value.requestId, created: false };
+    logger.error("createBulkTripRequest failed:", err);
+    throw new HttpsError("internal", "Couldn't create the trip request.");
+  }
+  return { id: value.requestId, created: true };
+});
+
 // Adds AWBs to a trip request that was already submitted: dispatch any time, the
 // owning customer until the trip is completed. New AWBs go to the request's one
 // driver (dispatch can pick another or none); a customer's always do. The usual
@@ -1267,21 +1339,8 @@ exports.addAwbLines = onCall(
     }
 
     // One AWB, one trip: not on another request, not on a trip log.
-    await ensureAwbKeysBackfilled(db);
-    for (const l of cleaned.lines) {
-      const key = awbKey(l.awbNumber);
-      const snap = await db.collection("tripRequests").where("awbKeys", "array-contains", key).get();
-      if (snap.docs.some((d) => d.id !== requestId && d.data().status !== "cancelled")) {
-        throw new HttpsError("failed-precondition", `AWB ${l.awbNumber} duplicated — it's already on another trip request.`);
-      }
-      const dup = await findDuplicateTripAwb(db, { awbNumber: l.awbNumber });
-      if (dup) {
-        throw new HttpsError(
-          "failed-precondition",
-          `AWB ${dup.label} duplicated — it's already logged on another trip (${describeTrip(dup.data)}).`
-        );
-      }
-    }
+    const taken = await awbsAlreadyUsed(db, cleaned.lines.map((l) => l.awbNumber), requestId);
+    if (taken.length > 0) throw new HttpsError("failed-precondition", taken.join("\n"));
 
     // Dispatch may pick the driver (or nobody); everyone else follows the request's driver.
     let chosen;

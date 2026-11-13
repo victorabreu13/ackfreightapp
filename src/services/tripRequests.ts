@@ -334,6 +334,49 @@ export async function adminCompleteAwbLines(
   await callWithFreshToken(adminCompleteAwbLinesFn, { requestId, awbIndexes, onDuplicate });
 }
 
+export interface BulkAwbInput {
+  awbNumber: string;
+  qtyPieces: number;
+  kilograms: number;
+  type: UldType;
+  hazmat: boolean;
+  unNumber: string;
+  awbFile: { url: string; name: string } | null;
+  loaFile: { url: string; name: string } | null;
+  doFile: { url: string; name: string } | null;
+}
+
+const createBulkTripRequestFn = httpsCallable<
+  {
+    requestId: string;
+    customerId?: string;
+    tripDate: string;
+    from: string;
+    to: string;
+    pickupTime: string;
+    personRequesting: string;
+    notes: string;
+    awbLines: BulkAwbInput[];
+  },
+  { id: string; created: boolean }
+>(functions, "createBulkTripRequest");
+
+// One trip request with many AWBs (up to 100), documents already uploaded. A function
+// rather than a direct write: Firestore's rules cap a customer's own writes at 10 AWBs.
+export async function createBulkTripRequest(input: {
+  requestId: string;
+  customerId?: string;
+  tripDate: string;
+  from: string;
+  to: string;
+  pickupTime: string;
+  personRequesting: string;
+  notes: string;
+  awbLines: BulkAwbInput[];
+}) {
+  return callWithFreshToken(createBulkTripRequestFn, input);
+}
+
 const addAwbLinesFn = httpsCallable<
   {
     requestId: string;

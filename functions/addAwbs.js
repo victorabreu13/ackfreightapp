@@ -11,12 +11,12 @@ function text(value, max) {
 }
 
 // What the caller typed, checked and cleaned. A refusal names the AWB it is about.
-function cleanNewLines(input) {
+function cleanNewLines(input, max = MAX_NEW_LINES) {
   if (!Array.isArray(input) || input.length === 0) {
     return { ok: false, message: "Add at least one AWB." };
   }
-  if (input.length > MAX_NEW_LINES) {
-    return { ok: false, message: `Add at most ${MAX_NEW_LINES} AWBs at a time.` };
+  if (input.length > max) {
+    return { ok: false, message: `Add at most ${max} AWBs at a time.` };
   }
   const lines = [];
   const seen = new Set();
