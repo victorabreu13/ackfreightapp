@@ -33,7 +33,18 @@ function formatTime(d: Date) {
   return d.toTimeString().slice(0, 5); // HH:mm
 }
 
-export default function NewTripScreen({ navigation }: any) {
+// Leaving the screen throws its form away: it can stay in the stack under Home after submitting
+// and would come back with the last trip's data.
+export default function NewTripScreen(props: any) {
+  const [session, setSession] = useState(0);
+  React.useEffect(
+    () => props.navigation.addListener("blur", () => setSession((s) => s + 1)),
+    [props.navigation]
+  );
+  return <NewTripForm key={session} {...props} />;
+}
+
+function NewTripForm({ navigation }: any) {
   const { user, profile } = useAuth();
 
   const [date, setDate] = useState(new Date());

@@ -11,8 +11,20 @@ import { toLocalDateString } from "../utils/date";
 
 export default function NewTripRequestScreen({ navigation }: any) {
   const { user, profile } = useAuth();
-  const requestId = React.useMemo(() => newTripRequestId(), []);
+  // A screen that stays in the stack under another one (the page was refreshed, or Home was
+  // pushed on top after submitting) would come back with the last trip's data and the same
+  // request id. Leaving it starts a new session: empty form, new id.
+  const [session, setSession] = useState(0);
+  const requestId = React.useMemo(() => newTripRequestId(), [session]);
   const [bulk, setBulk] = useState(false);
+  React.useEffect(
+    () =>
+      navigation.addListener("blur", () => {
+        setSession((s) => s + 1);
+        setBulk(false);
+      }),
+    [navigation]
+  );
 
   if (!user || !profile) return null;
 
@@ -52,9 +64,10 @@ export default function NewTripRequestScreen({ navigation }: any) {
       </View>
 
       {bulk ? (
-        <BulkTripRequestForm customerId={user.uid} requestId={requestId} onDone={() => goBackOrHome(navigation)} />
+        <BulkTripRequestForm key={session} customerId={user.uid} requestId={requestId} onDone={() => goBackOrHome(navigation)} />
       ) : (
         <TripRequestForm
+          key={session}
           customerId={user.uid}
           requestId={requestId}
           submitLabel="Submit Trip Request"

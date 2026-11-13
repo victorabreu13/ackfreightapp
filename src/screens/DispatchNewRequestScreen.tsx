@@ -20,7 +20,10 @@ import { computeTripRequestRollup, UserProfile } from "../types";
 import { notify } from "../utils/alert";
 
 export default function DispatchNewRequestScreen({ navigation }: any) {
-  const requestId = React.useMemo(() => newTripRequestId(), []);
+  // Leaving the screen starts a new session (empty form, new request id): it may stay in the
+  // stack under Dispatch after creating a trip, and "+ New trip" would bring it back full.
+  const [session, setSession] = useState(0);
+  const requestId = React.useMemo(() => newTripRequestId(), [session]);
   const [customers, setCustomers] = useState<UserProfile[]>([]);
   const [drivers, setDrivers] = useState<UserProfile[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(null);
@@ -29,6 +32,19 @@ export default function DispatchNewRequestScreen({ navigation }: any) {
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [bulk, setBulk] = useState(false);
+
+  useEffect(
+    () =>
+      navigation.addListener("blur", () => {
+        setSession((s) => s + 1);
+        setSelectedCustomer(null);
+        setSearch("");
+        setNewName("");
+        setNewEmail("");
+        setBulk(false);
+      }),
+    [navigation]
+  );
 
   useEffect(() => {
     const unsubCustomers = subscribeToCustomers(setCustomers, () => {});
@@ -161,6 +177,7 @@ export default function DispatchNewRequestScreen({ navigation }: any) {
 
           {bulk ? (
             <BulkTripRequestForm
+              key={session}
               customerId={selectedCustomer.uid}
               requestId={requestId}
               asAdmin
@@ -168,6 +185,7 @@ export default function DispatchNewRequestScreen({ navigation }: any) {
             />
           ) : (
             <TripRequestForm
+              key={session}
               customerId={selectedCustomer.uid}
               requestId={requestId}
               submitLabel="Create Trip Request"
