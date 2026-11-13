@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import AddAwbSection from "../components/AddAwbSection";
+import AwbDetailsSection from "../components/AwbDetailsSection";
 import AwbDriverPicker from "../components/AwbDriverPicker";
 import EditTripDetails from "../components/EditTripDetails";
 import TripRouteSection from "../components/TripRouteSection";
@@ -29,7 +30,7 @@ import {
   removeAwbLine,
   setTripRequestStatus,
   subscribeToTripRequest,
-  updateAwbKilograms,
+  reopenTripRequest,
   updateAwbPriority,
 } from "../services/tripRequests";
 import {
@@ -82,9 +83,6 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
   } | null>(null);
   const [dupBusy, setDupBusy] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
-  const [editingKgIndex, setEditingKgIndex] = useState<number | null>(null);
-  const [editKgValue, setEditKgValue] = useState("");
-  const [savingKg, setSavingKg] = useState(false);
   const [priorityModalIndex, setPriorityModalIndex] = useState<number | null>(null);
   const [savingPriorityIndex, setSavingPriorityIndex] = useState<number | null>(null);
 
@@ -262,32 +260,6 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
     doAssign(awbIndex, driver);
   };
 
-  const startEditingKg = (awbIndex: number) => {
-    setEditingKgIndex(awbIndex);
-    setEditKgValue(String(request.awbLines[awbIndex].kilograms));
-  };
-
-  const saveKg = async (awbIndex: number) => {
-    const kilograms = parseFloat(editKgValue);
-    if (!kilograms || kilograms <= 0) {
-      notify("Enter a weight", "Enter a kilogram value greater than 0.");
-      return;
-    }
-    setSavingKg(true);
-    try {
-      await updateAwbKilograms(request.id, awbIndex, kilograms);
-      setRequest((prev) => ({
-        ...prev,
-        awbLines: prev.awbLines.map((line, i) => (i === awbIndex ? { ...line, kilograms } : line)),
-      }));
-      setEditingKgIndex(null);
-    } catch (e: any) {
-      notify("Couldn't save weight", e?.message ?? "Something went wrong. Please try again.");
-    } finally {
-      setSavingKg(false);
-    }
-  };
-
   const changePriority = async (awbIndex: number, priority: AwbPriority) => {
     setPriorityModalIndex(null);
     if (request.awbLines[awbIndex].priority === priority) return;
@@ -403,6 +375,29 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
           handleCompleteError(awbIndex, e);
         } finally {
           setCompletingIndex(null);
+        }
+      }
+    );
+  };
+
+  // A cancelled trip request comes back with the status its AWBs have; the server refuses
+  // it if one of its AWB numbers is on another trip request by now.
+  const recoverRequest = () => {
+    confirmAction(
+      {
+        title: "Recover this trip request?",
+        message: "It goes back to what it was before it was cancelled, with its AWBs and drivers.",
+        confirmLabel: "Recover",
+      },
+      async () => {
+        setChangingStatus(true);
+        try {
+          const result = await reopenTripRequest(request.id);
+          setRequest((prev) => ({ ...prev, status: result.status }));
+        } catch (e: any) {
+          notify("Couldn't recover it", e?.message ?? "Something went wrong. Please try again.");
+        } finally {
+          setChangingStatus(false);
         }
       }
     );
@@ -524,45 +519,17 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
 
       <DispatchAwbPay requestId={request.id} lines={request.awbLines} />
 
-      <Text style={styles.sectionTitle}>AWB Weights</Text>
-      <Text style={styles.sectionHint}>
-        Fix a customer's typo before invoicing — billing by kilogram uses this value.
-      </Text>
-      {request.awbLines.map((line, i) => (
-        <View key={i} style={styles.awbAssignRow}>
-          <Text style={[styles.awbAssignLabel, narrow && styles.awbAssignLabelNarrow]}>{line.awbNumber}</Text>
-          {editingKgIndex === i ? (
-            <View style={styles.kgEditRow}>
-              <TextInput
-                style={styles.kgInput}
-                keyboardType="numeric"
-                value={editKgValue}
-                onChangeText={setEditKgValue}
-                autoFocus
-              />
-              <Text style={styles.kgUnit}>kg</Text>
-              <TouchableOpacity
-                style={styles.saveRateButton}
-                onPress={() => saveKg(i)}
-                disabled={savingKg}
-              >
-                {savingKg ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.saveRateButtonText}>Save</Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setEditingKgIndex(null)}>
-                <Text style={styles.cancelRateText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity onPress={() => startEditingKg(i)}>
-              <Text style={styles.kgValueText}>{line.kilograms} kg · Edit</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ))}
+      <AwbDetailsSection
+        requestId={request.id}
+        lines={request.awbLines}
+        narrow={narrow}
+        onChanged={(awbIndex, changes) =>
+          setRequest((prev) => ({
+            ...prev,
+            awbLines: prev.awbLines.map((line, i) => (i === awbIndex ? { ...line, ...changes } : line)),
+          }))
+        }
+      />
 
       <Text style={styles.sectionTitle}>Billing</Text>
       {editingRate ? (
@@ -679,6 +646,18 @@ export default function DispatchDetailScreen({ route, navigation }: any) {
             <Text style={styles.statusButtonText}>Mark as not invoiced</Text>
           </TouchableOpacity>
         )}
+        {request.status === "cancelled" && (
+          <>
+            <Text style={styles.statusHint}>This trip request was cancelled.</Text>
+            <TouchableOpacity style={styles.markInvoicedButton} onPress={recoverRequest} disabled={changingStatus}>
+              {changingStatus ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.markInvoicedButtonText}>↩ Recover this trip request</Text>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
         {(request.status === "submitted" || request.status === "assigned") && (
           <TouchableOpacity
             style={styles.cancelButton}
@@ -761,19 +740,6 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 15, fontWeight: "800", color: "#111", marginTop: 26, marginBottom: 10 },
   sectionHint: { fontSize: 12, color: "#888", marginTop: -6, marginBottom: 10 },
   empty: { color: "#888", fontSize: 13 },
-  kgEditRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  kgInput: {
-    width: 80,
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    fontSize: 14,
-  },
-  kgUnit: { fontSize: 13, color: "#666" },
-  kgValueText: { fontSize: 13, color: "#1d4ed8", fontWeight: "600" },
   awbAssignRow: {
     flexDirection: "row",
     flexWrap: "wrap",

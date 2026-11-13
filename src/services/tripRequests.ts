@@ -203,25 +203,35 @@ export async function assignAwbDriver(
   });
 }
 
-// Lets an admin correct a customer's typo on an AWB's weight before billing
-// is computed from it — billing amount for perKilogram customers is derived
-// straight from this field, so a bad kilograms value would otherwise flow
-// straight into the invoice.
-export async function updateAwbKilograms(
+const updateAwbDetailsFn = httpsCallable<
+  { requestId: string; awbIndex: number; qtyPieces?: number; kilograms?: number; type?: UldType },
+  {
+    success: boolean;
+    line: { qtyPieces: number; kilograms: number; type: UldType };
+    tripLogUpdated: boolean;
+    payLocked: boolean;
+  }
+>(functions, "updateAwbDetails");
+
+// Admin-only: fixes an AWB's pieces, kilograms or ULD type. The quote, the driver's open
+// pay and (for a completed AWB) the trip log in Payroll follow; the server refuses a
+// trip already paid or invoiced.
+export async function updateAwbDetails(
   requestId: string,
   awbIndex: number,
-  kilograms: number
-): Promise<void> {
-  const ref = doc(db, "tripRequests", requestId);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error("Trip request not found.");
-    const data = snap.data() as TripRequest;
-    const awbLines: AwbLine[] = data.awbLines.map((line, i) =>
-      i === awbIndex ? { ...line, kilograms } : line
-    );
-    tx.update(ref, { awbLines, updatedAt: Date.now() });
-  });
+  changes: { qtyPieces?: number; kilograms?: number; type?: UldType }
+) {
+  return callWithFreshToken(updateAwbDetailsFn, { requestId, awbIndex, ...changes });
+}
+
+const reopenTripRequestFn = httpsCallable<{ requestId: string }, { success: boolean; status: TripRequest["status"] }>(
+  functions,
+  "reopenTripRequest"
+);
+
+// Admin-only: brings a cancelled trip request back with the status its AWBs have.
+export async function reopenTripRequest(requestId: string) {
+  return callWithFreshToken(reopenTripRequestFn, { requestId });
 }
 
 export async function updateAwbPriority(

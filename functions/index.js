@@ -45,6 +45,7 @@ const { canAdd, cleanNewLines, defaultDriver, planAddLines, sameRequestDuplicate
 const { bulkRequestDoc, cleanBulkRequest } = require("./bulkRequest");
 const AnthropicSdk = require("@anthropic-ai/sdk");
 const awbExtract = require("./awbExtract");
+const { cleanDetailChanges, planReopen, planTripLogFollow, planUpdateAwbDetails } = require("./awbDetails");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
 const { estimateRoute, haversineMiles } = require("./routeEstimate");
 const {
@@ -1385,6 +1386,127 @@ exports.extractAwbDetails = onCall(
     return awbExtract.normalizeExtraction(parsed);
   }
 );
+
+// Dispatch fixes an AWB's pieces, kilograms or ULD type. Everything that was worked out
+// from them follows: the quote, the driver's pay for an AWB still open, and the trip log of
+// a completed AWB (by the difference, so a log that holds several AWBs stays right). A
+// trip already paid out, or already invoiced, is refused. A completed AWB's pay record
+// stays as it was locked; dispatch adjusts it by hand if needed.
+exports.updateAwbDetails = onCall({ invoker: "public" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const { requestId, awbIndex } = request.data || {};
+  if (!requestId || !Number.isInteger(awbIndex) || awbIndex < 0) {
+    throw new HttpsError("invalid-argument", "requestId and awbIndex are required.");
+  }
+  const cleaned = cleanDetailChanges(request.data);
+  if (!cleaned.ok) throw new HttpsError("invalid-argument", cleaned.message);
+  const db = admin.firestore();
+  const ref = db.collection("tripRequests").doc(requestId);
+
+  let result;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Trip request not found.");
+    const data = snap.data();
+    if (data.status === "cancelled") throw new HttpsError("failed-precondition", "This trip request is cancelled. Recover it first.");
+    if (data.status === "invoiced") {
+      throw new HttpsError("failed-precondition", "This trip was already invoiced. Mark it as not invoiced first, then change it.");
+    }
+    const plan = planUpdateAwbDetails(data.awbLines || [], awbIndex, cleaned.changes);
+    if (!plan.ok) throw new HttpsError("failed-precondition", plan.message);
+
+    let tripUpdate = null;
+    const line = data.awbLines[awbIndex];
+    if (line.status === "completed" && line.tripLogId) {
+      const tripRef = db.collection("trips").doc(line.tripLogId);
+      const tripSnap = await tx.get(tripRef);
+      const follow = planTripLogFollow(tripSnap.exists ? tripSnap.data() : null, plan.kgDelta, plan.uldDelta);
+      if (!follow.ok) throw new HttpsError("failed-precondition", follow.message);
+      if (follow.update) tripUpdate = { ref: tripRef, body: follow.update };
+    }
+    tx.update(ref, { awbLines: plan.awbLines, updatedAt: Date.now() });
+    if (tripUpdate) tx.update(tripUpdate.ref, tripUpdate.body);
+    result = { plan, data, tripFollowed: !!tripUpdate };
+  });
+
+  // The quote and the driver's open pay follow (best effort: the change is already saved).
+  const after = { ...result.data, awbLines: result.plan.awbLines };
+  try {
+    const customerSnap = after.customerId ? await db.collection("users").doc(after.customerId).get() : null;
+    const quote = quoteForRequest(customerSnap && customerSnap.exists ? customerSnap.data() : null, after.awbLines);
+    await ref.update({ quotedAmount: quote.quotedAmount, quoteStatus: quote.quoteStatus, quoteBasis: quote.quoteBasis });
+    after.quotedAmount = quote.quotedAmount;
+    after.quoteStatus = quote.quoteStatus;
+    after.quoteBasis = quote.quoteBasis;
+  } catch (err) {
+    logger.error("Re-pricing after editing an AWB failed:", err);
+  }
+  let payLocked = false;
+  const edited = result.plan.line;
+  if (edited.assignedDriverId) {
+    try {
+      const payRef = db.collection("awbPay").doc(payDocId(requestId, awbIndex));
+      const payDoc = await payRef.get();
+      if (payDoc.exists && payDoc.data().locked === true) payLocked = true;
+      else await writeSnapshot(db, requestId, awbIndex, edited.assignedDriverId, after, edited);
+    } catch (err) {
+      logger.error("Re-working the driver pay after editing an AWB failed:", err);
+    }
+  }
+  return {
+    success: true,
+    line: { qtyPieces: edited.qtyPieces, kilograms: edited.kilograms, type: edited.type },
+    tripLogUpdated: result.tripFollowed,
+    payLocked,
+  };
+});
+
+// Brings a cancelled trip request back, with the status its AWBs have. Cancelling frees
+// its AWB numbers, so it is refused if one of them is on another trip request now.
+exports.reopenTripRequest = onCall({ invoker: "public", timeoutSeconds: 120 }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+  await requireAdmin(request.auth.uid);
+  const { requestId } = request.data || {};
+  if (!requestId) throw new HttpsError("invalid-argument", "requestId is required.");
+  const db = admin.firestore();
+  const ref = db.collection("tripRequests").doc(requestId);
+  const pre = await ref.get();
+  if (!pre.exists) throw new HttpsError("not-found", "Trip request not found.");
+  if (pre.data().status !== "cancelled") throw new HttpsError("failed-precondition", "This trip request isn't cancelled.");
+
+  await ensureAwbKeysBackfilled(db);
+  const taken = [];
+  for (const l of pre.data().awbLines || []) {
+    const key = awbKey(l.awbNumber);
+    if (!key) continue;
+    const snap = await db.collection("tripRequests").where("awbKeys", "array-contains", key).get();
+    if (snap.docs.some((d) => d.id !== requestId && d.data().status !== "cancelled")) taken.push(String(l.awbNumber));
+  }
+  if (taken.length > 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      `Can't recover it: AWB ${taken.join(", ")} ${taken.length === 1 ? "is" : "are"} now on another trip request.`
+    );
+  }
+
+  let status = "";
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.data();
+    const plan = planReopen(data);
+    if (!plan.ok) throw new HttpsError("failed-precondition", plan.message);
+    status = plan.status;
+    tx.update(ref, {
+      status: plan.status,
+      assignedDriverIds: plan.assignedDriverIds,
+      assignedDriverNames: plan.assignedDriverNames,
+      awbKeys: awbKeysFromRequest({ status: plan.status, awbLines: data.awbLines }),
+      updatedAt: Date.now(),
+    });
+  });
+  return { success: true, status };
+});
 
 // Adds AWBs to a trip request that was already submitted: dispatch any time, the
 // owning customer until the trip is completed. New AWBs go to the request's one
