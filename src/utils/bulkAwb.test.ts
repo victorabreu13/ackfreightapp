@@ -30,6 +30,23 @@ describe("bulk AWB: reading file names", () => {
   });
 });
 
+describe("bulk AWB: choosing a kind of document", () => {
+  it("files with no document word take the kind that was chosen", () => {
+    assert.equal(slotFromFileName("045-54066773.pdf", "loa"), "loa");
+    assert.equal(slotFromFileName("045-54066773.pdf", "do"), "do");
+    // a word in the name still wins
+    assert.equal(slotFromFileName("045-54066773 DO.pdf", "loa"), "do");
+    const { rows } = placeFiles([], [f("045-54066773.pdf"), f("176-11112222.pdf")], make, "loa");
+    assert.ok(rows[0].files.loa);
+    assert.ok(rows[1].files.loa);
+  });
+
+  it("import fee names with spaces are recognized", () => {
+    assert.equal(isImportFeeFile("Import Fee 045-54066773.pdf"), true);
+    assert.equal(isImportFeeFile("import   fee.pdf"), true);
+  });
+});
+
 describe("bulk AWB: import fee", () => {
   it("recognizes import fee files by name", () => {
     assert.equal(isImportFeeFile("Import Fee.pdf"), true);

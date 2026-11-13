@@ -379,6 +379,17 @@ export async function createBulkTripRequest(input: {
   return callWithFreshToken(createBulkTripRequestFn, input);
 }
 
+const extractAwbDetailsFn = httpsCallable<
+  { contentBase64: string },
+  { awbNumber: string | null; pieces: number | null; kilograms: number | null }
+>(functions, "extractAwbDetails");
+
+// Claude reads an AWB document and returns its number, total pieces and total kilograms
+// (null where unreadable). A suggestion for the person to check, not a fact.
+export async function extractAwbDetails(contentBase64: string) {
+  return callWithFreshToken(extractAwbDetailsFn, { contentBase64 });
+}
+
 const addAwbLinesFn = httpsCallable<
   {
     requestId: string;

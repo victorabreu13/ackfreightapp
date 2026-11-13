@@ -43,6 +43,8 @@ const { quoteForRequest, uldCountForLines } = require("./quote");
 const { planReassignCompleted, planReassignTripLog } = require("./reassignCompleted");
 const { canAdd, cleanNewLines, defaultDriver, planAddLines, sameRequestDuplicates } = require("./addAwbs");
 const { bulkRequestDoc, cleanBulkRequest } = require("./bulkRequest");
+const AnthropicSdk = require("@anthropic-ai/sdk");
+const awbExtract = require("./awbExtract");
 const { cleanAgreement, offerForDriver, publicOffer } = require("./driverPay");
 const { estimateRoute, haversineMiles } = require("./routeEstimate");
 const {
@@ -78,6 +80,8 @@ const GMAIL_APP_PASSWORD = defineSecret("GMAIL_APP_PASSWORD");
 const INTAKE_SHARED_SECRET = defineSecret("INTAKE_SHARED_SECRET");
 // Shared with ACK Guías (the air waybill app); it sends trip requests with this header.
 const GUIAS_SHARED_SECRET = defineSecret("GUIAS_SHARED_SECRET");
+// Reads AWB documents (pieces / weight) in the bulk upload. Without it the app just asks the person to type them.
+const ANTHROPIC_API_KEY = defineSecret("ANTHROPIC_API_KEY");
 const GOOGLE_MAPS_ROUTES_API_KEY = defineSecret("GOOGLE_MAPS_ROUTES_API_KEY");
 
 // Switch back to "sandbox" any time to test again — the sandbox secrets
@@ -1308,6 +1312,79 @@ exports.createBulkTripRequest = onCall({ invoker: "public", timeoutSeconds: 180 
   }
   return { id: value.requestId, created: true };
 });
+
+// Reads one AWB document (PDF or image) with Claude and returns its number, total pieces
+// and total weight in kilograms, to fill PCS and KG in the bulk upload. Customers and
+// admins only, with a daily allowance per person. The answer is a suggestion: the app
+// shows it for the person to check.
+exports.extractAwbDetails = onCall(
+  { invoker: "public", timeoutSeconds: 120, memory: "512MiB", secrets: [ANTHROPIC_API_KEY] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
+    const db = admin.firestore();
+    const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+    const role = (callerSnap.data() || {}).role;
+    if (role !== "admin" && role !== "customer") throw new HttpsError("permission-denied", "Not allowed.");
+
+    const { contentBase64 } = request.data || {};
+    if (typeof contentBase64 !== "string" || contentBase64.length < 100 || contentBase64.length > 8000000) {
+      throw new HttpsError("invalid-argument", "The document is missing or too large to read (6 MB at most).");
+    }
+    const buffer = Buffer.from(contentBase64, "base64");
+    const kind = sniffFile(buffer);
+    if (!kind) throw new HttpsError("invalid-argument", "Only PDF, JPG and PNG documents can be read.");
+
+    let key = "";
+    try {
+      key = ANTHROPIC_API_KEY.value() || "";
+    } catch (err) {
+      key = "";
+    }
+    if (!key.trim()) {
+      throw new HttpsError("failed-precondition", "Reading AWBs automatically isn't set up yet. Type the pieces and kilograms.");
+    }
+
+    // The daily allowance is counted before the call, so a failing loop can't run past it either.
+    const usageRef = db.collection("awbExtractUsage").doc(awbExtract.usageDocId(request.auth.uid, todayDateString()));
+    const used = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(usageRef);
+      const count = snap.exists ? Number(snap.data().count) || 0 : 0;
+      if (count >= awbExtract.DAILY_LIMIT) return -1;
+      tx.set(usageRef, { count: count + 1, uid: request.auth.uid, updatedAt: Date.now() });
+      return count + 1;
+    });
+    if (used < 0) {
+      throw new HttpsError("resource-exhausted", "The daily limit of documents read automatically was reached. Type the rest.");
+    }
+
+    const AnthropicClient = AnthropicSdk.default || AnthropicSdk;
+    const client = new AnthropicClient({ apiKey: key.trim() });
+    const source =
+      kind === "pdf"
+        ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: contentBase64 } }
+        : { type: "image", source: { type: "base64", media_type: kind === "png" ? "image/png" : "image/jpeg", data: contentBase64 } };
+    let response;
+    try {
+      response = await client.beta.messages.create({
+        model: awbExtract.MODEL,
+        max_tokens: 4096,
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        output_config: { effort: "low", format: { type: "json_schema", schema: awbExtract.SCHEMA } },
+        messages: [{ role: "user", content: [source, { type: "text", text: awbExtract.PROMPT }] }],
+      });
+    } catch (err) {
+      logger.error("extractAwbDetails: Claude call failed:", err && err.status, err && err.message);
+      throw new HttpsError("internal", "Couldn't read that document. Type the pieces and kilograms.");
+    }
+    if (response.stop_reason === "refusal") {
+      throw new HttpsError("failed-precondition", "That document couldn't be read. Type the pieces and kilograms.");
+    }
+    const parsed = awbExtract.parseAnswer(response.content);
+    if (!parsed) throw new HttpsError("internal", "Couldn't read that document. Type the pieces and kilograms.");
+    return awbExtract.normalizeExtraction(parsed);
+  }
+);
 
 // Adds AWBs to a trip request that was already submitted: dispatch any time, the
 // owning customer until the trip is completed. New AWBs go to the request's one

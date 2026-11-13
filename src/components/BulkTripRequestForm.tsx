@@ -5,7 +5,7 @@ import DateField from "./DateField";
 import PlaceInput from "./PlaceInput";
 import { savePlaceIfNew } from "../services/places";
 import { uploadTripRequestFile } from "../services/storage";
-import { createBulkTripRequest } from "../services/tripRequests";
+import { createBulkTripRequest, extractAwbDetails } from "../services/tripRequests";
 import { RequestFile, ULD_TYPES, UldType } from "../types";
 import { notify } from "../utils/alert";
 import { awbKeyOf, DocSlot, FileRow, LeftFile, parseSheet, PickedFile, placeFiles } from "../utils/bulkAwb";
@@ -26,10 +26,32 @@ interface Row extends FileRow {
   type: UldType;
   hazmat: boolean;
   unNumber: string;
+  // The AWB document is being read to fill pieces / kilograms, and what came of it.
+  reading?: boolean;
+  readNote?: string;
+  readWarning?: boolean;
 }
+
+const MAX_READ_BYTES = 6 * 1024 * 1024;
+const PARALLEL_READS = 3;
 
 function formatTime(d: Date) {
   return d.toTimeString().slice(0, 5);
+}
+
+// The file's bytes as base64 (what the reader on the server takes), or null when too big.
+async function fileToBase64(uri: string): Promise<string | null> {
+  const blob = await (await fetch(uri)).blob();
+  if (blob.size === 0 || blob.size > MAX_READ_BYTES) return null;
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Couldn't read the file."));
+    reader.onloadend = () => {
+      const result = String(reader.result ?? "");
+      resolve(result.slice(result.indexOf(",") + 1));
+    };
+    reader.readAsDataURL(blob);
+  });
 }
 
 // Runs the tasks a few at a time; resolves with the ones that failed.
@@ -87,7 +109,7 @@ export default function BulkTripRequestForm({
     id: nextId.current++,
     awbNumber,
     files: {},
-    qtyPieces: "1",
+    qtyPieces: "",
     kilograms: "",
     type: "Loose",
     hazmat: false,
@@ -97,11 +119,65 @@ export default function BulkTripRequestForm({
   const updateRow = (id: number, patch: Partial<Row>) =>
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
 
-  const chooseFiles = async () => {
+  // Claude reads the AWB document and fills pieces and kilograms where they are still
+  // empty (what was typed or pasted is never overwritten). The person checks them.
+  const readAwbs = async (targets: { id: number; file: PickedFile }[]) => {
+    if (targets.length === 0) return;
+    setRows((prev) => prev.map((r) => (targets.some((t) => t.id === r.id) ? { ...r, reading: true, readNote: "", readWarning: false } : r)));
+    await runPool(
+      targets,
+      PARALLEL_READS,
+      async (t) => {
+        let note = "";
+        let warning = false;
+        let found: { awbNumber: string | null; pieces: number | null; kilograms: number | null } | null = null;
+        try {
+          const data = await fileToBase64(t.file.uri);
+          if (data === null) {
+            note = "This file is too big to read automatically. Type the pieces and kilograms.";
+            warning = true;
+          } else {
+            found = await extractAwbDetails(data);
+          }
+        } catch (e: any) {
+          note = `Not read automatically: ${e?.message ?? "something went wrong"}`;
+          warning = true;
+        }
+        setRows((prev) =>
+          prev.map((r) => {
+            if (r.id !== t.id) return r;
+            if (!found) return { ...r, reading: false, readNote: note, readWarning: warning };
+            const next: Row = { ...r, reading: false };
+            if (!r.qtyPieces && found.pieces) next.qtyPieces = String(found.pieces);
+            if (!r.kilograms && found.kilograms) next.kilograms = String(found.kilograms);
+            const got = [found.pieces ? `${found.pieces} pcs` : "", found.kilograms ? `${found.kilograms} kg` : ""].filter(Boolean);
+            if (got.length === 0) {
+              next.readNote = "Couldn't read the pieces and kilograms from this AWB. Type them.";
+              next.readWarning = true;
+            } else if (got.length < 2) {
+              next.readNote = `Read ${got[0]} from the AWB; type the other one.`;
+              next.readWarning = true;
+            } else {
+              next.readNote = `Read from the AWB: ${got.join(", ")}. Check them.`;
+            }
+            if (found.awbNumber && awbKeyOf(found.awbNumber) !== awbKeyOf(r.awbNumber)) {
+              next.readNote = `${next.readNote} The document says AWB ${found.awbNumber}, the file name says ${r.awbNumber}.`;
+              next.readWarning = true;
+            }
+            return next;
+          })
+        );
+      },
+      () => {}
+    );
+  };
+
+  // fallbackSlot: what files with no AWB / LOA / DO word in their name are taken as.
+  const chooseFiles = async (fallbackSlot: DocSlot = "awb") => {
     const result = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"], multiple: true });
     if (result.canceled || result.assets.length === 0) return;
     const picked: PickedFile[] = result.assets.map((a) => ({ uri: a.uri, name: a.name }));
-    const placed = placeFiles(rows, picked, makeRow);
+    const placed = placeFiles(rows, picked, makeRow, fallbackSlot);
     if (placed.rows.length > MAX_ROWS) {
       notify("Too many AWBs", `A bulk upload takes up to ${MAX_ROWS} AWBs. Send the rest in another trip request.`);
       return;
@@ -109,7 +185,24 @@ export default function BulkTripRequestForm({
     setRows(placed.rows);
     setLeft((prev) => [...prev, ...placed.left]);
     if (placed.fees.length > 0) setFees((prev) => [...prev, ...placed.fees]);
+    // New AWB documents that still lack pieces or kilograms are read.
+    readAwbs(
+      placed.rows
+        .filter((r) => {
+          const before = rows.find((b) => b.id === r.id);
+          const file = r.files.awb;
+          return !!file && file.uri !== before?.files.awb?.uri && (!r.qtyPieces || !r.kilograms);
+        })
+        .map((r) => ({ id: r.id, file: r.files.awb as PickedFile }))
+    );
   };
+
+  const readAgain = () =>
+    readAwbs(
+      rows
+        .filter((r) => !!r.files.awb && (!r.qtyPieces || !r.kilograms))
+        .map((r) => ({ id: r.id, file: r.files.awb as PickedFile }))
+    );
 
   const addFeeFiles = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"], multiple: true });
@@ -121,9 +214,10 @@ export default function BulkTripRequestForm({
     const result = await DocumentPicker.getDocumentAsync({ type: ["application/pdf", "image/*"] });
     if (result.canceled || !result.assets[0]) return;
     const a = result.assets[0];
-    setRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, files: { ...r.files, [slot]: { uri: a.uri, name: a.name } } } : r))
-    );
+    const file: PickedFile = { uri: a.uri, name: a.name };
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, files: { ...r.files, [slot]: file } } : r)));
+    const row = rows.find((r) => r.id === id);
+    if (slot === "awb" && row && (!row.qtyPieces || !row.kilograms)) readAwbs([{ id, file }]);
   };
 
   const applyPasted = () => {
@@ -158,6 +252,7 @@ export default function BulkTripRequestForm({
     if (!from.trim() || !to.trim()) return notify("Missing info", "Enter both the From and To locations.");
     if (!personRequesting.trim()) return notify("Missing info", "Enter the name of the person requesting the trip.");
     if (rows.length === 0) return notify("No AWBs", "Choose the AWB files or paste a list first.");
+    if (rows.some((r) => r.reading)) return notify("Still reading", "Wait a moment: the AWBs are still being read for pieces and kilograms.");
     if (fees.length > 30) return notify("Too many files", "Attach at most 30 import fee files.");
     const seen = new Set<string>();
     for (const r of rows) {
@@ -277,14 +372,27 @@ export default function BulkTripRequestForm({
       </Text>
       <Text style={styles.hint}>
         Choose all the documents at once. The AWB number is read from each file's name (for example 045-54066773 AWB.pdf,
-        045-54066773 LOA.pdf, 045-54066773 DO.pdf). Files without LOA or DO in the name are taken as the AWB itself.
+        045-54066773 LOA.pdf, 045-54066773 DO.pdf). With "Choose files", a name without LOA or DO is taken as the AWB itself;
+        "Choose LOAs" and "Choose Delivery Orders" take every file as that document. Pieces and kilograms are read from each AWB
+        document automatically; check them before sending.
       </Text>
       <View style={styles.buttonRow}>
-        <TouchableOpacity style={styles.primaryButton} onPress={chooseFiles} disabled={busy}>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => chooseFiles("awb")} disabled={busy}>
           <Text style={styles.primaryButtonText}>Choose files…</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => chooseFiles("loa")} disabled={busy}>
+          <Text style={styles.primaryButtonText}>Choose LOAs…</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => chooseFiles("do")} disabled={busy}>
+          <Text style={styles.primaryButtonText}>Choose Delivery Orders…</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.buttonRow}>
         <TouchableOpacity style={styles.secondaryButton} onPress={() => setShowPaste((v) => !v)} disabled={busy}>
           <Text style={styles.secondaryButtonText}>Paste a list</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.secondaryButton} onPress={readAgain} disabled={busy || rows.some((r) => r.reading)}>
+          <Text style={styles.secondaryButtonText}>Read pieces / kg from the AWBs</Text>
         </TouchableOpacity>
       </View>
 
@@ -402,6 +510,14 @@ export default function BulkTripRequestForm({
               );
             })}
           </View>
+          {r.reading ? (
+            <View style={styles.readRow}>
+              <ActivityIndicator size="small" />
+              <Text style={styles.readText}>Reading the AWB…</Text>
+            </View>
+          ) : !!r.readNote ? (
+            <Text style={[styles.readText, r.readWarning && styles.readWarning]}>{r.readNote}</Text>
+          ) : null}
         </View>
       ))}
 
@@ -434,7 +550,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   notesInput: { minHeight: 70, textAlignVertical: "top" },
-  buttonRow: { flexDirection: "row", gap: 10, marginBottom: 10 },
+  buttonRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 10 },
   primaryButton: { backgroundColor: "#1d4ed8", borderRadius: 8, paddingVertical: 11, paddingHorizontal: 18, alignSelf: "flex-start" },
   primaryButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   secondaryButton: { backgroundColor: "#e8edff", borderRadius: 8, paddingVertical: 11, paddingHorizontal: 18 },
@@ -462,6 +578,9 @@ const styles = StyleSheet.create({
   docChipTextOn: { color: "#14532d" },
   feeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: "#ddd", paddingVertical: 8, paddingHorizontal: 12, marginBottom: 6 },
   feeName: { flex: 1, fontSize: 13, color: "#333", fontWeight: "600" },
+  readRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  readText: { fontSize: 12, color: "#555", marginTop: 6 },
+  readWarning: { color: "#b45309", fontWeight: "600" },
   busyRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 24, marginBottom: 40 },
   busyText: { fontSize: 14, color: "#333", fontWeight: "600" },
   submitButton: { backgroundColor: "#1d4ed8", borderRadius: 10, paddingVertical: 15, alignItems: "center", marginTop: 22, marginBottom: 40 },

@@ -41,21 +41,22 @@ export function awbFromFileName(name: string): string | null {
   return null;
 }
 
-// Which document a file is, from words in its name. Anything else is the AWB itself.
-export function slotFromFileName(name: string): DocSlot {
+// Which document a file is, from words in its name. With no such word it is `fallback`
+// (the AWB itself, unless the person chose "Choose LOAs" or "Choose Delivery Orders").
+export function slotFromFileName(name: string, fallback: DocSlot = "awb"): DocSlot {
   const text = baseName(name)
     .toLowerCase()
     .replace(/\d+/g, " ");
   if (/(^|[^a-z])(loa|authori[sz]ation|letter)([^a-z]|$)/.test(text)) return "loa";
   if (/(^|[^a-z])(do|d\.o|delivery|ticket|dt)([^a-z]|$)/.test(text)) return "do";
-  return "awb";
+  return fallback;
 }
 
 // The import fee (1F) belongs to the whole request, not to one AWB: a file whose name
 // says so ("Import Fee.pdf", "1F 045-54066773.pdf", "IF 045-54066773.pdf") goes there, whatever else it says.
 export function isImportFeeFile(name: string): boolean {
   const text = baseName(name).toLowerCase();
-  return /import[s_.-]*fees?/.test(text) || /(^|[^a-z0-9])(1f|if)([^a-z0-9]|$)/.test(text) || /(^|[^a-z])fees?([^a-z]|$)/.test(text);
+  return /import[\s_.-]*fees?/.test(text) || /(^|[^a-z0-9])(1f|if)([^a-z0-9]|$)/.test(text) || /(^|[^a-z])fees?([^a-z]|$)/.test(text);
 }
 
 const SLOT_LABEL: Record<DocSlot, string> = { awb: "AWB", loa: "LOA", do: "Delivery Order" };
@@ -66,7 +67,8 @@ const SLOT_LABEL: Record<DocSlot, string> = { awb: "AWB", loa: "LOA", do: "Deliv
 export function placeFiles<T extends FileRow>(
   rows: T[],
   picked: PickedFile[],
-  makeRow: (awbNumber: string) => T
+  makeRow: (awbNumber: string) => T,
+  fallbackSlot: DocSlot = "awb"
 ): { rows: T[]; left: LeftFile[]; fees: PickedFile[] } {
   const next = rows.map((r) => ({ ...r, files: { ...r.files } }));
   const left: LeftFile[] = [];
@@ -81,7 +83,7 @@ export function placeFiles<T extends FileRow>(
       left.push({ file, reason: "No AWB number in the file name" });
       continue;
     }
-    const slot = slotFromFileName(file.name);
+    const slot = slotFromFileName(file.name, fallbackSlot);
     const key = awbKeyOf(awbNumber);
     let row = next.find((r) => awbKeyOf(r.awbNumber) === key);
     if (!row) {
