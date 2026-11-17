@@ -14,7 +14,9 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { loadCarrierOptions } from "@/lib/guias/carriers";
 import { applyReceiptsToGuia, receiptNumber, receiptTotals } from "@/lib/guias/wr";
-import { guiaFieldLabel, MANUAL_FIELDS, manualFieldOf, manualKeysOf, parseDismissed } from "@/lib/guias/guia-manual";
+import { guiaFieldLabel, MANUAL_FIELDS, manualFieldOf, manualKeysOf, parseDismissed, type ManualKey } from "@/lib/guias/guia-manual";
+import { masterHouseSummary } from "@/lib/guias/house-sync";
+import { keepMasterValue, linkHouseToMaster, resetMasterFromHouses, unlinkHouse } from "@/server/house-actions";
 import { receiptFeeds } from "@/lib/guias/wr-sync";
 import { keepGuiaValueOverReceipt, linkReceiptToGuia, refreshGuiaFromReceipts, resetGuiaFromReceipts, unlinkReceiptFromGuia } from "@/server/wr-actions";
 import { loadCompany } from "@/lib/guias/company";
@@ -77,11 +79,22 @@ export default async function GuiaDetailPage({
     prisma.warehouseReceipt.findMany({ where: { guiaId: null }, orderBy: { seq: "desc" }, take: 50, select: { id: true, seq: true, clientLabel: true, shipperName: true } }),
   ]);
   const receiptsNotice = one(query, "receipts");
+  const housesNotice = one(query, "houses");
+  // The houses that travel under this master, and the houses with no master yet that could be linked to it.
+  const houseSummary = canManageGuias(user) ? await masterHouseSummary(id) : null;
+  const linkedHouses = houseSummary?.houses ?? [];
+  const freeHouses = canManageGuias(user)
+    ? await prisma.airWaybillDocument.findMany({ where: { product: "house", masterId: null }, orderBy: { createdAt: "desc" }, take: 50, select: { id: true, hawb: true, clientLabel: true, shipperName: true } })
+    : [];
+  const housed = linkedHouses.length > 0;
   // A draft shows what its receipts say that its own numbers do not: the choice between the two, and a Dangerous
-  // Goods suggestion. An issued guía is never touched by a receipt, so it shows nothing.
+  // Goods suggestion. An issued guía is never touched by a receipt, so it shows nothing. A master with houses takes its
+  // numbers from the houses, so the receipts have nothing to say about them.
   const issuedGuia = document.status === "issued";
   const manualKeys = manualKeysOf(document);
-  const fromReceipts = linkedReceipts.length && !issuedGuia ? applyReceiptsToGuia(valuesOf(document), receiptFeeds(linkedReceipts), manualKeys) : null;
+  const receiptManual = housed ? new Set<ManualKey>(["pieces", "grossKg", "chargeableKg"]) : manualKeys;
+  const fromReceipts = linkedReceipts.length && !issuedGuia ? applyReceiptsToGuia(valuesOf(document), receiptFeeds(linkedReceipts), receiptManual) : null;
+  const houseConflicts = issuedGuia ? [] : (houseSummary?.conflicts ?? []);
   const dismissed = parseDismissed(document.wrDismissed);
   const conflicts = (fromReceipts?.conflicts ?? []).filter((conflict) => dismissed[conflict.field] !== conflict.wr);
   const dgSuggestion = fromReceipts?.dangerousGoods ?? null;
@@ -477,7 +490,7 @@ export default async function GuiaDetailPage({
               {dgSuggestion.unNumbers.length ? ` (${dgSuggestion.unNumbers.join(", ")})` : ""}. If it applies, check Dangerous Goods{dgSuggestion.unNumbers.length ? " and the UN numbers" : ""} on the guía. It was not changed on its own.
             </p>
           ) : null}
-          {!issuedGuia && linkedReceipts.length && manualKeys.size ? (
+          {!issuedGuia && !housed && linkedReceipts.length && manualKeys.size ? (
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <span className="text-muted-foreground">Typed by hand:</span>
               {MANUAL_FIELDS.filter((field) => manualKeys.has(field.key)).map((field) => (
@@ -756,6 +769,140 @@ export default async function GuiaDetailPage({
         </summary>
         <GuiaBilling {...billing} />
       </details>
+
+      {canManageGuias(user) ? (
+        <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="font-display text-2xl">Houses</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                The house air waybills (HAWB) that travel under this master.{" "}
+                {issuedGuia
+                  ? "The guía is already issued: linking or releasing a house does not modify it, it only saves the relation."
+                  : "While it is a draft, its pieces and weights add up the houses. What you type by hand in pieces or weights is not overwritten."}
+              </p>
+            </div>
+            <Button asChild variant="outline">
+              <Link href={`/guias/houses/new?master=${document.id}`}>New house</Link>
+            </Button>
+          </div>
+          {housesNotice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{housesNotice}</p> : null}
+          {houseConflicts.map((conflict) => {
+            const field = manualFieldOf(conflict.field);
+            const unit = field.unit ? ` ${field.unit}` : "";
+            return (
+              <div key={conflict.field} className="space-y-2 rounded-md border border-amber-500 bg-[#fff8e6] px-3 py-2 text-sm">
+                <p>
+                  <strong>{field.label}.</strong> Guía: {conflict.guia}
+                  {unit} / Houses: {conflict.houses}
+                  {unit}. The guía keeps the value you typed.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <form action={keepMasterValue}>
+                    <input type="hidden" name="masterId" value={document.id} />
+                    <input type="hidden" name="field" value={conflict.field} />
+                    <input type="hidden" name="housesValue" value={conflict.houses} />
+                    <Button type="submit" variant="outline" size="sm">
+                      Keep the guía value
+                    </Button>
+                  </form>
+                  <form action={resetMasterFromHouses}>
+                    <input type="hidden" name="masterId" value={document.id} />
+                    <input type="hidden" name="field" value={conflict.field} />
+                    <Button type="submit" variant="outline" size="sm">
+                      Use the houses value
+                    </Button>
+                  </form>
+                </div>
+              </div>
+            );
+          })}
+          {!issuedGuia && housed && manualKeys.size ? (
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="text-muted-foreground">Typed by hand:</span>
+              {MANUAL_FIELDS.filter((field) => manualKeys.has(field.key)).map((field) => (
+                <form key={field.key} action={resetMasterFromHouses} className="flex items-center gap-1.5">
+                  <input type="hidden" name="masterId" value={document.id} />
+                  <input type="hidden" name="field" value={field.key} />
+                  <span>{field.label}</span>
+                  <button type="submit" className="text-xs underline-offset-2 hover:underline">
+                    Reset from houses
+                  </button>
+                </form>
+              ))}
+              {manualKeys.size > 1 ? (
+                <form action={resetMasterFromHouses}>
+                  <input type="hidden" name="masterId" value={document.id} />
+                  <input type="hidden" name="field" value="all" />
+                  <Button type="submit" variant="outline" size="sm">
+                    Reset everything from houses
+                  </Button>
+                </form>
+              ) : null}
+            </div>
+          ) : null}
+          {housed ? (
+            <>
+              <ul className="space-y-2 text-sm">
+                {linkedHouses.map((house) => {
+                  const pieces = house.lines.reduce((sum, line) => sum + (line.pieces ?? 0), 0);
+                  const gross = house.lines.reduce((sum, line) => sum + (line.grossWeight ?? 0), 0);
+                  return (
+                    <li key={house.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-input px-3 py-2">
+                      <span>
+                        <Link href={`/guias/houses/${house.id}`} className="font-mono font-medium underline-offset-2 hover:underline">
+                          {house.hawb}
+                        </Link>
+                        <span className="ml-3 text-xs text-muted-foreground">
+                          {[house.shipperName, house.consigneeName].filter(Boolean).join(" → ") || house.clientLabel || "no parties"} · {pieces} pcs · {gross} kg
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-3">
+                        <a href={`/api/guias/houses/${house.id}/pdf`} target="_blank" rel="noreferrer" className="text-xs underline-offset-2 hover:underline">
+                          PDF
+                        </a>
+                        <form action={unlinkHouse}>
+                          <input type="hidden" name="masterId" value={document.id} />
+                          <input type="hidden" name="houseId" value={house.id} />
+                          <button type="submit" className="text-xs text-stuck underline-offset-2 hover:underline">
+                            Release
+                          </button>
+                        </form>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              {houseSummary ? (
+                <p className="text-xs text-muted-foreground">
+                  The houses add up to {houseSummary.totals.pieces} pcs, {houseSummary.totals.grossKg} kg gross and {houseSummary.totals.chargeableKg} kg chargeable.
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">This guía has no houses yet.</p>
+          )}
+          {freeHouses.length ? (
+            <form action={linkHouseToMaster} className="flex flex-wrap items-end gap-2">
+              <input type="hidden" name="masterId" value={document.id} />
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">Link a house with no master</span>
+                <select name="houseId" required className="block h-10 rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="">Choose</option>
+                  {freeHouses.map((house) => (
+                    <option key={house.id} value={house.id}>
+                      {house.hawb} · {house.clientLabel || house.shipperName || "no client"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button type="submit" variant="outline">
+                Link
+              </Button>
+            </form>
+          ) : null}
+        </section>
+      ) : null}
 
       {changeHistory.length ? (
         <details className="group rounded-lg border border-border bg-card p-4">
