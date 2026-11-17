@@ -80,6 +80,7 @@ const state: { guia: Record<string, unknown>; receipts: unknown[]; writes: Write
   airWaybillDocument: {
     findFirst: async () => state.guia,
     findUnique: async () => state.guia,
+    count: async () => 0,
     update: async ({ data }: { data: Record<string, unknown> }) => void state.writes.document.push(data),
   },
   warehouseReceipt: { findMany: async () => state.receipts },
