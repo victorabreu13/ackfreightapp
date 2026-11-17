@@ -219,12 +219,23 @@ model AirWaybillDocument {
   stock            AwbStockNumber?
   driveFiles       GuiaDriveFile[]
   loggedDocuments  GuiaDocument[]
+  /// A house air waybill (product "house") points to the master guía it travels under. Its number is in hawb.
+  masterId         String?
+  master           AirWaybillDocument?  @relation("MasterHouses", fields: [masterId], references: [id], onDelete: SetNull)
+  houses           AirWaybillDocument[] @relation("MasterHouses")
 
   @@index([awb])
   @@index([agentKey])
   @@index([status])
   @@index([product])
   @@index([guiaClientId])
+  @@index([masterId])
+}
+
+/// The next house number to hand out, one counter per company.
+model HouseCounter {
+  key  String @id
+  next Int    @default(1)
 }
 
 /// Who changed a field of a guía, when, from what to what: by hand, by a warehouse receipt, or by a reset to the receipt.

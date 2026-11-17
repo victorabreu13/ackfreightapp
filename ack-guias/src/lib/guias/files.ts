@@ -30,6 +30,8 @@ export type GuiaPrintOptions = {
   customerCopy?: boolean;
   /** AWB number the labels carry while the guía is not issued yet. */
   labelAwb?: string | null;
+  /** Prints the air waybill as a house: ACK in Issued By, and the master it travels under in the Reference Number box. */
+  house?: { reference: string };
 };
 
 export const GUIA_FILE_KINDS = ["checklist", "awb", "delivery", "pickup", "tsa", "tsa-unknown", "ccsp", "ccsf-alternate", "lithium", "labels", "folder-label"] as const;

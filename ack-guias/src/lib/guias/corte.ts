@@ -443,7 +443,9 @@ function drawLogo(doc: Doc, logo: Buffer, x: number, y: number, width: number, h
 }
 
 export async function renderCorteAwb(document: GuiaRecord, company: CompanyView, options: GuiaPrintOptions): Promise<Buffer> {
-  const digits = `${document.prefix}${document.serial}`.replace(/\D/g, "") || document.awb.replace(/\D/g, "");
+  // A house air waybill carries its HAWB number, letters included, where the airline number goes on a master.
+  const house = options.house;
+  const digits = house ? document.awb.replace(/[\s-]/g, "") : `${document.prefix}${document.serial}`.replace(/\D/g, "") || document.awb.replace(/\D/g, "");
   const barcode = digits ? await bwipjs.toBuffer({ bcid: "code128", text: digits, scale: 2, height: 10, includetext: false }) : null;
   const name = headName(company);
   const address = headerAddress(company.address);
@@ -479,7 +481,7 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
   const agentLines = [name, bodyLines.join(" ").replace(/,\s*$/, "") + (countryLine ? "," : ""), countryLine].map((line) => line.trim()).filter(Boolean);
 
   return pdf("LETTER", (doc) => {
-    doc.info.Title = `AWB ${document.awb || "DRAFT"}`;
+    doc.info.Title = `${house ? "HAWB" : "AWB"} ${document.awb || "DRAFT"}`;
     doc.info.Author = name || "Kope Guías";
     // A draft is one marked copy of the face, with no conditions page.
     const draft = Boolean(options.draft);
@@ -497,8 +499,10 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
         shipperAddress: plain(document.shipperAddress),
         consigneeName: plain(document.consigneeName),
         consigneeAddress: plain(document.consigneeAddress),
-        carrierText,
+        // On a house the Issued By box is the forwarder, ACK, and the airline stays in By First Carrier.
+        carrierText: house ? agentLines.join("\n") : carrierText,
         carrierShown,
+        reference: house?.reference ?? "",
         agentLines,
         tel,
         // The Agent's IATA Code and Account No. are always left blank on the printed air waybill.
@@ -554,6 +558,8 @@ type Face = {
   consigneeAddress: string;
   carrierText: string;
   carrierShown: string;
+  /** The Reference Number box: on a house, the master air waybill it travels under. */
+  reference: string;
   agentLines: string[];
   tel: string;
   iata: string;
@@ -642,6 +648,7 @@ function drawAwbFace(doc: Doc, face: Face) {
   t(doc, L + 4, 242, face.departure, 9);
   box(doc, M, 226, R, 245);
   t(doc, M + 3, 232, "Reference Number", 5.5);
+  if (face.reference) t(doc, M + 3, 242, face.reference, 8);
   t(doc, 450, 232, "Optional Shipping Information", 5.5);
 
   box(doc, L, 245, R, 264);

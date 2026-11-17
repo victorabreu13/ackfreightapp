@@ -80,7 +80,11 @@ export async function syncGuiaFromReceipts(guiaId: string, actor: string, option
   const receipts = await prisma.warehouseReceipt.findMany({ where: { guiaId }, orderBy: { seq: "asc" }, include: { lines: { orderBy: { sortOrder: "asc" } } } });
   if (receipts.length === 0) return { changed: [], skipped: false };
   const current = guiaValuesOf(document);
-  const { values, changed } = applyReceiptsToGuia(current, receiptFeeds(receipts), manualKeysOf(flags));
+  // A master with houses takes its pieces and weights from them, not from the receipts: with houses every number counts
+  // as taken, so the receipts only fill the parties, the goods and the package.
+  const hasHouses = (await prisma.airWaybillDocument.count({ where: { masterId: guiaId, product: "house" } })) > 0;
+  const manual = hasHouses ? new Set<ManualKey>(["pieces", "grossKg", "chargeableKg"]) : manualKeysOf(flags);
+  const { values, changed } = applyReceiptsToGuia(current, receiptFeeds(receipts), manual);
 
   // The Package of the pickup order is the first one a receipt line names, when the guía has none.
   const received = receipts.flatMap((receipt) => receipt.lines).map((line) => packageTypeFrom(line.packageType)).find(Boolean);
