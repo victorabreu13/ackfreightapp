@@ -238,6 +238,21 @@ model HouseCounter {
   next Int    @default(1)
 }
 
+/// What an airline charges ACK (buy) and what ACK charges for it (sell), in dollars per kilo, to one destination.
+model AirlineRate {
+  id          String   @id @default(cuid())
+  airline     String
+  destination String
+  sellRate    Float?
+  buyRate     Float?
+  sortOrder   Int      @default(0)
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
+  @@unique([airline, destination])
+  @@index([airline])
+}
+
 /// Who changed a field of a guía, when, from what to what: by hand, by a warehouse receipt, or by a reset to the receipt.
 model GuiaChangeLog {
   id        String             @id @default(cuid())

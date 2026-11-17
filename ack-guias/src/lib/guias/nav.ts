@@ -26,6 +26,7 @@ export const GUIAS_MENU: NavItem[] = [
   {
     label: "Clients",
     links: [
+      { href: "/guias/rates", label: "Airline rates", admin: true },
       { href: "/guias/clients", label: "Clients and rates", admin: true },
       { href: "/guias/directory", label: "Directory", team: true },
     ],
