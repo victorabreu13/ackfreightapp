@@ -4,14 +4,14 @@ import { GUIAS_MENU, GUIAS_NAV, isNavGroup, menuFor } from "@/lib/guias/nav";
 
 const labels = (role: string) => menuFor(role).map((item) => (isNavGroup(item) ? `${item.label}: ${item.links.map((link) => link.label).join(" | ")}` : item.label));
 
-test("the menu is Guías, Documents, AWB Status and three groups", () => {
+test("the menu is Guías, Documents, AWB Status and the groups", () => {
   assert.deepEqual(
     GUIAS_MENU.map((item) => item.label),
     ["Guías", "Documents", "AWB Status", "Operations", "Clients", "Resources", "Settings"],
   );
 });
 
-test("the submenus are in alphabetical order, and Settings holds Company and Usuarios", () => {
+test("the submenus are in alphabetical order, and Settings holds Company and Users", () => {
   for (const item of GUIAS_MENU) {
     if (!isNavGroup(item)) continue;
     const names = item.links.map((link) => link.label);
@@ -21,7 +21,7 @@ test("the submenus are in alphabetical order, and Settings holds Company and Usu
   assert.ok(settings && isNavGroup(settings));
   assert.deepEqual(settings.links.map((link) => [link.label, link.href]), [
     ["Company", "/guias/settings"],
-    ["Usuarios", "/guias/users"],
+    ["Users", "/guias/users"],
   ]);
 });
 
@@ -30,17 +30,17 @@ test("each role sees only its own links, and an empty group is left out", () => 
     "Guías",
     "Documents",
     "AWB Status",
-    "Operations: Pickup requests | Warehouse receipts",
+    "Operations: Houses | Pickup requests | Warehouse receipts",
     "Clients: Clients and rates | Directory",
     "Resources: AWB stock | Carriers | Custom Labels | Drivers | Labels DG | Templates",
-    "Settings: Company | Usuarios",
+    "Settings: Company | Users",
   ]);
-  assert.deepEqual(labels("OPERATIONS"), ["Guías", "Documents", "AWB Status", "Operations: Pickup requests | Warehouse receipts", "Clients: Directory", "Resources: AWB stock | Carriers | Custom Labels | Drivers | Labels DG | Templates"]);
+  assert.deepEqual(labels("OPERATIONS"), ["Guías", "Documents", "AWB Status", "Operations: Houses | Pickup requests | Warehouse receipts", "Clients: Directory", "Resources: AWB stock | Carriers | Custom Labels | Drivers | Labels DG | Templates"]);
   assert.deepEqual(labels("ACCOUNTING"), ["Guías", "Documents", "AWB Status", "Resources: Templates"]);
   assert.deepEqual(labels("VIEWER"), ["Guías", "Documents", "AWB Status", "Resources: Templates"]);
 });
 
 test("the flat list still has every page of the menu", () => {
-  assert.equal(GUIAS_NAV.length, 15);
+  assert.equal(GUIAS_NAV.length, 16);
   assert.ok(GUIAS_NAV.some((link) => link.href === "/guias/users"));
 });

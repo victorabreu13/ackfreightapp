@@ -934,7 +934,7 @@ export default async function GuiaDetailPage({
                     <td className="px-2 py-1.5">{guiaFieldLabel(entry.field)}</td>
                     <td className="max-w-[16rem] truncate px-2 py-1.5">{entry.oldValue || "—"}</td>
                     <td className="max-w-[16rem] truncate px-2 py-1.5">{entry.newValue || "—"}</td>
-                    <td className="px-2 py-1.5">{entry.source === "receipt" ? "Warehouse receipt" : entry.source === "reset" ? "Reset from WR" : "By hand"}</td>
+                    <td className="px-2 py-1.5">{entry.source === "receipt" ? "Warehouse receipt" : entry.source === "house" ? "Houses" : entry.source === "reset" ? "Reset from WR" : "By hand"}</td>
                   </tr>
                 ))}
               </tbody>

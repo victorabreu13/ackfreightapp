@@ -18,6 +18,7 @@ export const GUIAS_MENU: NavItem[] = [
   {
     label: "Operations",
     links: [
+      { href: "/guias/houses", label: "Houses", team: true },
       { href: "/guias/pickups", label: "Pickup requests", team: true },
       { href: "/guias/warehouse", label: "Warehouse receipts", team: true },
     ],
@@ -44,7 +45,7 @@ export const GUIAS_MENU: NavItem[] = [
     label: "Settings",
     links: [
       { href: "/guias/settings", label: "Company", admin: true },
-      { href: "/guias/users", label: "Usuarios", admin: true },
+      { href: "/guias/users", label: "Users", admin: true },
     ],
   },
 ];

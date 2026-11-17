@@ -24,7 +24,7 @@ export default async function UsersPage({
 }) {
   const user = await getSessionUser();
   if (!user) return null;
-  if (!isAdmin(user)) redirect("/guias?error=Usuarios%20es%20solo%20para%20administradores");
+  if (!isAdmin(user)) redirect("/guias?error=Users%20is%20only%20for%20administrators");
   const params = await searchParams;
   // Customers are clients of the portal, not staff. Their access is handled in Directorio, so they are not in this table.
   const everyone = await prisma.user.findMany({ orderBy: [{ role: "asc" }, { email: "asc" }] });

@@ -11,7 +11,7 @@ export const USER_ROLE_LABEL: Record<Role, string> = {
   CUSTOMER: "Customer",
 };
 
-/** What each role can do, for the Usuarios screen. Customer is not a staff role: it is a client who registered in the portal. */
+/** What each role can do, for the Users screen. Customer is not a staff role: it is a client who registered in the portal. */
 export const ROLE_DETAIL: Array<{ role: Role; summary: string }> = [
   { role: "ADMIN", summary: "Sees and does everything: guías, stock, documents, billing, clients and rates, Company and Users." },
   { role: "OPERATIONS", summary: "Builds and issues guías, manages the AWB stock, the documents, the Directory, Carriers and the labels. Does not invoice, does not see Clients and rates, Company or Users." },

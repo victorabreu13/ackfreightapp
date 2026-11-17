@@ -47,10 +47,10 @@ export default async function WarehousePage({ searchParams }: { searchParams: Pr
           <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
             <tr>
               <th className="px-3 py-2">Receipt</th>
-              <th className="px-3 py-2">Recibido</th>
+              <th className="px-3 py-2">Received</th>
               <th className="px-3 py-2">Client</th>
               <th className="px-3 py-2">Shipper</th>
-              <th className="px-3 py-2">Pzas</th>
+              <th className="px-3 py-2">Pcs</th>
               <th className="px-3 py-2">Kg</th>
               <th className="px-3 py-2">VKg</th>
               <th className="px-3 py-2">Guía</th>

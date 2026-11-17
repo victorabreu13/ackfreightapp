@@ -22,7 +22,7 @@ function back(error?: string): never {
 async function requireAdmin() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (!isAdmin(user)) redirect("/guias?error=Usuarios%20es%20solo%20para%20administradores");
+  if (!isAdmin(user)) redirect("/guias?error=Users%20is%20only%20for%20administrators");
   return user;
 }
 
