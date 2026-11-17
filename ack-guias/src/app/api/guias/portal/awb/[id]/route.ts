@@ -11,7 +11,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const { id } = await context.params;
   const document = await prisma.airWaybillDocument.findFirst({
     where: { id, product: "guia", agentKey: "ack", status: "issued", guiaClientId: user.clientId },
-    include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true },
+    include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true, _count: { select: { houses: true } } },
   });
   if (!document) return NextResponse.json({ error: "Not found." }, { status: 404 });
   try {

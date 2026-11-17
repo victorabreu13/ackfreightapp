@@ -23,7 +23,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const labelAwb = (params.get("awb") ?? "").replace(/[^0-9-]/g, "");
   const document = await prisma.airWaybillDocument.findFirst({
     where: { id, ...guiaWhere(user) },
-    include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true },
+    include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true, _count: { select: { houses: true } } },
   });
   if (!document || document.product !== "guia" || document.agentKey !== "ack") {
     return NextResponse.json({ error: "Guía not found." }, { status: 404 });

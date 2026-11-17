@@ -12,7 +12,10 @@ import { identityFor, kopeIdentity, normalizeTrucker, signerName } from "@/lib/s
 
 export type GuiaRecord = Prisma.AirWaybillDocumentGetPayload<{
   include: { lines: true; agent: true; guiaClient: true };
-}>;
+}> & {
+  /** How many houses travel under this guía. When the query asks for it, the master prints as a consolidation. */
+  _count?: { houses: number };
+};
 
 export type GuiaPrintOptions = {
   email: string;
@@ -30,8 +33,8 @@ export type GuiaPrintOptions = {
   customerCopy?: boolean;
   /** AWB number the labels carry while the guía is not issued yet. */
   labelAwb?: string | null;
-  /** Prints the air waybill as a house: ACK in Issued By, and the master it travels under in the Reference Number box. */
-  house?: { reference: string };
+  /** Prints the air waybill as a house: ACK in Issued By, and the master it travels under at the bottom right. */
+  house?: { master: string };
 };
 
 export const GUIA_FILE_KINDS = ["checklist", "awb", "delivery", "pickup", "tsa", "tsa-unknown", "ccsp", "ccsf-alternate", "lithium", "labels", "folder-label"] as const;

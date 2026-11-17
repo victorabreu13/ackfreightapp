@@ -41,3 +41,16 @@ test("a house air waybill is the 12-page air waybill with the HAWB number, and a
   const alone = await renderHouseAwb(house, null, company, { ...options, draft: true });
   assert.equal(alone.subarray(0, 5).toString("latin1"), "%PDF-");
 });
+
+test("a master with houses opens its Nature of Goods with CONSOLIDATION AS PER ATTACHED MANIFEST, once", async () => {
+  const { goodsForPrint, CONSOLIDATION_GOODS } = await import("@/lib/guias/corte");
+  const lines = [{ nature: "GENERAL CARGO", sortOrder: 0 }];
+  assert.ok(goodsForPrint(lines, null, null, null, true).startsWith(`${CONSOLIDATION_GOODS}\n\nGENERAL CARGO`));
+  assert.ok(!goodsForPrint(lines, null, null, null, false).includes("CONSOLIDATION"));
+  assert.ok(!goodsForPrint(lines, null, null, null).includes("CONSOLIDATION"));
+  // Already written by hand: it is not repeated.
+  const written = goodsForPrint([{ nature: "CONSOLIDATION AS PER ATTACHED MANIFEST\nGENERAL CARGO", sortOrder: 0 }], null, null, null, true);
+  assert.equal(written.match(/CONSOLIDATION AS PER ATTACHED MANIFEST/g)?.length, 1);
+  // With no goods typed it still says it, so the master never prints as an empty consolidation.
+  assert.ok(goodsForPrint([], null, null, null, true).startsWith(CONSOLIDATION_GOODS));
+});

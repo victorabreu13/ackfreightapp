@@ -199,7 +199,7 @@ export async function saveGuia(formData: FormData) {
 export async function pushGuiaToDrive(id: string): Promise<string | null> {
   const document = await prisma.airWaybillDocument.findUnique({
     where: { id },
-    include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true },
+    include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true, _count: { select: { houses: true } } },
   });
   if (!document || document.agentKey !== "ack") return "Guía not found";
   let company;

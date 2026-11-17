@@ -64,7 +64,7 @@ export async function retryGuiaDocument(formData: FormData) {
   }
   const document = await prisma.airWaybillDocument.findUnique({
     where: { id: row.guiaId },
-    include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true },
+    include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true, _count: { select: { houses: true } } },
   });
   if (!document || document.product !== "guia" || document.agentKey !== "ack") {
     documentsRedirect(`importError=${encodeURIComponent("Guía not found")}`);

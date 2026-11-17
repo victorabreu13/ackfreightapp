@@ -7,7 +7,7 @@ const blank = (value: string | null | undefined) => (value ?? "").trim();
 
 /**
  * The house air waybill: the same air waybill as a master, with the HAWB number where the airline number goes, ACK in
- * Issued By, and the master it travels under in the Reference Number box. What the house leaves empty (the flight, the
+ * Issued By, and the master it travels under at the bottom right. What the house leaves empty (the flight, the
  * airports, the airline) is taken from its master.
  */
 export async function renderHouseAwb(house: GuiaRecord, master: GuiaRecord | null, company: CompanyView, options: GuiaPrintOptions): Promise<Buffer> {
@@ -26,6 +26,6 @@ export async function renderHouseAwb(house: GuiaRecord, master: GuiaRecord | nul
     destination: blank(house.destination) || blank(master?.destination) || null,
     destCountry: house.destCountry ?? master?.destCountry ?? null,
   };
-  const reference = master?.awb?.trim() ? `MAWB ${master.awb.trim()}` : "";
-  return renderCorteAwb(derived, company, { ...options, house: { reference } });
+  // The master it travels under prints at the bottom right, where the air waybill number of a master prints.
+  return renderCorteAwb(derived, company, { ...options, house: { master: blank(master?.awb) } });
 }

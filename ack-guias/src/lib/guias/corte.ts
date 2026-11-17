@@ -197,6 +197,8 @@ function wrap(text: string, size: number, width: number): string[] {
 
 /** Exemption added to the Nature of Goods, never to Handling Information, when the guía has no AES ITN. */
 export const NO_EEI_GOODS = "NO EEI REQ 30.37A";
+/** The first line of the Nature of Goods of a master that has houses. */
+export const CONSOLIDATION_GOODS = "CONSOLIDATION AS PER ATTACHED MANIFEST";
 
 export function aesItnToken(value: string | null | undefined): string {
   return plain(value).replace(/^AES\s*ITN\s*:\s*/i, "").trim();
@@ -269,12 +271,17 @@ export function goodsForPrint(
   aesItn?: string | null,
   lithiumPi?: string | null,
   bupItems?: string | null,
+  consolidation = false,
 ): string {
   let goods = [...lines]
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     .map((line) => plain(line.nature))
     .filter(Boolean)
     .join("\n");
+  // A master with houses is a consolidation: it says so first, above whatever else the goods say.
+  if (consolidation && !/CONSOLIDATION\s+AS\s+PER\s+ATTACHED\s+MANIFEST/i.test(goods)) {
+    goods = [CONSOLIDATION_GOODS, goods].filter(Boolean).join("\n\n");
+  }
   if (!goods) return goods;
   // Every part below goes on its own line with a blank line between them.
   const parts: string[] = [];
@@ -472,7 +479,7 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
   const rate = first?.rate ?? null;
   const lineTotal = first?.total ?? (rate != null && chargeable != null ? rate * chargeable : null);
   const prepaid = (document.chgsCode || "PP").toUpperCase().startsWith("C") ? "" : money(document.weightCharge ?? lineTotal);
-  const natureText = goodsForPrint(goods, document.aesItn, document.lithiumPi, document.bup ? document.bupItems : null);
+  const natureText = goodsForPrint(goods, document.aesItn, document.lithiumPi, document.bup ? document.bupItems : null, !house && (document._count?.houses ?? 0) > 0);
   const handlingText = handlingForPrint(document.handling, document.dgDeclarable, document.dgDeclarable ? document.unNumbers : null);
   const accounting = plain(document.accountingInfo) || ((document.chgsCode || "PP").toUpperCase().startsWith("C") ? "FREIGHT COLLECT" : "FREIGHT PREPAID");
   const tel = [phone ? `TEL: ${phone}` : "", email].filter(Boolean).join("   ");
@@ -502,7 +509,9 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
         // On a house the Issued By box is the forwarder, ACK, and the airline stays in By First Carrier.
         carrierText: house ? agentLines.join("\n") : carrierText,
         carrierShown,
-        reference: house?.reference ?? "",
+        title: house ? "House Air Waybill" : "Air Waybill",
+        houseNumber: house ? document.awb : "",
+        bottomNumber: house ? house.master : `${document.prefix} ${document.serial}`,
         agentLines,
         tel,
         // The Agent's IATA Code and Account No. are always left blank on the printed air waybill.
@@ -523,7 +532,8 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
         kgLb: plain(first?.kgLb) || "K",
         chargeable: money(chargeable),
         rate: money(rate),
-        total: money(lineTotal),
+        // A house leaves its charges to the agreement, like the example house air waybills do.
+        total: house && lineTotal == null ? "AS AGREED" : money(lineTotal),
         natureText,
         prepaid,
         accounting,
@@ -558,8 +568,11 @@ type Face = {
   consigneeAddress: string;
   carrierText: string;
   carrierShown: string;
-  /** The Reference Number box: on a house, the master air waybill it travels under. */
-  reference: string;
+  /** A house prints "House Air Waybill" and its HAWB number at the top right. A master prints "Air Waybill". */
+  title: string;
+  houseNumber: string;
+  /** The number at the bottom right: the airline number of a master, and on a house the master it travels under. */
+  bottomNumber: string;
   agentLines: string[];
   tel: string;
   iata: string;
@@ -605,8 +618,12 @@ function drawAwbFace(doc: Doc, face: Face) {
   rule(doc, 90, 14, 90, 30);
   t(doc, 96, 26, face.serial, 11);
   if (face.barcode) doc.image(face.barcode, 250, 12, { height: 20 });
-  t(doc, 450, 26, face.prefix, 11);
-  t(doc, 480, 26, face.serial, 11);
+  if (face.houseNumber) {
+    tr(doc, 582, 26, `HAWB No: ${face.houseNumber}`, 11, "Helvetica-Bold");
+  } else {
+    t(doc, 450, 26, face.prefix, 11);
+    t(doc, 480, 26, face.serial, 11);
+  }
 
   box(doc, L, 34, M, 150);
   box(doc, M, 34, R, 150);
@@ -616,7 +633,8 @@ function drawAwbFace(doc: Doc, face: Face) {
   drawFitted(doc, L + 4, 54, face.shipperName, M - L - 12, 0, 8.5, 1.05);
   drawFitted(doc, L + 4, 66, face.shipperAddress, M - L - 12, 26, 6.5);
   t(doc, M + 3, 41, "Not Negotiable", 5.5);
-  t(doc, M + 3, 58, "Air Waybill", 13, "Helvetica-Bold");
+  // "House Air Waybill" is longer than "Air Waybill", so it is set smaller to stay clear of the Issued By block.
+  t(doc, M + 3, 58, face.title, face.houseNumber ? 9.5 : 13, "Helvetica-Bold");
   t(doc, M + 3, 70, "Issued By", 5.5);
   drawFitted(doc, M + 95, 48, face.carrierText, R - (M + 95) - 6, 28, 7);
   rule(doc, M, 84, R, 84);
@@ -648,7 +666,6 @@ function drawAwbFace(doc: Doc, face: Face) {
   t(doc, L + 4, 242, face.departure, 9);
   box(doc, M, 226, R, 245);
   t(doc, M + 3, 232, "Reference Number", 5.5);
-  if (face.reference) t(doc, M + 3, 242, face.reference, 8);
   t(doc, 450, 232, "Optional Shipping Information", 5.5);
 
   box(doc, L, 245, R, 264);
@@ -768,7 +785,7 @@ function drawAwbFace(doc: Doc, face: Face) {
   tc(doc, 89, 785, "Currency Conversion Rates", 5);
   tc(doc, 207, 785, "CC Charges in Dest. Currency", 5);
   t(doc, 300, 787, face.label, 8, "Helvetica-Bold");
-  t(doc, 452, 787, `${face.prefix} ${face.serial}`, 8);
+  t(doc, 452, 787, face.bottomNumber, 8);
   tr(doc, 582, 788, `Page ${face.page} of ${face.pages}`, 7);
   if (face.draft) {
     doc.save();
