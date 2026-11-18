@@ -1,5 +1,5 @@
 /** Who sees a link. No flag means everyone who is signed in. */
-export type NavLink = { href: string; label: string; team?: boolean; admin?: boolean; accounting?: boolean; viewer?: boolean };
+export type NavLink = { href: string; label: string; team?: boolean; admin?: boolean; accounting?: boolean; viewer?: boolean; /** The accounting: admins and the accounting role. */ finance?: boolean };
 export type NavGroup = { label: string; links: NavLink[] };
 export type NavItem = NavLink | NavGroup;
 
@@ -26,9 +26,15 @@ export const GUIAS_MENU: NavItem[] = [
   {
     label: "Clients",
     links: [
-      { href: "/guias/rates", label: "Airline rates", admin: true },
       { href: "/guias/clients", label: "Clients and rates", admin: true },
       { href: "/guias/directory", label: "Directory", team: true },
+    ],
+  },
+  {
+    label: "Accounting",
+    links: [
+      { href: "/guias/costs", label: "Costs", finance: true },
+      { href: "/guias/rates", label: "Rates", finance: true },
     ],
   },
   {
@@ -58,6 +64,7 @@ export const GUIAS_NAV: NavLink[] = GUIAS_MENU.flatMap((item) => (isNavGroup(ite
 export function navLinkVisible(link: NavLink, role: string): boolean {
   const operations = role === "ADMIN" || role === "OPERATIONS" || role === "TEAM";
   if (link.admin) return role === "ADMIN";
+  if (link.finance) return role === "ADMIN" || role === "ACCOUNTING";
   if (link.team || link.accounting || link.viewer) {
     return (Boolean(link.team) && operations) || (Boolean(link.accounting) && role === "ACCOUNTING") || (Boolean(link.viewer) && role === "VIEWER");
   }

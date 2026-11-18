@@ -57,3 +57,8 @@ export function guiaVisible(user: SessionUser, guia: { agentKey: string }): bool
 export function isAdmin(user: SessionUser): boolean {
   return user.role === "ADMIN";
 }
+
+/** The accounting (rates, costs, shipments and commissions) is for the admins and the company accounting. */
+export function canViewFinance(user: SessionUser): boolean {
+  return user.role === "ADMIN" || isCompanyAccounting(user);
+}

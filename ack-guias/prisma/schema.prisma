@@ -238,19 +238,71 @@ model HouseCounter {
   next Int    @default(1)
 }
 
-/// What an airline charges ACK (buy) and what ACK charges for it (sell), in dollars per kilo, to one destination.
+/// What an airline charges ACK (cost, in buyRate) and what ACK charges for it (sell), in dollars per kilo, to one
+/// destination. The rates come in tables: a table is every row with the same effectiveFrom, and a shipment uses the
+/// newest table that starts on or before its date. The airline is its short code: LATAM, AVI, AJT.
 model AirlineRate {
-  id          String   @id @default(cuid())
-  airline     String
-  destination String
-  sellRate    Float?
-  buyRate     Float?
-  sortOrder   Int      @default(0)
-  updatedAt   DateTime @updatedAt
-  updatedBy   String?
+  id            String   @id @default(cuid())
+  airline       String
+  destination   String
+  effectiveFrom DateTime @default("2026-11-01T00:00:00.000Z") @db.Date
+  sellRate      Float?
+  buyRate       Float?
+  sortOrder     Int      @default(0)
+  updatedAt     DateTime @updatedAt
+  updatedBy     String?
 
-  @@unique([airline, destination])
+  @@unique([airline, destination, effectiveFrom])
   @@index([airline])
+  @@index([effectiveFrom])
+}
+
+/// The people who share in the profit of a shipment. The house share (ACK) is not paid out.
+model AcctPerson {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  houseShare Boolean  @default(false)
+  email      String?
+  sortOrder  Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+/// What handling costs ACK for each kind of ULD, and for a BUP of that ULD.
+model AcctUldCost {
+  uld             String   @id
+  handlingCost    Float    @default(0)
+  bupHandlingCost Float?
+  updatedAt       DateTime @updatedAt
+}
+
+/// Numbers of the accounting that are not tied to a client: the minimums charged on the sell side.
+model AcctSetting {
+  key       String   @id
+  value     Float
+  updatedAt DateTime @updatedAt
+}
+
+/// Who does a pickup or a transfer, and what it costs ACK. Each of the two has a way of charging:
+///   per_trip: one price for the trip, which carries several guías and is charged to the biggest one
+///   tiered:   a base price for the first pallets, then a step price for each further group of pallets or pieces
+///   manual:   the cost is typed on the shipment
+model AcctProvider {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  pickupMode         String   @default("manual")
+  pickupTripCost     Float?
+  pickupBaseCost     Float?
+  pickupBasePallets  Int?
+  pickupStepCost     Float?
+  pickupStepPallets  Int?
+  transferMode       String   @default("manual")
+  transferTripCost   Float?
+  transferBaseCost   Float?
+  transferBasePallets Int?
+  transferStepCost   Float?
+  transferStepPallets Int?
+  sortOrder          Int      @default(0)
+  updatedAt          DateTime @updatedAt
 }
 
 /// Who changed a field of a guía, when, from what to what: by hand, by a warehouse receipt, or by a reset to the receipt.

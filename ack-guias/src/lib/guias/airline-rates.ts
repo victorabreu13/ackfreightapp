@@ -37,3 +37,8 @@ export function rateMargin(sell: number | null, buy: number | null): number | nu
 export function formatRate(value: number | null): string {
   return value == null ? "" : value.toFixed(2);
 }
+
+/** The short code an airline goes by in the accounting: LATAM, AVI, AJT. */
+export function airlineCode(value: string): string {
+  return normalizeAirline(value).toUpperCase();
+}

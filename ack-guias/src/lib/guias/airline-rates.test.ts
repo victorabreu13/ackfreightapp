@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatRate, normalizeAirline, normalizeDestination, parseRate, rateMargin } from "@/lib/guias/airline-rates";
+import { airlineCode, formatRate, normalizeAirline, normalizeDestination, parseRate, rateMargin } from "@/lib/guias/airline-rates";
 
 test("a destination is a three-letter airport code in upper case", () => {
   assert.equal(normalizeDestination(" gua "), "GUA");
@@ -39,4 +39,9 @@ test("a rate shows with cents", () => {
   assert.equal(formatRate(1.5), "1.50");
   assert.equal(formatRate(3.1), "3.10");
   assert.equal(formatRate(null), "");
+});
+
+test("an airline goes by its short code in upper case", () => {
+  assert.equal(airlineCode(" latam "), "LATAM");
+  assert.equal(airlineCode("avi"), "AVI");
 });
