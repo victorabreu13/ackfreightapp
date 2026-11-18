@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { FlightBadge, FlightHistory, flightDetailOf, flightStamp, flightTimesLine } from "@/components/flight-status";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { shortDate, usd } from "@/lib/guias/acct-format";
 
 export default async function CustomerPortalPage() {
   const user = await getSessionUser();
@@ -23,6 +24,18 @@ export default async function CustomerPortalPage() {
       flightEvents: { orderBy: { createdAt: "desc" }, take: 6, select: { id: true, status: true, createdAt: true } },
     },
   });
+
+  // The invoices that accounting already sent. A draft is never shown.
+  const invoices = await prisma.invoice.findMany({
+    where: { status: "sent", guiaClientId: user.clientId },
+    orderBy: { number: "desc" },
+    take: 100,
+    select: { id: true, number: true, guiaId: true, awb: true, invoiceDate: true, dueDate: true, total: true, shipmentId: true },
+  });
+  const paid = new Set(
+    (await prisma.acctShipment.findMany({ where: { id: { in: invoices.map((invoice) => invoice.shipmentId).filter((id): id is string => Boolean(id)) }, clientPaid: true }, select: { id: true } })).map((row) => row.id),
+  );
+  const invoiceOf = (guiaId: string) => invoices.find((invoice) => invoice.guiaId === guiaId);
 
   return (
     <div className="space-y-6">
@@ -62,6 +75,16 @@ export default async function CustomerPortalPage() {
                     >
                       Ver AWB
                     </a>
+                    {invoiceOf(guia.id) ? (
+                      <a
+                        href={`/api/guias/portal/invoice/${invoiceOf(guia.id)?.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-md border border-border px-3 py-2 text-sm"
+                      >
+                        Ver factura {invoiceOf(guia.id)?.number}
+                      </a>
+                    ) : null}
                   </div>
                 </div>
                 {times ? <p className="text-sm text-muted-foreground">{times}</p> : null}
@@ -72,6 +95,31 @@ export default async function CustomerPortalPage() {
           })}
         </ul>
       )}
+      {invoices.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="font-display text-2xl">Sus facturas</h2>
+          <ul className="divide-y divide-border rounded-lg border border-border bg-card">
+            {invoices.map((invoice) => (
+              <li key={invoice.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div>
+                  <p className="font-semibold">Factura {invoice.number}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {invoice.awb ? `AWB ${invoice.awb} · ` : ""}
+                    {shortDate(invoice.invoiceDate)} · vence {shortDate(invoice.dueDate)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold">{usd(invoice.total)}</span>
+                  {invoice.shipmentId && paid.has(invoice.shipmentId) ? <span className="rounded-full bg-[#e7f6ec] px-2 py-0.5 text-xs text-[#14532d]">Pagada</span> : null}
+                  <a href={`/api/guias/portal/invoice/${invoice.id}`} target="_blank" rel="noreferrer" className="rounded-md border border-border px-3 py-2 text-sm">
+                    Ver factura
+                  </a>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

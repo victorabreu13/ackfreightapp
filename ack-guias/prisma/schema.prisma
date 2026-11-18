@@ -328,6 +328,10 @@ model AcctClient {
   flatSellPerKg    Float?
   pickupProvider   String?
   transferProvider String?
+  /// Who the invoice is billed to: the name and address printed on it, and the emails it is sent to (one per line or comma).
+  billToName       String?
+  billToAddress    String?           @db.Text
+  billingEmails    String?           @db.Text
   updatedAt        DateTime          @updatedAt
   splits           AcctClientSplit[]
 }
@@ -741,4 +745,57 @@ model TruckDriver {
   updatedAt  DateTime @updatedAt
 
   @@unique([carrierKey, nameKey])
+}
+
+/// The last invoice number used. The next invoice takes the number after it.
+model InvoiceCounter {
+  id         String @id
+  lastNumber Int
+}
+
+/// An invoice to a client, made by ACK Guías from the accounting row of a guía. It is a draft until accounting sends it; once
+/// sent it is also shown to the client in its portal.
+model Invoice {
+  id            String        @id @default(cuid())
+  number        Int           @unique
+  shipmentId    String?       @unique
+  guiaId        String?
+  /// The client of the book whose portal shows the invoice once it is sent.
+  guiaClientId  String?
+  client        String
+  billToName    String
+  billToAddress String?       @db.Text
+  /// The emails it is sent to, one per line or separated by commas.
+  emails        String?       @db.Text
+  awb           String?
+  invoiceDate   DateTime      @db.Date
+  dueDate       DateTime      @db.Date
+  terms         String        @default("Due on receipt")
+  /// draft or sent
+  status        String        @default("draft")
+  sentAt        DateTime?
+  sentTo        String?       @db.Text
+  total         Float         @default(0)
+  note          String?       @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  lines         InvoiceLine[]
+
+  @@index([guiaClientId, status])
+  @@index([status, invoiceDate])
+}
+
+model InvoiceLine {
+  id          String    @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sortOrder   Int       @default(0)
+  serviceDate DateTime? @db.Date
+  product     String
+  description String    @default("") @db.Text
+  qty         Float     @default(1)
+  rate        Float     @default(0)
+  amount      Float     @default(0)
+
+  @@index([invoiceId])
 }

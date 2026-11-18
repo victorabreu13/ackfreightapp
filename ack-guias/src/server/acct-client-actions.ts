@@ -7,6 +7,7 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { chargeBasisFrom, splitError, splitRows } from "@/lib/guias/acct-clients";
 import { parseRate } from "@/lib/guias/airline-rates";
+import { emailsFrom } from "@/lib/guias/invoice-lines";
 
 function text(value: FormDataEntryValue | null): string {
   return String(value ?? "").trim();
@@ -56,6 +57,9 @@ export async function saveAcctClient(formData: FormData) {
         insuranceSoldPct: amount(formData, "insuranceSoldPct") ?? 0,
         awbFee: amount(formData, "awbFee") ?? 0,
         flatSellPerKg: amount(formData, "flatSellPerKg"),
+        billToName: text(formData.get("billToName")) || null,
+        billToAddress: text(formData.get("billToAddress")) || null,
+        billingEmails: emailsFrom(text(formData.get("billingEmails"))).join("\n") || null,
       },
     }),
     prisma.acctClientSplit.deleteMany({ where: { clientId: id } }),

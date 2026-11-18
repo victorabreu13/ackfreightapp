@@ -3,6 +3,7 @@ import { GuiaEyebrow } from "@/components/guia-eyebrow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { canViewFinance } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -139,6 +140,24 @@ export default async function AcctClientsPage({ searchParams }: { searchParams: 
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground">A client with $0 in pickup, handling or transfer is not charged them, and the minimums of Costs do not apply to it.</p>
+                </fieldset>
+                <fieldset className="space-y-3 rounded-md border border-border p-3">
+                  <legend className="px-1 text-sm font-semibold">Invoice</legend>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`billname-${client.id}`}>Billed to (name)</Label>
+                      <Input id={`billname-${client.id}`} name="billToName" defaultValue={client.billToName ?? ""} placeholder={client.name} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`billaddr-${client.id}`}>Address</Label>
+                      <Textarea id={`billaddr-${client.id}`} name="billToAddress" rows={2} defaultValue={client.billToAddress ?? ""} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`billmail-${client.id}`}>Send invoices to (emails, one per line)</Label>
+                      <Textarea id={`billmail-${client.id}`} name="billingEmails" rows={2} defaultValue={client.billingEmails ?? ""} />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Printed on the invoice and used to send it. A new invoice takes them when its guía is issued.</p>
                 </fieldset>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <button type="submit" formAction={deleteAcctClient} formNoValidate className="text-xs text-stuck underline-offset-2 hover:underline">

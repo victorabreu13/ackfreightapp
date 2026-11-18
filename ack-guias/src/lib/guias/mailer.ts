@@ -25,7 +25,18 @@ export function mailSettings(env: Record<string, string | undefined> = process.e
   };
 }
 
-export type MailMessage = { to: string | string[]; subject: string; text: string; html?: string };
+export type MailAttachment = { filename: string; content: Buffer; contentType?: string };
+export type MailMessage = {
+  to: string | string[];
+  subject: string;
+  text: string;
+  html?: string;
+  /** Another sender than the default one. The mailbox of the login must be allowed to send as it. */
+  from?: string;
+  replyTo?: string;
+  bcc?: string | string[];
+  attachments?: MailAttachment[];
+};
 export type MailResult = { ok: true } | { ok: false; error: string };
 
 export type MailSender = (message: MailMessage) => Promise<MailResult>;
@@ -40,7 +51,16 @@ export const sendMail: MailSender = async (message) => {
       secure: settings.port === 465,
       auth: { user: settings.user, pass: settings.password },
     });
-    await transport.sendMail({ from: settings.from, to: message.to, subject: message.subject, text: message.text, html: message.html });
+    await transport.sendMail({
+      from: message.from ?? settings.from,
+      to: message.to,
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+      ...(message.replyTo ? { replyTo: message.replyTo } : {}),
+      ...(message.bcc ? { bcc: message.bcc } : {}),
+      ...(message.attachments?.length ? { attachments: message.attachments } : {}),
+    });
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "The email could not be sent." };

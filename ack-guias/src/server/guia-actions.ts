@@ -23,6 +23,7 @@ import { rememberGuiaParties } from "@/lib/guias/parties";
 import { reviewFieldsToSave } from "@/lib/guias/review";
 import { guiaFileName, pickupTruckerOf, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
 import { createAcctForGuia } from "@/lib/guias/acct-service";
+import { createInvoiceForGuia } from "@/lib/guias/invoice-service";
 import { newDriveSession } from "@/lib/guias/drive";
 import { aircraftFrom, driveKinds } from "@/lib/guias/guia-pack";
 import { roundUpText } from "@/lib/guias/round-up";
@@ -374,6 +375,13 @@ export async function issueGuia(formData: FormData) {
     revalidatePath("/guias/accounting");
   } catch (error) {
     console.error("accounting row", error);
+  }
+  // The draft invoice to the client, to be reviewed and sent by accounting. It never stops the issue either.
+  try {
+    await createInvoiceForGuia(id);
+    revalidatePath("/guias/invoices");
+  } catch (error) {
+    console.error("draft invoice", error);
   }
   const driveError = await pushGuiaToDrive(id);
   revalidatePath("/guias");
