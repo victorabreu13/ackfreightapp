@@ -4,6 +4,7 @@ import { Fragment, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GuiaLookupInput, type LookupType } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
+import { TruckerInput } from "@/components/trucker-input";
 import { Label } from "@/components/ui/label";
 import { isLithiumPi, LITHIUM_TYPES, onlyLithiumUn, parseLithiumTypes } from "@/lib/guias/dg";
 import type { GuiaValues } from "@/lib/guias/extract";
@@ -57,6 +58,7 @@ export function GuiaForm({
   note,
   truckerName = "",
   pickupTruckerName = "",
+  truckers = [],
   truckerPhone = "",
   driverName = "",
   seal = "",
@@ -75,6 +77,8 @@ export function GuiaForm({
   truckerName?: string;
   /** Who did the pickup, for the pickup order. Empty means the trucker. */
   pickupTruckerName?: string;
+  /** The providers of the accounting, suggested in the Trucker fields. */
+  truckers?: string[];
   truckerPhone?: string;
   driverName?: string;
   seal?: string;
@@ -388,11 +392,11 @@ export function GuiaForm({
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <div className="space-y-1.5">
           <Label htmlFor="pickupTruckerName">Pickup trucker</Label>
-          <Input id="pickupTruckerName" name="pickupTruckerName" defaultValue={pickupTruckerName} />
+          <TruckerInput id="pickupTruckerName" name="pickupTruckerName" defaultValue={pickupTruckerName} names={truckers} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="truckerName">Trucker (delivery)</Label>
-          <Input id="truckerName" name="truckerName" defaultValue={truckerName} />
+          <TruckerInput id="truckerName" name="truckerName" defaultValue={truckerName} names={truckers} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="truckerPhone">Trucker phone</Label>

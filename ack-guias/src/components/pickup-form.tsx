@@ -6,13 +6,14 @@ import { GuiaLookupInput } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PackageSelect } from "@/components/package-select";
+import { TruckerInput } from "@/components/trucker-input";
 import { roundUpText } from "@/lib/guias/round-up";
 import { savePickupRequest } from "@/server/pickup-actions";
 
 const AREA = "block w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 
 /** The pickup request form. Saving it starts the draft guía. */
-export function PickupForm({ awbOptions = [] }: { awbOptions?: Array<{ prefix: string; airline: string; left: number }> }) {
+export function PickupForm({ awbOptions = [], truckers = [] }: { awbOptions?: Array<{ prefix: string; airline: string; left: number }>; truckers?: string[] }) {
   const [client, setClient] = useState("");
   const [shipper, setShipper] = useState("");
   const [shipperAddress, setShipperAddress] = useState("");
@@ -113,7 +114,7 @@ export function PickupForm({ awbOptions = [] }: { awbOptions?: Array<{ prefix: s
         <div className="grid gap-3 md:col-span-2 md:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="truckerName">Trucker</Label>
-            <Input id="truckerName" name="truckerName" />
+            <TruckerInput id="truckerName" name="truckerName" names={truckers} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="truckerPhone">Trucker phone</Label>

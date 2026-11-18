@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { GuiaEyebrow } from "@/components/guia-eyebrow";
 import { PickupForm } from "@/components/pickup-form";
+import { truckerNames } from "@/lib/guias/trucker-names";
 import { canManageGuias } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -42,7 +43,7 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
       {notice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{notice}</p> : null}
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
 
-      <PickupForm awbOptions={awbOptions} />
+      <PickupForm awbOptions={awbOptions} truckers={await truckerNames()} />
 
       <section className="overflow-x-auto rounded-lg border border-border bg-card">
         <table className="w-full min-w-[900px] text-left text-sm">

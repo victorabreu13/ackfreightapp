@@ -29,6 +29,7 @@ import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-err
 import { requestAckTripRequest } from "@/server/ack-freight-actions";
 import { FLIGHT_STATUS_LABEL, isFlightStatus } from "@/lib/guias/flight-status";
 import { SubmitButton } from "@/components/submit-button";
+import { truckerNames } from "@/lib/guias/trucker-names";
 import { LABEL_KINDS, OPTIONAL_KINDS, packKinds } from "@/lib/guias/guia-pack";
 import { assignGuiaAwb, checkGuiaFlight, issueGuia, releaseGuiaAwb, saveGuiaToDrive } from "@/server/guia-actions";
 
@@ -437,6 +438,7 @@ export default async function GuiaDetailPage({
         snippets={snippets}
         truckerName={document.truckerName || ""}
         pickupTruckerName={document.pickupTruckerName || ""}
+        truckers={await truckerNames()}
         truckerPhone={document.truckerPhone || ""}
         driverName={document.driverName || ""}
         seal={document.seal || ""}

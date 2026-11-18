@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { GuiaEyebrow } from "@/components/guia-eyebrow";
 import { GuiaForm } from "@/components/guia-form";
+import { truckerNames } from "@/lib/guias/trucker-names";
 import { canManageGuias } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -56,7 +57,7 @@ export default async function NewGuiaPage() {
           Chargeable kg is the weight that bills. Gross is optional. Every guía is issued by ACK TEAM LLC.
         </p>
       </div>
-      <GuiaForm mode="new" values={blank} review={[]} snippets={{}} awbOptions={awbOptions} carrierOptions={carrierOptions} />
+      <GuiaForm mode="new" values={blank} review={[]} snippets={{}} awbOptions={awbOptions} carrierOptions={carrierOptions} truckers={await truckerNames()} />
     </div>
   );
 }
