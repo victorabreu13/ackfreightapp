@@ -298,12 +298,16 @@ model AcctProvider {
   pickupBasePallets  Int?
   pickupStepCost     Float?
   pickupStepPallets  Int?
+  /// The most a tiered pickup can cost, however many pallets.
+  pickupCap          Float?
   transferMode       String   @default("manual")
   transferTripCost   Float?
   transferBaseCost   Float?
   transferBasePallets Int?
   transferStepCost   Float?
   transferStepPallets Int?
+  /// The most a tiered transfer can cost, however many pallets.
+  transferCap        Float?
   sortOrder          Int      @default(0)
   updatedAt          DateTime @updatedAt
 }

@@ -58,6 +58,10 @@ function RuleFields({ provider, kind }: { provider: Provider; kind: "pickup" | "
           <Label htmlFor={`${kind}StepP-${provider.id}`}>Pallets in each step</Label>
           <Input id={`${kind}StepP-${provider.id}`} name={`${kind}StepPallets`} inputMode="numeric" defaultValue={num(pick ? provider.pickupStepPallets : provider.transferStepPallets)} />
         </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${kind}Cap-${provider.id}`}>Most it can cost ($, optional)</Label>
+          <Input id={`${kind}Cap-${provider.id}`} name={`${kind}Cap`} inputMode="decimal" defaultValue={num(pick ? provider.pickupCap : provider.transferCap)} />
+        </div>
       </div>
     </fieldset>
   );
@@ -93,7 +97,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
         <div>
           <h2 className="font-display text-2xl">Pickups and transfers</h2>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Who does the job and how it charges. One price per trip is for a trip that carries several guías, usually all of the day: its cost goes to the biggest guía of the trip. Base price, then steps is by pallets: the base covers the first pallets and each further group of pallets, or a pallet or piece left over, adds the step price.
+            Who does the job and how it charges. One price per trip is for a trip that carries several guías, usually all of the day: its cost goes to the biggest guía of the trip. Base price, then steps is by pallets: the base covers the first pallets and each further group of pallets, or a pallet or piece left over, adds the step price, up to the most it can cost when one is set.
           </p>
         </div>
         {providers.map((provider) => (

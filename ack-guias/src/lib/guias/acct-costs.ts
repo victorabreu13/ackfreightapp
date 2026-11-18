@@ -23,6 +23,8 @@ export type CostRule = {
   basePallets: number | null;
   stepCost: number | null;
   stepPallets: number | null;
+  /** tiered: the most the job can cost, however many pallets. */
+  cap?: number | null;
 };
 
 type ProviderRow = {
@@ -32,19 +34,21 @@ type ProviderRow = {
   pickupBasePallets: number | null;
   pickupStepCost: number | null;
   pickupStepPallets: number | null;
+  pickupCap?: number | null;
   transferMode: string;
   transferTripCost: number | null;
   transferBaseCost: number | null;
   transferBasePallets: number | null;
   transferStepCost: number | null;
   transferStepPallets: number | null;
+  transferCap?: number | null;
 };
 
 /** The rule of a provider for a pickup or for a transfer. */
 export function ruleOf(provider: ProviderRow, kind: "pickup" | "transfer"): CostRule {
   return kind === "pickup"
-    ? { mode: costModeFrom(provider.pickupMode), tripCost: provider.pickupTripCost, baseCost: provider.pickupBaseCost, basePallets: provider.pickupBasePallets, stepCost: provider.pickupStepCost, stepPallets: provider.pickupStepPallets }
-    : { mode: costModeFrom(provider.transferMode), tripCost: provider.transferTripCost, baseCost: provider.transferBaseCost, basePallets: provider.transferBasePallets, stepCost: provider.transferStepCost, stepPallets: provider.transferStepPallets };
+    ? { mode: costModeFrom(provider.pickupMode), tripCost: provider.pickupTripCost, baseCost: provider.pickupBaseCost, basePallets: provider.pickupBasePallets, stepCost: provider.pickupStepCost, stepPallets: provider.pickupStepPallets, cap: provider.pickupCap ?? null }
+    : { mode: costModeFrom(provider.transferMode), tripCost: provider.transferTripCost, baseCost: provider.transferBaseCost, basePallets: provider.transferBasePallets, stepCost: provider.transferStepCost, stepPallets: provider.transferStepPallets, cap: provider.transferCap ?? null };
 }
 
 const cents = (value: number) => Math.round(value * 100) / 100;
@@ -53,7 +57,8 @@ const cents = (value: number) => Math.round(value * 100) / 100;
  * What a job costs under a rule. A per-trip rule gives the price of the trip. A tiered rule gives the base price up to
  * its pallets, and each further group of pallets (or a pallet or piece left over) adds the step price: $50 for 4
  * pallets and $10 for each 2 more is 50 for 4, 60 for 5 or 6, 70 for 7 or 8. A manual rule, or one with no price
- * yet, has no cost to give: it is typed on the shipment.
+ * yet, has no cost to give: it is typed on the shipment. A cap, when there is one, is the most a tiered job can cost:
+ * RL Services transfers are 40 for the first pallet and 20 for each more, up to 150.
  */
 export function ruleCost(rule: CostRule, units: number): number | null {
   if (rule.mode === "per_trip") return rule.tripCost == null ? null : cents(rule.tripCost);
@@ -63,7 +68,8 @@ export function ruleCost(rule: CostRule, units: number): number | null {
   const extra = Math.max(0, units - basePallets);
   if (extra === 0) return cents(rule.baseCost);
   const stepPallets = Math.max(1, rule.stepPallets ?? 1);
-  return cents(rule.baseCost + Math.ceil(extra / stepPallets) * (rule.stepCost ?? 0));
+  const total = rule.baseCost + Math.ceil(extra / stepPallets) * (rule.stepCost ?? 0);
+  return cents(rule.cap != null ? Math.min(total, rule.cap) : total);
 }
 
 /**

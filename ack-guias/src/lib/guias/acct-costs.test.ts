@@ -54,3 +54,24 @@ test("table names, modes and provider rules", () => {
   assert.equal(ruleCost(ruleOf(provider, "pickup"), 3), 40);
   assert.equal(ruleCost(ruleOf(provider, "transfer"), 3), null);
 });
+
+test("RL Services transfer: 40 for the first pallet, 20 for each more, never above 150", () => {
+  const transfer: CostRule = { mode: "tiered", tripCost: null, baseCost: 40, basePallets: 1, stepCost: 20, stepPallets: 1, cap: 150 };
+  assert.equal(ruleCost(transfer, 1), 40);
+  assert.equal(ruleCost(transfer, 2), 60);
+  assert.equal(ruleCost(transfer, 3), 80);
+  assert.equal(ruleCost(transfer, 6), 140);
+  assert.equal(ruleCost(transfer, 7), 150);
+  assert.equal(ruleCost(transfer, 20), 150);
+  assert.equal(ruleCost({ ...transfer, cap: null }, 7), 160);
+});
+
+test("the cap of a provider travels with its rule", () => {
+  const provider = {
+    pickupMode: "manual", pickupTripCost: null, pickupBaseCost: null, pickupBasePallets: null, pickupStepCost: null, pickupStepPallets: null, pickupCap: null,
+    transferMode: "tiered", transferTripCost: null, transferBaseCost: 40, transferBasePallets: 1, transferStepCost: 20, transferStepPallets: 1, transferCap: 150,
+  };
+  assert.equal(ruleOf(provider, "transfer").cap, 150);
+  assert.equal(ruleOf(provider, "pickup").cap, null);
+  assert.equal(ruleCost(ruleOf(provider, "transfer"), 9), 150);
+});

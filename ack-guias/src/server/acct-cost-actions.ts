@@ -55,12 +55,14 @@ export async function saveProvider(formData: FormData) {
       pickupBasePallets: pallets(formData, "pickupBasePallets"),
       pickupStepCost: money(formData, "pickupStepCost"),
       pickupStepPallets: pallets(formData, "pickupStepPallets"),
+      pickupCap: money(formData, "pickupCap"),
       transferMode: costModeFrom(formData.get("transferMode")),
       transferTripCost: money(formData, "transferTripCost"),
       transferBaseCost: money(formData, "transferBaseCost"),
       transferBasePallets: pallets(formData, "transferBasePallets"),
       transferStepCost: money(formData, "transferStepCost"),
       transferStepPallets: pallets(formData, "transferStepPallets"),
+      transferCap: money(formData, "transferCap"),
     },
   });
   revalidatePath("/guias/costs");
