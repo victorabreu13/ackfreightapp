@@ -38,6 +38,7 @@ export const GUIAS_MENU: NavItem[] = [
       { href: "/guias/costs", label: "Costs", finance: true },
       { href: "/guias/invoices", label: "Invoices", finance: true },
       { href: "/guias/rates", label: "Rates", finance: true },
+      { href: "/guias/reports", label: "Reports", finance: true },
       { href: "/guias/accounting", label: "Shipments", finance: true },
     ],
   },
