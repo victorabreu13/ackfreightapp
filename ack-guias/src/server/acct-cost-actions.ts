@@ -93,15 +93,13 @@ export async function saveUldCosts(formData: FormData) {
   await requireFinance();
   const ulds = formData.getAll("uld").map((value) => String(value));
   const handling = formData.getAll("handlingCost").map((value) => String(value));
-  const bup = formData.getAll("bupHandlingCost").map((value) => String(value));
-  const updates: Array<{ uld: string; handlingCost: number; bupHandlingCost: number | null }> = [];
+  const updates: Array<{ uld: string; handlingCost: number }> = [];
   for (let index = 0; index < ulds.length; index += 1) {
     const normal = parseRate(handling[index] ?? "");
-    const bupCost = parseRate(bup[index] ?? "");
-    if (!normal.ok || !bupCost.ok) back("An amount is not valid. Nothing was saved.", "error");
-    updates.push({ uld: ulds[index], handlingCost: normal.value ?? 0, bupHandlingCost: bupCost.value });
+    if (!normal.ok) back("An amount is not valid. Nothing was saved.", "error");
+    updates.push({ uld: ulds[index], handlingCost: normal.value ?? 0 });
   }
-  await prisma.$transaction(updates.map((row) => prisma.acctUldCost.update({ where: { uld: row.uld }, data: { handlingCost: row.handlingCost, bupHandlingCost: row.bupHandlingCost } })));
+  await prisma.$transaction(updates.map((row) => prisma.acctUldCost.update({ where: { uld: row.uld }, data: { handlingCost: row.handlingCost } })));
   revalidatePath("/guias/costs");
   back("Handling costs saved.");
 }
@@ -111,11 +109,10 @@ export async function addUld(formData: FormData) {
   const uld = text(formData.get("uld")).toUpperCase().replace(/\s+/g, "");
   if (!uld) back("Type the ULD type, like AKE.", "error");
   const normal = parseRate(text(formData.get("handlingCost")));
-  const bupCost = parseRate(text(formData.get("bupHandlingCost")));
-  if (!normal.ok || !bupCost.ok) back("An amount is not valid.", "error");
+  if (!normal.ok) back("An amount is not valid.", "error");
   const exists = await prisma.acctUldCost.findUnique({ where: { uld }, select: { uld: true } });
   if (exists) back(`${uld} is already in the table.`, "error");
-  await prisma.acctUldCost.create({ data: { uld, handlingCost: normal.value ?? 0, bupHandlingCost: bupCost.value } });
+  await prisma.acctUldCost.create({ data: { uld, handlingCost: normal.value ?? 0 } });
   revalidatePath("/guias/costs");
   back(`${uld} added.`);
 }

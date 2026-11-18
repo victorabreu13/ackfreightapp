@@ -57,9 +57,8 @@ export type ImportedShipment = {
   airSold: number;
   pickupCost: number;
   pickupSold: number;
-  /** What handling a ULD costs. The Sheet called it the transfer of the ULD. */
+  /** What handling costs: the ULDs, and the BUP. The Sheet called the handling of a ULD its transfer. */
   handlingCost: number;
-  bupHandlingCost: number;
   handlingSold: number;
   transferCost: number;
   transferSold: number;
@@ -183,8 +182,8 @@ export function shipmentsFromCsv(input: string): ImportResult {
       airSold: number(record.sold),
       pickupCost: number(record.pickupCost),
       pickupSold: number(record.pickupSold),
-      handlingCost: number(record.transferCost),
-      bupHandlingCost: number(record.bupHandling),
+      // The Sheet called the handling of a ULD its transfer, and kept the BUP handling apart: both are handling.
+      handlingCost: number(record.transferCost) + number(record.bupHandling),
       handlingSold: number(record.handlingSold),
       transferCost: 0,
       transferSold: number(record.transferSold),

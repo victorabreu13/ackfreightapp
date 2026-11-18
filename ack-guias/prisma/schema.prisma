@@ -267,11 +267,10 @@ model AcctPerson {
   updatedAt  DateTime @updatedAt
 }
 
-/// What handling costs ACK for each kind of ULD, and for a BUP of that ULD.
+/// What handling costs ACK for each kind of ULD.
 model AcctUldCost {
   uld             String   @id
   handlingCost    Float    @default(0)
-  bupHandlingCost Float?
   updatedAt       DateTime @updatedAt
 }
 
@@ -305,6 +304,41 @@ model AcctProvider {
   updatedAt          DateTime @updatedAt
 }
 
+/// How a client is charged and how its profit is shared. The pickup, the handling and the transfer are charged per kilo
+/// of the gross weight or of the chargeable weight, with the minimums of the accounting. A flat sell rate takes the
+/// place of the rate table.
+model AcctClient {
+  id               String            @id @default(cuid())
+  name             String            @unique
+  guiaClientId     String?           @unique
+  kopeHandlingPct  Float             @default(10)
+  kopeInCost       Boolean           @default(true)
+  pickupPerKg      Float             @default(0)
+  handlingPerKg    Float             @default(0)
+  transferPerKg    Float             @default(0)
+  /// "gross" or "chw": the weight the pickup, the handling and the transfer are charged on.
+  chargeBasis      String            @default("chw")
+  insuranceCostPct Float             @default(0.35)
+  insuranceSoldPct Float             @default(0.5)
+  awbFee           Float             @default(0)
+  flatSellPerKg    Float?
+  pickupProvider   String?
+  transferProvider String?
+  updatedAt        DateTime          @updatedAt
+  splits           AcctClientSplit[]
+}
+
+/// The share of the profit each person takes from the shipments of a client, unless a shipment says otherwise.
+model AcctClientSplit {
+  id       String     @id @default(cuid())
+  clientId String
+  client   AcctClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  payee    String
+  pct      Float
+
+  @@index([clientId])
+}
+
 /// One shipment of the accounting: what it cost ACK, what ACK invoiced and the profit that is shared. Those that came
 /// from the Google Sheet have a legacyId. Those made here when a guía is issued have a guiaId.
 model AcctShipment {
@@ -332,7 +366,6 @@ model AcctShipment {
   pickupCost      Float       @default(0)
   pickupSold      Float       @default(0)
   handlingCost    Float       @default(0)
-  bupHandlingCost Float       @default(0)
   handlingSold    Float       @default(0)
   transferCost    Float       @default(0)
   transferSold    Float       @default(0)

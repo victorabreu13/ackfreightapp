@@ -48,9 +48,8 @@ test("a shipment of the Sheet keeps its numbers, its ULD handling and its splits
   assert.equal(shipment.awb2, null);
   assert.equal(shipment.uldText, "1×FQA");
   assert.equal(shipment.chw, 645.31);
-  // The Sheet called the handling of the ULD its transfer.
-  assert.equal(shipment.handlingCost, 35);
-  assert.equal(shipment.bupHandlingCost, 30);
+  // The Sheet called the handling of the ULD its transfer, and kept the BUP handling apart: 35 and 30 are all handling.
+  assert.equal(shipment.handlingCost, 65);
   assert.equal(shipment.transferCost, 0);
   assert.equal(shipment.costTotal, 710.78);
   assert.equal(shipment.invoiced, 1211.56);

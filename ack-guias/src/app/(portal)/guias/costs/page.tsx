@@ -129,7 +129,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-display text-2xl">Handling of each ULD</h2>
-            <p className="mt-1 text-sm text-muted-foreground">What handling one ULD costs ACK, and the same for a BUP. The cost of handling in a shipment is its ULDs times these prices.</p>
+            <p className="mt-1 text-sm text-muted-foreground">What handling one ULD costs ACK. The cost of handling in a shipment is its ULDs times these prices.</p>
           </div>
           <Button type="submit">Save handling costs</Button>
         </div>
@@ -139,7 +139,6 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
               <tr>
                 <th className="px-2 py-2">ULD</th>
                 <th className="px-2 py-2">Handling ($)</th>
-                <th className="px-2 py-2">BUP handling ($)</th>
                 <th className="px-2 py-2" />
               </tr>
             </thead>
@@ -152,9 +151,6 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
                   </td>
                   <td className="px-2 py-1.5">
                     <Input name="handlingCost" inputMode="decimal" defaultValue={num(row.handlingCost)} aria-label={`${row.uld} handling`} className="h-9 w-28" />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <Input name="bupHandlingCost" inputMode="decimal" defaultValue={num(row.bupHandlingCost)} aria-label={`${row.uld} BUP handling`} className="h-9 w-28" />
                   </td>
                   <td className="px-2 py-1.5 text-right">
                     <button type="submit" formAction={deleteUld} name="uld" value={row.uld} formNoValidate className="text-xs text-stuck underline-offset-2 hover:underline">
@@ -176,10 +172,6 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
         <div className="space-y-1.5">
           <Label htmlFor="newHandling">Handling ($)</Label>
           <Input id="newHandling" name="handlingCost" inputMode="decimal" className="w-28" />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="newBup">BUP handling ($)</Label>
-          <Input id="newBup" name="bupHandlingCost" inputMode="decimal" className="w-28" />
         </div>
         <Button type="submit" variant="outline">
           Add ULD
