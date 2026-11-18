@@ -4,5 +4,5 @@
     "strict": true
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "functions", "**/*.test.ts"]
+  "exclude": ["node_modules", "functions", "**/*.test.ts", "ack-guias"]
 }
