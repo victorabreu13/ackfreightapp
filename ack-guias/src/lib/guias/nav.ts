@@ -33,6 +33,7 @@ export const GUIAS_MENU: NavItem[] = [
   {
     label: "Accounting",
     links: [
+      { href: "/guias/acct-clients", label: "Clients & team", finance: true },
       { href: "/guias/commissions", label: "Commissions", finance: true },
       { href: "/guias/costs", label: "Costs", finance: true },
       { href: "/guias/rates", label: "Rates", finance: true },
