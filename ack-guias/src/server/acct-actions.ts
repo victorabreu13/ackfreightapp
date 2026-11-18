@@ -60,11 +60,17 @@ export async function importShipments(formData: FormData) {
   back(`${shipments.length} shipments loaded.${left}`);
 }
 
-/** Marks whether the client has paid the invoice of a shipment. A commission is owed once the client pays. */
+/**
+ * Marks whether the client has paid the invoice of a shipment. A commission is owed once the client pays. Without a value
+ * it flips what is there, so one click on Open marks it paid and one click on Paid opens it again.
+ */
 export async function setClientPaid(formData: FormData) {
   await requireFinance();
   const id = text(formData.get("id"));
-  const paid = text(formData.get("paid")) === "1";
+  const wanted = text(formData.get("paid"));
+  const current = await prisma.acctShipment.findUnique({ where: { id }, select: { clientPaid: true } });
+  if (!current) redirect("/guias/accounting?error=That%20shipment%20was%20not%20found");
+  const paid = wanted ? wanted === "1" : !current.clientPaid;
   const returnTo = text(formData.get("returnTo")) || "/guias/accounting";
   await prisma.acctShipment.update({ where: { id }, data: { clientPaid: paid, clientPaidDate: paid ? new Date() : null } });
   revalidatePath("/guias/accounting");
@@ -72,18 +78,17 @@ export async function setClientPaid(formData: FormData) {
   redirect(returnTo.startsWith("/guias/") ? returnTo : "/guias/accounting");
 }
 
-/** Marks the chosen commissions as paid on a date, or back as unpaid. */
+/** Marks the chosen commissions as paid to the person, as of today, or back as unpaid. */
 export async function markCommissions(formData: FormData) {
   await requireFinance();
   const ids = formData.getAll("splitId").map((value) => String(value));
   const paid = text(formData.get("mode")) !== "unpaid";
-  const date = text(formData.get("paidDate"));
+  const date = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
   const person = text(formData.get("person"));
   const back = (message: string, kind: "notice" | "error" = "notice"): never => redirect(`/guias/commissions?${person ? `person=${encodeURIComponent(person)}&` : ""}${kind}=${encodeURIComponent(message)}`);
   if (ids.length === 0) back("Choose at least one commission.", "error");
-  if (paid && !/^\d{4}-\d{2}-\d{2}$/.test(date)) back("Choose the date it was paid.", "error");
   const result = await prisma.acctSplit.updateMany({ where: { id: { in: ids } }, data: { paid, paidDate: paid ? day(date) : null } });
   revalidatePath("/guias/commissions");
   revalidatePath("/guias/accounting");
-  back(paid ? `${result.count} commissions marked as paid.` : `${result.count} commissions marked as unpaid.`);
+  back(paid ? `${result.count} commissions marked as paid${person ? ` to ${person}` : ""}.` : `${result.count} commissions marked as unpaid.`);
 }

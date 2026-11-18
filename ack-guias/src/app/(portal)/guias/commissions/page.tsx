@@ -3,13 +3,12 @@ import { redirect } from "next/navigation";
 import { GuiaEyebrow } from "@/components/guia-eyebrow";
 import { SelectAll } from "@/components/select-all";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { canViewFinance } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { isoDay, shortDate, usd } from "@/lib/guias/acct-format";
+import { shortDate, usd } from "@/lib/guias/acct-format";
 import { commissionOf } from "@/lib/guias/acct-import";
-import { markCommissions } from "@/server/acct-actions";
+import { markCommissions, setClientPaid } from "@/server/acct-actions";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
   const value = params[key];
@@ -101,20 +100,18 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
 
           <form id="commission-form" action={markCommissions} className="space-y-3">
             <input type="hidden" name="person" value={person.name} />
+            <input type="hidden" name="returnTo" value={base({})} />
             <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3 text-sm">
               <span className="text-muted-foreground">
                 {rows.length} commissions · {usd(shown)}
               </span>
-              <label className="flex items-center gap-2">
-                Paid on
-                <Input name="paidDate" type="date" defaultValue={isoDay(new Date())} className="h-9 w-40" />
-              </label>
               <Button type="submit" name="mode" value="paid" size="sm">
-                Mark as paid
+                Mark commissions as paid
               </Button>
               <Button type="submit" name="mode" value="unpaid" variant="outline" size="sm">
                 Mark as unpaid
               </Button>
+              <span className="text-xs text-muted-foreground">Paid means ACK paid the person. Whether the client paid the invoice is marked in the Client paid column.</span>
             </div>
             <div className="overflow-x-auto rounded-lg border border-border bg-card">
               <table className="w-full min-w-[860px] text-left text-sm">
@@ -151,11 +148,23 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
                         <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{split.shipment.awb}</td>
                         <td className="px-3 py-2">{split.shipment.client}</td>
                         <td className="px-3 py-2">{split.shipment.invoiceNo ?? ""}</td>
-                        <td className="px-3 py-2">{split.shipment.clientPaid ? "Paid" : "Open"}</td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="submit"
+                            formAction={setClientPaid}
+                            name="id"
+                            value={split.shipment.id}
+                            formNoValidate
+                            title={split.shipment.clientPaid ? "The client paid this invoice. Click to mark it open." : "Click when the client pays this invoice."}
+                            className={`rounded-full px-2 py-0.5 text-xs ${split.shipment.clientPaid ? "bg-[#e7f6ec] text-[#14532d]" : "bg-secondary"}`}
+                          >
+                            {split.shipment.clientPaid ? "Paid" : "Open"}
+                          </button>
+                        </td>
                         <td className="px-3 py-2 text-right">{usd(split.shipment.profit)}</td>
                         <td className="px-3 py-2 text-right">{split.pct}%</td>
                         <td className="px-3 py-2 text-right font-medium">{usd(commissionOf(split.shipment.profit, split.pct))}</td>
-                        <td className="px-3 py-2">{split.paid ? `Paid${split.paidDate ? ` ${shortDate(split.paidDate)}` : ""}` : "Owed"}</td>
+                        <td className="px-3 py-2">{split.paid ? "Paid" : "Owed"}</td>
                       </tr>
                     ))
                   )}

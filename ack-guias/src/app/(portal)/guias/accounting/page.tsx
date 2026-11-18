@@ -59,7 +59,7 @@ export default async function AccountingShipmentsPage({ searchParams }: { search
           <GuiaEyebrow />
           <h1 className="font-display text-4xl">Shipments</h1>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            What each shipment cost, what ACK invoiced and the profit that is shared. A commission is owed once the client has paid the invoice.
+            What each shipment cost, what ACK invoiced and the profit that is shared. A commission is owed once the client has paid the invoice: click Open in the Client paid column when the client pays.
           </p>
         </div>
         <form action={importShipments} className="flex flex-wrap items-center gap-2">
@@ -133,7 +133,7 @@ export default async function AccountingShipmentsPage({ searchParams }: { search
               <th className="px-3 py-2 text-right">Cost</th>
               <th className="px-3 py-2 text-right">Invoiced</th>
               <th className="px-3 py-2 text-right">Profit</th>
-              <th className="px-3 py-2">Client</th>
+              <th className="px-3 py-2">Client paid</th>
               <th className="px-3 py-2">Commission</th>
             </tr>
           </thead>
@@ -166,7 +166,7 @@ export default async function AccountingShipmentsPage({ searchParams }: { search
                         <input type="hidden" name="id" value={shipment.id} />
                         <input type="hidden" name="paid" value={shipment.clientPaid ? "0" : "1"} />
                         <input type="hidden" name="returnTo" value={returnTo} />
-                        <button type="submit" title={shipment.clientPaid ? "Mark as open" : "Mark as paid"} className={`rounded-full px-2 py-0.5 text-xs ${shipment.clientPaid ? "bg-[#e7f6ec] text-[#14532d]" : "bg-secondary"}`}>
+                        <button type="submit" title={shipment.clientPaid ? "The client paid this invoice. Click to mark it open." : "Click when the client pays this invoice."} className={`rounded-full px-2 py-0.5 text-xs ${shipment.clientPaid ? "bg-[#e7f6ec] text-[#14532d]" : "bg-secondary"}`}>
                           {shipment.clientPaid ? "Paid" : "Open"}
                         </button>
                       </form>
