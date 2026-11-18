@@ -184,6 +184,8 @@ model AirWaybillDocument {
   notifyAddress    String?      @db.Text
   flightNumber     String?
   truckerName      String?
+  /// Who did the pickup, when it is not who delivers. The pickup order prints it. Empty means the trucker.
+  pickupTruckerName String?
   truckerPhone     String?
   driverName       String?
   /// Pallet, Box, Pieces or Crates. Prints in the Package column of the pickup order.
@@ -288,6 +290,8 @@ model AcctSetting {
 model AcctProvider {
   id                 String   @id @default(cuid())
   name               String   @unique
+  /// Names a trucker can go by on the pickup order and on the delivery order, separated by commas, to know it is this provider.
+  aliases            String?
   pickupMode         String   @default("manual")
   pickupTripCost     Float?
   pickupBaseCost     Float?
@@ -357,6 +361,9 @@ model AcctShipment {
   chw             Float       @default(0)
   cargoValue      Float       @default(0)
   invoiceNo       String?
+  /// The providers that did the pickup and the transfer, which decide their cost.
+  pickupProvider  String?
+  transferProvider String?
   clientPaid      Boolean     @default(false)
   clientPaidDate  DateTime?   @db.Date
   costRate        Float?

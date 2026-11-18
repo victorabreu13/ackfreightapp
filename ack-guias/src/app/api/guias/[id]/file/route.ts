@@ -38,6 +38,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     email: user.email,
     name: user.name,
     trucker: params.get("trucker") ?? document.truckerName,
+    pickupTrucker: params.get("pickupTrucker") ?? document.pickupTruckerName,
     truckerPhone: params.get("truckerPhone") ?? document.truckerPhone,
     seal: params.get("seal") ?? document.seal,
     driver: params.get("driver") ?? document.driverName,

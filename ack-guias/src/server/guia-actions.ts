@@ -21,7 +21,8 @@ import { checkFlights } from "@/lib/guias/flight-check";
 import { safeGuiaReturn } from "@/lib/guias/upload-rules";
 import { rememberGuiaParties } from "@/lib/guias/parties";
 import { reviewFieldsToSave } from "@/lib/guias/review";
-import { guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
+import { guiaFileName, pickupTruckerOf, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
+import { createAcctForGuia } from "@/lib/guias/acct-service";
 import { newDriveSession } from "@/lib/guias/drive";
 import { aircraftFrom, driveKinds } from "@/lib/guias/guia-pack";
 import { roundUpText } from "@/lib/guias/round-up";
@@ -124,6 +125,7 @@ export async function saveNewGuia(formData: FormData) {
       aircraft: aircraftFrom(formData.get("aircraft")) || null,
       screened: text(formData.get("screened")) === "1",
       truckerName: blank(text(formData.get("truckerName"))),
+      pickupTruckerName: blank(text(formData.get("pickupTruckerName"))),
       truckerPhone: blank(text(formData.get("truckerPhone"))),
       driverName: blank(text(formData.get("driverName"))),
       seal: blank(text(formData.get("seal"))),
@@ -179,6 +181,7 @@ export async function saveGuia(formData: FormData) {
       aircraft: aircraftFrom(formData.get("aircraft")) || null,
       screened: text(formData.get("screened")) === "1",
       truckerName: blank(text(formData.get("truckerName"))),
+      pickupTruckerName: blank(text(formData.get("pickupTruckerName"))),
       truckerPhone: blank(text(formData.get("truckerPhone"))),
       driverName: blank(text(formData.get("driverName"))),
       seal: blank(text(formData.get("seal"))),
@@ -215,7 +218,7 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
   const session = newDriveSession();
   const pushKind = async (kind: GuiaFileKind): Promise<string | null> => {
     // The pickup order is only kept: with no trucker it is skipped, it is not an error.
-    if (kind === "pickup" && !document.truckerName?.trim()) return null;
+    if (kind === "pickup" && !pickupTruckerOf(document)) return null;
     let firstError: string | null = null;
     const fileName = guiaFileName(kind, document.awb, master);
     try {
@@ -223,6 +226,7 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
         email: user.email,
         name: user.name,
         trucker: document.truckerName,
+        pickupTrucker: document.pickupTruckerName,
         truckerPhone: document.truckerPhone,
         seal: document.seal,
         driver: document.driverName,
@@ -364,6 +368,13 @@ export async function issueGuia(formData: FormData) {
     where: { id, agentKey: agent.key, product: "guia" },
     data: { guiaClientId: billTo?.id ?? null },
   });
+  // The accounting row of the guía: its costs, its sell and the split of its profit. It never stops the issue.
+  try {
+    await createAcctForGuia(id);
+    revalidatePath("/guias/accounting");
+  } catch (error) {
+    console.error("accounting row", error);
+  }
   const driveError = await pushGuiaToDrive(id);
   revalidatePath("/guias");
   revalidatePath(`/guias/${id}`);

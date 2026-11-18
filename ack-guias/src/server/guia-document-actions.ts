@@ -76,6 +76,7 @@ export async function retryGuiaDocument(formData: FormData) {
       email: user.email,
       name: user.name,
       trucker: document.truckerName,
+      pickupTrucker: document.pickupTruckerName,
       truckerPhone: document.truckerPhone,
       seal: document.seal,
       driver: document.driverName,

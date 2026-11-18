@@ -83,7 +83,7 @@ export async function savePickupRequest(formData: FormData) {
       chargeableKg: weight == null ? "" : String(weight),
       goods: data.description ?? "",
     },
-    { createdBy: user.email, truckerName: data.truckerName ?? "", truckerPhone: data.truckerPhone ?? "", driverName: data.driverName ?? "", packageType: data.packageType ?? "" },
+    { createdBy: user.email, truckerName: data.truckerName ?? "", pickupTruckerName: data.truckerName ?? "", truckerPhone: data.truckerPhone ?? "", driverName: data.driverName ?? "", packageType: data.packageType ?? "" },
   );
   await prisma.pickupRequest.update({ where: { id: request.id }, data: { guiaId: draft.id } });
   // The AWB number, when one was asked for, is reserved for the draft right away.

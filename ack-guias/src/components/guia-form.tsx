@@ -56,6 +56,7 @@ export function GuiaForm({
   snippets,
   note,
   truckerName = "",
+  pickupTruckerName = "",
   truckerPhone = "",
   driverName = "",
   seal = "",
@@ -72,6 +73,8 @@ export function GuiaForm({
   snippets: Partial<Record<string, string>>;
   note?: string;
   truckerName?: string;
+  /** Who did the pickup, for the pickup order. Empty means the trucker. */
+  pickupTruckerName?: string;
   truckerPhone?: string;
   driverName?: string;
   seal?: string;
@@ -384,7 +387,11 @@ export function GuiaForm({
       </section>
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <div className="space-y-1.5">
-          <Label htmlFor="truckerName">Trucker</Label>
+          <Label htmlFor="pickupTruckerName">Pickup trucker</Label>
+          <Input id="pickupTruckerName" name="pickupTruckerName" defaultValue={pickupTruckerName} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="truckerName">Trucker (delivery)</Label>
           <Input id="truckerName" name="truckerName" defaultValue={truckerName} />
         </div>
         <div className="space-y-1.5">

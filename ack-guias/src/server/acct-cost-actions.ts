@@ -48,6 +48,7 @@ export async function saveProvider(formData: FormData) {
   await prisma.acctProvider.update({
     where: { id },
     data: {
+      aliases: text(formData.get("aliases")).replace(/s*,s*/g, ", ") || null,
       pickupMode: costModeFrom(formData.get("pickupMode")),
       pickupTripCost: money(formData, "pickupTripCost"),
       pickupBaseCost: money(formData, "pickupBaseCost"),

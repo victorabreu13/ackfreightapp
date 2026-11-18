@@ -436,6 +436,7 @@ export default async function GuiaDetailPage({
         review={review}
         snippets={snippets}
         truckerName={document.truckerName || ""}
+        pickupTruckerName={document.pickupTruckerName || ""}
         truckerPhone={document.truckerPhone || ""}
         driverName={document.driverName || ""}
         seal={document.seal || ""}

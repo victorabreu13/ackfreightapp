@@ -21,6 +21,8 @@ export type GuiaPrintOptions = {
   email: string;
   name?: string | null;
   trucker?: string | null;
+  /** Who did the pickup, for the pickup order. Empty means the trucker. */
+  pickupTrucker?: string | null;
   truckerPhone?: string | null;
   seal?: string | null;
   driver?: string | null;
@@ -227,6 +229,8 @@ export async function renderGuiaPdf(kind: GuiaFileKind, document: GuiaRecord, co
     }
     document = { ...document, awb: formatAwb(parsed.prefix, parsed.serial), prefix: parsed.prefix, serial: parsed.serial };
   }
+  // The pickup order prints who did the pickup: the pickup trucker, or the trucker when none was written.
+  if (kind === "pickup") options = { ...options, trucker: pickupTruckerOf(document, options) };
   const opts = sheetOptions(document, options);
   if ((kind === "delivery" || kind === "pickup") && !opts.trucker) {
     throw Object.assign(new Error("Enter a trucker before this document."), { status: 400 });
@@ -243,4 +247,13 @@ export async function renderGuiaPdf(kind: GuiaFileKind, document: GuiaRecord, co
   if (kind === "pickup") return renderMagayaPickup(document, company, options, loaded);
   if (kind === "ccsp") return renderMagayaCcsf(document, company, options);
   return renderMagayaLabels(document, company, options, loaded);
+}
+
+/** Who did the pickup of a guía: its pickup trucker, or the trucker that delivers when none was written. */
+export function pickupTruckerOf(
+  document: { pickupTruckerName?: string | null; truckerName?: string | null },
+  options?: { pickupTrucker?: string | null; trucker?: string | null },
+): string {
+  const pickup = (options?.pickupTrucker ?? document.pickupTruckerName ?? "").trim();
+  return pickup || (options?.trucker ?? document.truckerName ?? "").trim();
 }

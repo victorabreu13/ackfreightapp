@@ -108,6 +108,13 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
                 <Button type="submit">Save {provider.name}</Button>
               </div>
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`aliases-${provider.id}`}>Names its trucker goes by</Label>
+              <Input id={`aliases-${provider.id}`} name="aliases" defaultValue={provider.aliases ?? ""} placeholder="ACK TEAM, ACK LOGISTICS" />
+              <p className="text-xs text-muted-foreground">
+                The trucker of the pickup order and of the delivery order tells which provider did the job. It is matched by these names, without capitals or punctuation, separated by commas.
+              </p>
+            </div>
             <div className="grid gap-3 lg:grid-cols-2">
               <RuleFields provider={provider} kind="pickup" />
               <RuleFields provider={provider} kind="transfer" />
