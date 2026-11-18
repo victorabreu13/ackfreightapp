@@ -32,16 +32,16 @@ test("each role sees only its own links, and an empty group is left out", () => 
     "AWB Status",
     "Operations: Houses | Pickup requests | Warehouse receipts",
     "Clients: Clients and rates | Directory",
-    "Accounting: Costs | Rates",
+    "Accounting: Commissions | Costs | Rates | Shipments",
     "Resources: AWB stock | Carriers | Custom Labels | Drivers | Labels DG | Templates",
     "Settings: Company | Users",
   ]);
   assert.deepEqual(labels("OPERATIONS"), ["Guías", "Documents", "AWB Status", "Operations: Houses | Pickup requests | Warehouse receipts", "Clients: Directory", "Resources: AWB stock | Carriers | Custom Labels | Drivers | Labels DG | Templates"]);
-  assert.deepEqual(labels("ACCOUNTING"), ["Guías", "Documents", "AWB Status", "Accounting: Costs | Rates", "Resources: Templates"]);
+  assert.deepEqual(labels("ACCOUNTING"), ["Guías", "Documents", "AWB Status", "Accounting: Commissions | Costs | Rates | Shipments", "Resources: Templates"]);
   assert.deepEqual(labels("VIEWER"), ["Guías", "Documents", "AWB Status", "Resources: Templates"]);
 });
 
 test("the flat list still has every page of the menu", () => {
-  assert.equal(GUIAS_NAV.length, 18);
+  assert.equal(GUIAS_NAV.length, 20);
   assert.ok(GUIAS_NAV.some((link) => link.href === "/guias/users"));
 });

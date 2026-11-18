@@ -33,8 +33,10 @@ export const GUIAS_MENU: NavItem[] = [
   {
     label: "Accounting",
     links: [
+      { href: "/guias/commissions", label: "Commissions", finance: true },
       { href: "/guias/costs", label: "Costs", finance: true },
       { href: "/guias/rates", label: "Rates", finance: true },
+      { href: "/guias/accounting", label: "Shipments", finance: true },
     ],
   },
   {

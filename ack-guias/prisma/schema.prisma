@@ -305,6 +305,73 @@ model AcctProvider {
   updatedAt          DateTime @updatedAt
 }
 
+/// One shipment of the accounting: what it cost ACK, what ACK invoiced and the profit that is shared. Those that came
+/// from the Google Sheet have a legacyId. Those made here when a guía is issued have a guiaId.
+model AcctShipment {
+  id              String      @id @default(cuid())
+  legacyId        String?     @unique
+  guiaId          String?     @unique
+  date            DateTime    @db.Date
+  client          String
+  awb             String
+  awb2            String?
+  airline         String
+  dest            String
+  uldText         String?
+  pcs             Int         @default(0)
+  gross           Float       @default(0)
+  chw             Float       @default(0)
+  cargoValue      Float       @default(0)
+  invoiceNo       String?
+  clientPaid      Boolean     @default(false)
+  clientPaidDate  DateTime?   @db.Date
+  costRate        Float?
+  sellRate        Float?
+  airCost         Float       @default(0)
+  airSold         Float       @default(0)
+  pickupCost      Float       @default(0)
+  pickupSold      Float       @default(0)
+  handlingCost    Float       @default(0)
+  bupHandlingCost Float       @default(0)
+  handlingSold    Float       @default(0)
+  transferCost    Float       @default(0)
+  transferSold    Float       @default(0)
+  kopeHandling    Float       @default(0)
+  kopeInCost      Boolean     @default(false)
+  insuranceCost   Float       @default(0)
+  insuranceSold   Float       @default(0)
+  aes             Float       @default(0)
+  awbFee          Float       @default(0)
+  invoicedOverride Float?
+  costTotal       Float       @default(0)
+  invoiced        Float       @default(0)
+  profit          Float       @default(0)
+  note            String?     @db.Text
+  source          String?
+  manualFields    String?     @db.Text
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  splits          AcctSplit[]
+
+  @@index([date])
+  @@index([client])
+  @@index([awb])
+}
+
+/// A share of the profit of a shipment. The payee is a person of the team, or ACK, whose share is the house's.
+model AcctSplit {
+  id         String       @id @default(cuid())
+  shipmentId String
+  shipment   AcctShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  payee      String
+  pct        Float
+  paid       Boolean      @default(false)
+  paidDate   DateTime?    @db.Date
+
+  @@index([shipmentId])
+  @@index([payee])
+}
+
 /// Who changed a field of a guía, when, from what to what: by hand, by a warehouse receipt, or by a reset to the receipt.
 model GuiaChangeLog {
   id        String             @id @default(cuid())
