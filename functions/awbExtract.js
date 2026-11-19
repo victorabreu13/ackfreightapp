@@ -3,7 +3,8 @@
 // index.js; this file holds what is asked, what comes back, and the checks on it, so
 // tests can require it alone.
 
-const MODEL = "claude-opus-5-5";
+// Sonnet 5.5: reading a form is easy work, and it answers much faster than Opus.
+const MODEL = "claude-sonnet-5-5";
 const LB_PER_KG = 2.20462;
 
 const PROMPT = [

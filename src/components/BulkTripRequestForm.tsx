@@ -33,7 +33,7 @@ interface Row extends FileRow {
 }
 
 const MAX_READ_BYTES = 6 * 1024 * 1024;
-const PARALLEL_READS = 3;
+const PARALLEL_READS = 8;
 
 function formatTime(d: Date) {
   return d.toTimeString().slice(0, 5);

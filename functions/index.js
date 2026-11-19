@@ -1364,16 +1364,28 @@ exports.extractAwbDetails = onCall(
       kind === "pdf"
         ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: contentBase64 } }
         : { type: "image", source: { type: "base64", media_type: kind === "png" ? "image/png" : "image/jpeg", data: contentBase64 } };
-    let response;
-    try {
-      response = await client.beta.messages.create({
+    // Reading three numbers off a form doesn't need to think first, and thinking is most of the
+    // wait: Sonnet 5.5 runs without it with "between_tools". If the API ever refuses that, it is
+    // asked again the usual way.
+    const ask = (fast) =>
+      client.beta.messages.create({
         model: awbExtract.MODEL,
-        max_tokens: 4096,
+        max_tokens: fast ? 1024 : 4096,
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
+        ...(fast ? { thinking: { type: "between_tools" } } : {}),
         output_config: { effort: "low", format: { type: "json_schema", schema: awbExtract.SCHEMA } },
         messages: [{ role: "user", content: [source, { type: "text", text: awbExtract.PROMPT }] }],
       });
+    let response;
+    try {
+      try {
+        response = await ask(true);
+      } catch (err) {
+        if (!(err && err.status === 400)) throw err;
+        logger.warn("extractAwbDetails: thinking-off request refused, retrying:", err.message);
+        response = await ask(false);
+      }
     } catch (err) {
       logger.error("extractAwbDetails: Claude call failed:", err && err.status, err && err.message);
       throw new HttpsError("internal", "Couldn't read that document. Type the pieces and kilograms.");
