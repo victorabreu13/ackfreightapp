@@ -245,3 +245,47 @@ export function renderCustomLabel(spec: CustomLabelSpec): Promise<Buffer> {
   doc.end();
   return done;
 }
+
+/** Where the text of the label sits on the page, in points, for a preview that does not need a PDF viewer. */
+export type LabelPreview = {
+  width: number;
+  height: number;
+  /** The width of the border line, 0 for none. */
+  border: number;
+  fontFamily: string;
+  fontWeight: "bold" | "normal";
+  fontStyle: "italic" | "normal";
+  textAnchor: "start" | "middle" | "end";
+  size: number;
+  underline: boolean;
+  rows: Array<{ text: string; x: number; y: number }>;
+};
+
+/** Distance from the top of a line to its baseline, as a share of the font size (the ascender of the PDF font). */
+const ASCENT = { Helvetica: 0.718, Times: 0.683, Courier: 0.629 } as const;
+const CSS_FAMILY = {
+  Helvetica: "Helvetica, Arial, 'Liberation Sans', sans-serif",
+  Times: "'Times New Roman', Times, 'Liberation Serif', serif",
+  Courier: "'Courier New', Courier, 'Liberation Mono', monospace",
+} as const;
+
+/** The same positions drawLabel uses, as numbers a page can draw. */
+export function previewOf(spec: CustomLabelSpec, layout: CustomLabelLayout): LabelPreview {
+  const { width, height, margin, size, lineHeight, rows } = layout;
+  const block = rows.length * lineHeight;
+  const free = height - 2 * margin - block;
+  const top = margin + (spec.valign === "top" ? 0 : spec.valign === "bottom" ? free : free / 2);
+  const x = spec.align === "left" ? margin : spec.align === "right" ? width - margin : width / 2;
+  return {
+    width,
+    height,
+    border: BORDER_WIDTH[spec.border],
+    fontFamily: CSS_FAMILY[spec.family],
+    fontWeight: spec.bold ? "bold" : "normal",
+    fontStyle: spec.italic ? "italic" : "normal",
+    textAnchor: spec.align === "left" ? "start" : spec.align === "right" ? "end" : "middle",
+    size,
+    underline: spec.underline,
+    rows: rows.map((text, index) => ({ text, x, y: top + index * lineHeight + (lineHeight - size) / 2 + size * ASCENT[spec.family] })),
+  };
+}

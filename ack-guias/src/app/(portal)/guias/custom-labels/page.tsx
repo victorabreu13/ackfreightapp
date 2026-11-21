@@ -4,7 +4,8 @@ import { GuiaEyebrow } from "@/components/guia-eyebrow";
 import { Button } from "@/components/ui/button";
 import { canManageGuias } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { MAX_COPIES, MAX_SIZE, MIN_SIZE, customLabelQuery, layoutCustomLabel, parseCustomLabel } from "@/lib/guias/custom-label";
+import { LabelPreviewSvg } from "@/components/label-preview-svg";
+import { MAX_COPIES, MAX_SIZE, MIN_SIZE, customLabelQuery, layoutCustomLabel, parseCustomLabel, previewOf } from "@/lib/guias/custom-label";
 
 const SELECT = "block h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
 const FIELD = "block h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
@@ -145,12 +146,7 @@ export default async function CustomLabelsPage({ searchParams }: { searchParams:
               {layout.reduced ? (
                 <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">The text did not fit at {spec.size} pt and was reduced to {layout.size} pt.</p>
               ) : null}
-              <iframe
-                title="Label preview"
-                src={`/api/guias/custom-labels?${query}#toolbar=0&navpanes=0&view=Fit`}
-                className="w-full rounded-md border border-border bg-white"
-                style={{ aspectRatio: landscape ? "6 / 4" : "4 / 6", maxHeight: "70vh" }}
-              />
+              <LabelPreviewSvg preview={previewOf(spec, layout)} />
             </>
           ) : (
             <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">

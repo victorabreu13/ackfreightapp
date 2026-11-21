@@ -62,3 +62,20 @@ test("automatic size keeps each typed line whole while the letters stay readable
   const wrapped = layoutCustomLabel(doc, spec({ text: Array.from({ length: 12 }, () => "WORD").join(" ") + " AND A MUCH LONGER TAIL OF WORDS TO FORCE A WRAP ON THE LABEL" }));
   assert.ok(wrapped.rows.length > 1);
 });
+
+test("the preview puts each row where the PDF does, with the anchor of the alignment", async () => {
+  const { default: PDFDocument } = await import("pdfkit");
+  const { previewOf } = await import("@/lib/guias/custom-label");
+  const spec = { ...DEFAULT_SPEC, text: "UN1993\nFlammable liquids", align: "center" as const, valign: "middle" as const, size: 20 };
+  const layout = layoutCustomLabel(new PDFDocument({ size: "LETTER", margin: 0 }), spec);
+  const preview = previewOf(spec, layout);
+  assert.equal(preview.width, 432);
+  assert.equal(preview.height, 288);
+  assert.equal(preview.textAnchor, "middle");
+  assert.equal(preview.rows.length, 2);
+  assert.equal(preview.rows[0].x, 216);
+  assert.ok(preview.rows[1].y - preview.rows[0].y === layout.lineHeight);
+  assert.equal(previewOf({ ...spec, align: "left" }, layout).rows[0].x, layout.margin);
+  assert.equal(previewOf({ ...spec, align: "right" }, layout).rows[0].x, 432 - layout.margin);
+  assert.equal(previewOf({ ...spec, border: "thick" }, layout).border, 4);
+});
