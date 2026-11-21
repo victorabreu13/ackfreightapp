@@ -356,8 +356,8 @@ function drawChecklist(doc: Doc, receipt: ReceiptDocument) {
   t(doc, 143, 610, receipt.receivedBy ?? receipt.warehouse, 8);
 }
 
-/** The warehouse receipt as a PDF of two pages: the receipt and the cargo acceptance checklist. */
-export async function renderWarehouseReceipt(receipt: ReceiptDocument, company: CompanyView): Promise<Buffer> {
+/** The warehouse receipt as a PDF of two pages: the receipt and the cargo acceptance checklist. The checklist can be left out. */
+export async function renderWarehouseReceipt(receipt: ReceiptDocument, company: CompanyView, options: { checklist?: boolean } = {}): Promise<Buffer> {
   const barcode = await bwipjs.toBuffer({ bcid: "code128", text: receiptNumber(receipt.seq), scale: 2, height: 8, includetext: false });
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: "LETTER", margins: { top: 0, left: 0, right: 0, bottom: -4000 } });
@@ -368,8 +368,10 @@ export async function renderWarehouseReceipt(receipt: ReceiptDocument, company: 
     try {
       doc.info.Title = `WAREHOUSE RECEIPT ${receiptNumber(receipt.seq)}`;
       drawReceipt(doc, receipt, company, barcode);
-      doc.addPage({ size: "LETTER", margins: { top: 0, left: 0, right: 0, bottom: -4000 } });
-      drawChecklist(doc, receipt);
+      if (options.checklist !== false) {
+        doc.addPage({ size: "LETTER", margins: { top: 0, left: 0, right: 0, bottom: -4000 } });
+        drawChecklist(doc, receipt);
+      }
     } catch (error) {
       reject(error);
       return;

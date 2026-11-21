@@ -50,6 +50,22 @@ test("the receipts of a guía add up and fill only what the guía left empty", (
   assert.deepEqual(applyReceiptsToGuia(blank, []).changed, []);
 });
 
+test("the receipt PDF for a client leaves the checklist out", async () => {
+  const { renderWarehouseReceipt } = await import("@/lib/guias/wr-pdf");
+  const company = { letterheadName: "ACK LOGISTICS", address: "6550 NW 97TH AVE, SUITE 220, DORAL, FL 33178, UNITED STATES", phone: "+1 (305) 915-3461", fax: "", termsUrl: "" } as never;
+  const pdf = await renderWarehouseReceipt(
+    {
+      seq: 5501, receivedAt: new Date("2026-10-29T18:00:00Z"), warehouse: "Warehouse 2 - Site 1", receivedBy: "Andres", shipperName: "ACME", shipperAddress: "1 MAIN ST", consigneeName: null, consigneeAddress: null,
+      carrier: null, driver: null, driverLicense: null, supplier: null, invoiceNumber: null, poNumber: null, pickupNumber: null, trackingNumber: null, proNumber: null,
+      htPallet: false, palletType: null, dangerousGood: null, sealedDrum: null, notes: null,
+      lines: [{ pieces: 1, packageType: "PLT", length: 40, width: 30, height: 20, weightKg: 100, location: null, description: "GOODS", notes: null, pcTracking: null }],
+    },
+    company,
+    { checklist: false },
+  );
+  assert.equal((pdf.toString("latin1").match(/\/Type \/Page\b(?!s)/g) ?? []).length, 1);
+});
+
 test("the receipt PDF has the receipt and the cargo acceptance checklist", async () => {
   const { renderWarehouseReceipt } = await import("@/lib/guias/wr-pdf");
   const company = { letterheadName: "ACK LOGISTICS", address: "6550 NW 97TH AVE, SUITE 220, DORAL, FL 33178, UNITED STATES", phone: "+1 (305) 915-3461", fax: "", termsUrl: "" } as never;

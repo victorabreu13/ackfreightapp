@@ -3,6 +3,7 @@ import { FlightBadge, FlightHistory, flightDetailOf, flightStamp, flightTimesLin
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { shortDate, usd } from "@/lib/guias/acct-format";
+import { receiptNumber } from "@/lib/guias/wr";
 
 export default async function CustomerPortalPage() {
   const user = await getSessionUser();
@@ -22,6 +23,7 @@ export default async function CustomerPortalPage() {
       flightStatusDetail: true,
       flightCheckedAt: true,
       flightEvents: { orderBy: { createdAt: "desc" }, take: 6, select: { id: true, status: true, createdAt: true } },
+      warehouseReceipts: { orderBy: { seq: "asc" }, select: { id: true, seq: true } },
     },
   });
 
@@ -75,6 +77,11 @@ export default async function CustomerPortalPage() {
                     >
                       Ver AWB
                     </a>
+                    {guia.warehouseReceipts.map((receipt) => (
+                      <a key={receipt.id} href={`/api/guias/portal/warehouse/${receipt.id}`} target="_blank" rel="noreferrer" className="rounded-md border border-border px-3 py-2 text-sm">
+                        Warehouse receipt {receiptNumber(receipt.seq)}
+                      </a>
+                    ))}
                     {invoiceOf(guia.id) ? (
                       <a
                         href={`/api/guias/portal/invoice/${invoiceOf(guia.id)?.id}`}
