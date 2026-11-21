@@ -3,6 +3,7 @@ import { FlightBadge, FlightHistory, flightDetailOf, flightStamp, flightTimesLin
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { shortDate, usd } from "@/lib/guias/acct-format";
+import { isCategoryUpload, UPLOAD_KIND } from "@/lib/guias/upload-rules";
 import { receiptNumber } from "@/lib/guias/wr";
 
 export default async function CustomerPortalPage() {
@@ -24,6 +25,19 @@ export default async function CustomerPortalPage() {
       flightCheckedAt: true,
       flightEvents: { orderBy: { createdAt: "desc" }, take: 6, select: { id: true, status: true, createdAt: true } },
       warehouseReceipts: { orderBy: { seq: "asc" }, select: { id: true, seq: true } },
+      // The invoice or the manifest uploaded to the guía. The other files of the team stay internal.
+      loggedDocuments: {
+        where: {
+          kind: UPLOAD_KIND,
+          source: "upload",
+          AND: [
+            { OR: [{ file: { isNot: null } }, { driveFileId: { not: null } }] },
+            { OR: ["factura", "manifiesto", "invoice", "manifest"].map((start) => ({ fileName: { startsWith: start, mode: "insensitive" as const } })) },
+          ],
+        },
+        orderBy: { generatedAt: "asc" },
+        select: { id: true, fileName: true },
+      },
     },
   });
 
@@ -77,6 +91,13 @@ export default async function CustomerPortalPage() {
                     >
                       Ver AWB
                     </a>
+                    {guia.loggedDocuments
+                      .filter((file) => isCategoryUpload("invoice", file.fileName))
+                      .map((file) => (
+                        <a key={file.id} href={`/api/guias/portal/upload/${file.id}`} target="_blank" rel="noreferrer" className="rounded-md border border-border px-3 py-2 text-sm">
+                          Factura / manifiesto
+                        </a>
+                      ))}
                     {guia.warehouseReceipts.map((receipt) => (
                       <a key={receipt.id} href={`/api/guias/portal/warehouse/${receipt.id}`} target="_blank" rel="noreferrer" className="rounded-md border border-border px-3 py-2 text-sm">
                         Warehouse receipt {receiptNumber(receipt.seq)}
