@@ -97,6 +97,8 @@ export function GuiaForm({
   // The instructions box stays closed until the team wants it, so it takes no room when it is not used.
   const [showInstructions, setShowInstructions] = useState(false);
   const [draft, setDraft] = useState(values);
+  // All BUP cargo is screened, so checking BUP checks Screened too; Screened can still be set without BUP.
+  const [screenedOn, setScreenedOn] = useState(screened || values.bup === "1");
   const [flags, setFlags] = useState<string[]>(review);
   const [sources, setSources] = useState(snippets);
   const [banner, setBanner] = useState(note ?? "");
@@ -336,7 +338,10 @@ export function GuiaForm({
             ) : null}
           </fieldset>
           <label className="flex items-center gap-2 text-sm font-medium">
-            <input type="checkbox" name="bup" value="1" checked={draft.bup === "1"} onChange={(event) => update("bup", event.target.checked ? "1" : "")} />
+            <input type="checkbox" name="bup" value="1" checked={draft.bup === "1"} onChange={(event) => {
+                update("bup", event.target.checked ? "1" : "");
+                if (event.target.checked) setScreenedOn(true);
+              }} />
             BUP (unit load device)
           </label>
           {draft.bup === "1" ? (
@@ -389,7 +394,7 @@ export function GuiaForm({
             {mode === "edit" && !aircraft ? <p className="text-xs text-muted-foreground">Not chosen: the guía shows both TSA letters.</p> : null}
           </fieldset>
           <label className="flex items-center gap-2 self-end text-sm font-medium">
-            <input type="checkbox" name="screened" value="1" defaultChecked={screened} />
+            <input type="checkbox" name="screened" value="1" checked={screenedOn} onChange={(event) => setScreenedOn(event.target.checked)} />
             Screened (CCSF and CCSP)
           </label>
         </div>
