@@ -543,6 +543,7 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
         natureText,
         prepaid,
         otherCharges: otherCharges.map((charge) => ({ description: charge.description, amount: money(charge.amount) })),
+        otherTotal: otherCharges.length ? money(otherChargesTotal(otherCharges)) : "",
         totalPrepaid,
         accounting,
         signature: name,
@@ -605,6 +606,8 @@ type Face = {
   prepaid: string;
   /** The Other Charges box: one line each, description and amount. */
   otherCharges: Array<{ description: string; amount: string }>;
+  /** The sum of the other charges, printed in the left blue field of Total Other Charges Due Agent. */
+  otherTotal: string;
   /** Weight charge plus the other charges. */
   totalPrepaid: string;
   accounting: string;
@@ -773,6 +776,7 @@ function drawAwbFace(doc: Doc, face: Face) {
   });
   box(doc, L, 720, 148, 750, CYAN);
   box(doc, 148, 720, 266, 750, CYAN);
+  if (face.otherTotal) t(doc, L + 30, 739, face.otherTotal, 8);
   box(doc, L, 750, 148, 775);
   box(doc, 148, 750, 266, 775);
   tc(doc, 89, 756, "Total Prepaid", 5.5);

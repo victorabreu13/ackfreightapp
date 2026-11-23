@@ -278,6 +278,8 @@ test("other charges print one under the other in the Other Charges box and add t
   assert.match(text, /25\.50/);
   // 3986.50 of weight charge plus 175.50 of other charges.
   assert.match(text, /4162\.00/);
+  // The sum of the other charges, 175.50, goes in the blue field of Total Other Charges Due Agent.
+  assert.match(text, /175\.50/);
   const plain = pdfText(await renderCorteAwb(guia("ack"), company("ack"), { email: "ops@example.com", now, draft: true }));
   assert.doesNotMatch(plain, /4162\.00/);
   assert.doesNotMatch(plain, /DG Charge/);
