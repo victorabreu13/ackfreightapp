@@ -784,10 +784,15 @@ function drawAwbFace(doc: Doc, face: Face) {
   if (face.totalPrepaid) t(doc, L + 30, 770, face.totalPrepaid, 9);
   box(doc, 266, 620, R, 775);
   t(doc, 269, 627, "Other Charges", 5.5);
-  face.otherCharges.slice(0, MAX_OTHER_CHARGES).forEach((charge, index) => {
+  // The values line up in one column right after the longest description, so each stays close to its own text.
+  const shown = face.otherCharges.slice(0, MAX_OTHER_CHARGES);
+  doc.font("Helvetica").fontSize(7);
+  const widest = (texts: string[]) => texts.reduce((max, text) => Math.max(max, doc.widthOfString(plain(text))), 0);
+  const amountRight = Math.min(R - 6, 272 + Math.max(widest(shown.map((charge) => charge.description)), 60) + 14 + widest(shown.map((charge) => charge.amount)));
+  shown.forEach((charge, index) => {
     const y = 641 + index * 9;
     t(doc, 272, y, charge.description, 7);
-    tr(doc, R - 6, y, charge.amount, 7);
+    tr(doc, amountRight, y, charge.amount, 7);
   });
   lines(doc, 269, 692, ["Shipper certifies that the particulars on the face hereof are correct and that insofar as any part of the consignment contains dangerous goods, such part", "is properly described by name and is in proper condition for carriage by air according to the applicable Dangerous Goods Regulations."], 4.3, 5);
   t(doc, 275, 718, face.signature, 9);
