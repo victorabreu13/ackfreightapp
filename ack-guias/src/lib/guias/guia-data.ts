@@ -1,5 +1,6 @@
 import type { GuiaValues } from "@/lib/guias/extract";
 import type { ReviewField } from "@/lib/guias/extract";
+import { parseOtherCharges, serializeOtherCharges } from "@/lib/guias/other-charges";
 
 export function blank(value: string): string | null {
   return value || null;
@@ -44,6 +45,7 @@ export function documentData(values: GuiaValues, review: ReviewField[], snippets
     hawb: blank(values.hawb),
     dgDeclarable: values.dg === "1",
     cargoAircraftOnly: values.dg === "1" && values.cao === "1",
+    otherChargesJson: blank(serializeOtherCharges(parseOtherCharges(values.otherCharges))),
     unNumbers: blank(values.unNumbers),
     bup: values.bup === "1",
     bupItems: blank(values.bupItems),
@@ -73,6 +75,7 @@ export function guiaValuesOf(document: {
   hawb: string | null;
   dgDeclarable: boolean;
   cargoAircraftOnly?: boolean;
+  otherChargesJson?: string | null;
   unNumbers: string | null;
   bup: boolean;
   bupItems: string | null;
@@ -103,6 +106,7 @@ export function guiaValuesOf(document: {
     hawb: document.hawb || "",
     dg: document.dgDeclarable ? "1" : "",
     cao: document.dgDeclarable && document.cargoAircraftOnly ? "1" : "",
+    otherCharges: document.otherChargesJson || "",
     unNumbers: document.unNumbers || "",
     bup: document.bup ? "1" : "",
     bupItems: document.bupItems || "",

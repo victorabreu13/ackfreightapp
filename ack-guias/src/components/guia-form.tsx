@@ -2,6 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { OtherChargesEditor } from "@/components/other-charges-editor";
 import { GuiaLookupInput, type LookupType } from "@/components/guia-lookup-input";
 import { Input } from "@/components/ui/input";
 import { TruckerInput } from "@/components/trucker-input";
@@ -362,6 +363,11 @@ export function GuiaForm({
               </p>
             </div>
           ) : null}
+        </div>
+        <div className="space-y-2 rounded-md border border-border p-3 md:col-span-2">
+          <Label>Other Charges</Label>
+          <OtherChargesEditor value={draft.otherCharges} onChange={(next) => update("otherCharges", next)} />
+          <p className="text-xs text-muted-foreground">Each line prints under the other in the Other Charges box of the AWB, and the total is added to Total Prepaid.</p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="issuingCompany">Issuing company</Label>

@@ -147,6 +147,8 @@ model AirWaybillDocument {
   dgDeclarable     Boolean      @default(false)
   /// Cargo Aircraft Only. With dangerous goods it prints after "Dangerous Goods as per associated DGD" as "- CAO".
   cargoAircraftOnly Boolean    @default(false)
+  /// Extra charges of the guía as JSON [{description, amount}]. They print in Other Charges and add to Total Prepaid.
+  otherChargesJson String?     @db.Text
   /// UN numbers of the dangerous goods, like "UN3481, UN1950".
   unNumbers        String?
   /// Moves as a BUP (unit load device). The shipment checklist then lists the CCSF and the CCSP.

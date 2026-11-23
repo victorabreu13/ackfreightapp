@@ -30,6 +30,7 @@ const blank: GuiaValues = {
   hawb: "",
   dg: "",
   cao: "",
+  otherCharges: "",
   unNumbers: "",
   bup: "",
   bupItems: "",

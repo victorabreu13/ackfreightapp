@@ -8,6 +8,7 @@ const blank: GuiaValues = {
   flightNumber: "", flightDate: "", pieces: "", chargeableKg: "", rate: "", grossKg: "", goods: "", handling: "", aesItn: "", hawb: "",
   dg: "", unNumbers: "", bup: "", bupItems: "", lithiumPi: "", issuingCompany: "ack",
   cao: "",
+  otherCharges: "",
 };
 
 test("receipt and pickup numbers", () => {

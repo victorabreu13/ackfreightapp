@@ -27,6 +27,7 @@ import { createInvoiceForGuia } from "@/lib/guias/invoice-service";
 import { newDriveSession } from "@/lib/guias/drive";
 import { aircraftFrom, driveKinds } from "@/lib/guias/guia-pack";
 import { roundUpText } from "@/lib/guias/round-up";
+import { parseOtherCharges, serializeOtherCharges } from "@/lib/guias/other-charges";
 
 /** Every guía belongs to a client of the book. The client portal and its emails depend on it. */
 const CLIENT_REQUIRED = "Type the client of the guía.";
@@ -67,6 +68,7 @@ function valuesFromForm(formData: FormData): GuiaValues {
     hawb: text(formData.get("hawb")),
     dg: text(formData.get("dg")) === "1" ? "1" : "",
     cao: text(formData.get("dg")) === "1" && text(formData.get("cao")) === "1" ? "1" : "",
+    otherCharges: serializeOtherCharges(parseOtherCharges(text(formData.get("otherCharges")))),
     unNumbers: text(formData.get("dg")) === "1" ? formatUnNumbers(text(formData.get("unNumbers"))) : "",
     bup: text(formData.get("bup")) === "1" ? "1" : "",
     bupItems: text(formData.get("bup")) === "1" ? text(formData.get("bupItems")) : "",

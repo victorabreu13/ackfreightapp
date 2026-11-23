@@ -41,6 +41,8 @@ export type GuiaValues = {
   dg: string;
   /** "1" when the dangerous goods are Cargo Aircraft Only (CAO). It prints after the DGD line. */
   cao: string;
+  /** Other charges as JSON [{description, amount}], or empty. */
+  otherCharges: string;
   unNumbers: string;
   /** "1" when the shipment moves as a BUP. */
   bup: string;
@@ -81,6 +83,7 @@ const EMPTY: GuiaValues = {
   hawb: "",
   dg: "",
   cao: "",
+  otherCharges: "",
   unNumbers: "",
   bup: "",
   bupItems: "",

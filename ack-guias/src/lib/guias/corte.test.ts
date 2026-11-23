@@ -267,3 +267,18 @@ test("goods that still contain an ITN phrase are not rewritten, and a blank ITN 
   assert.match(open, /pmorales@pacifiko/);
   assert.doesNotMatch(open, /NO EEI REQ 30\.37\(a\)/);
 });
+
+test("other charges print one under the other in the Other Charges box and add to Total Prepaid", async () => {
+  const charges = JSON.stringify([{ description: "DG Charge", amount: 150 }, { description: "Fuel Surcharge", amount: 25.5 }]);
+  const withCharges = { ...guia("ack"), otherChargesJson: charges } as unknown as GuiaRecord;
+  const text = pdfText(await renderCorteAwb(withCharges, company("ack"), { email: "ops@example.com", now, draft: true }));
+  assert.match(text, /DG Charge/);
+  assert.match(text, /150\.00/);
+  assert.match(text, /Fuel Surcharge/);
+  assert.match(text, /25\.50/);
+  // 3986.50 of weight charge plus 175.50 of other charges.
+  assert.match(text, /4162\.00/);
+  const plain = pdfText(await renderCorteAwb(guia("ack"), company("ack"), { email: "ops@example.com", now, draft: true }));
+  assert.doesNotMatch(plain, /4162\.00/);
+  assert.doesNotMatch(plain, /DG Charge/);
+});

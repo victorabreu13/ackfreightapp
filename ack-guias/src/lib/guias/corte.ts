@@ -9,6 +9,7 @@ import { addressOnly } from "@/lib/guias/dg/party-text";
 import { planUn } from "@/lib/guias/dg/un";
 import type { GuiaPrintOptions, GuiaRecord } from "@/lib/guias/files";
 import { formatFlightDate, sheetDate, signerName } from "@/lib/sheets/layout";
+import { MAX_OTHER_CHARGES, otherChargesTotal, parseOtherCharges } from "@/lib/guias/other-charges";
 import { KOPE_LOGO_PNG } from "@/lib/sheets/kope-logo";
 
 /**
@@ -479,7 +480,11 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
   const chargeable = first?.chargeableWeight ?? gross;
   const rate = first?.rate ?? null;
   const lineTotal = first?.total ?? (rate != null && chargeable != null ? rate * chargeable : null);
-  const prepaid = (document.chgsCode || "PP").toUpperCase().startsWith("C") ? "" : money(document.weightCharge ?? lineTotal);
+  const weightPrepaid = (document.chgsCode || "PP").toUpperCase().startsWith("C") ? null : (document.weightCharge ?? lineTotal);
+  const prepaid = money(weightPrepaid);
+  // The other charges add to the Total Prepaid, below the weight charge.
+  const otherCharges = parseOtherCharges(document.otherChargesJson);
+  const totalPrepaid = weightPrepaid == null && !otherCharges.length ? "" : money(Math.round(((weightPrepaid ?? 0) + otherChargesTotal(otherCharges)) * 100) / 100);
   const natureText = goodsForPrint(goods, document.aesItn, document.lithiumPi, document.bup ? document.bupItems : null, !house && (document._count?.houses ?? 0) > 0);
   const handlingText = handlingForPrint(document.handling, document.dgDeclarable, document.dgDeclarable ? document.unNumbers : null, document.dgDeclarable && document.cargoAircraftOnly);
   const accounting = plain(document.accountingInfo) || ((document.chgsCode || "PP").toUpperCase().startsWith("C") ? "FREIGHT COLLECT" : "FREIGHT PREPAID");
@@ -537,6 +542,8 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
         total: house && lineTotal == null ? "AS AGREED" : money(lineTotal),
         natureText,
         prepaid,
+        otherCharges: otherCharges.map((charge) => ({ description: charge.description, amount: money(charge.amount) })),
+        totalPrepaid,
         accounting,
         signature: name,
         signatureImage: draft ? null : signatureOf(company),
@@ -596,6 +603,10 @@ type Face = {
   total: string;
   natureText: string;
   prepaid: string;
+  /** The Other Charges box: one line each, description and amount. */
+  otherCharges: Array<{ description: string; amount: string }>;
+  /** Weight charge plus the other charges. */
+  totalPrepaid: string;
   accounting: string;
   signature: string;
   /** The signer's handwritten signature, drawn on the line of the Signature of Shipper or his Agent. Not on drafts. */
@@ -766,9 +777,14 @@ function drawAwbFace(doc: Doc, face: Face) {
   box(doc, 148, 750, 266, 775);
   tc(doc, 89, 756, "Total Prepaid", 5.5);
   tc(doc, 207, 756, "Total Collect", 5.5);
-  if (face.prepaid) t(doc, L + 30, 770, face.prepaid, 9);
+  if (face.totalPrepaid) t(doc, L + 30, 770, face.totalPrepaid, 9);
   box(doc, 266, 620, R, 775);
   t(doc, 269, 627, "Other Charges", 5.5);
+  face.otherCharges.slice(0, MAX_OTHER_CHARGES).forEach((charge, index) => {
+    const y = 641 + index * 9;
+    t(doc, 272, y, charge.description, 7);
+    tr(doc, R - 6, y, charge.amount, 7);
+  });
   lines(doc, 269, 692, ["Shipper certifies that the particulars on the face hereof are correct and that insofar as any part of the consignment contains dangerous goods, such part", "is properly described by name and is in proper condition for carriage by air according to the applicable Dangerous Goods Regulations."], 4.3, 5);
   t(doc, 275, 718, face.signature, 9);
   t(doc, 275, 729, "Authorized Agent", 7.5);
