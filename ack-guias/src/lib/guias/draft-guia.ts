@@ -26,6 +26,7 @@ export const EMPTY_GUIA_VALUES: GuiaValues = {
   aesItn: "",
   hawb: "",
   dg: "",
+  cao: "",
   unNumbers: "",
   bup: "",
   bupItems: "",

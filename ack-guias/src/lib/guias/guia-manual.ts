@@ -98,6 +98,7 @@ export function guiaFieldLabel(field: string): string {
     aesItn: "AES ITN",
     hawb: "HAWB",
     dg: "Dangerous Goods",
+    cao: "Cargo Aircraft Only",
     unNumbers: "UN numbers",
     bup: "BUP",
     bupItems: "BUP items",

@@ -66,6 +66,7 @@ function valuesFromForm(formData: FormData): GuiaValues {
     aesItn: text(formData.get("aesItn")).replace(/^AES\s*ITN\s*:\s*/i, "").trim(),
     hawb: text(formData.get("hawb")),
     dg: text(formData.get("dg")) === "1" ? "1" : "",
+    cao: text(formData.get("dg")) === "1" && text(formData.get("cao")) === "1" ? "1" : "",
     unNumbers: text(formData.get("dg")) === "1" ? formatUnNumbers(text(formData.get("unNumbers"))) : "",
     bup: text(formData.get("bup")) === "1" ? "1" : "",
     bupItems: text(formData.get("bup")) === "1" ? text(formData.get("bupItems")) : "",

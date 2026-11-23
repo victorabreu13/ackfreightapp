@@ -289,6 +289,11 @@ export function GuiaForm({
               <p className="text-xs text-muted-foreground">
                 Prints in Handling Information: Dangerous Goods as per associated DGD. The DGD comes from the shipper. Several UN numbers can go in the same field.
               </p>
+              <label className="flex items-center gap-2 pt-1 text-sm font-medium">
+                <input type="checkbox" name="cao" value="1" checked={draft.cao === "1"} onChange={(event) => update("cao", event.target.checked ? "1" : "")} />
+                Cargo Aircraft Only (CAO)
+              </label>
+              <p className="text-xs text-muted-foreground">Prints &quot;- CAO&quot; next to Dangerous Goods as per associated DGD.</p>
               {onlyLithiumUn(draft.unNumbers) ? (
                 <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
                   Lithium batteries under Section II do not ship with a DGD. If these are Section II, uncheck DG and use the lithium Section II option below. Keep DG only for Section IA or IB.

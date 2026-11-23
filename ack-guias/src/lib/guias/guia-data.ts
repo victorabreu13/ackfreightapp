@@ -43,6 +43,7 @@ export function documentData(values: GuiaValues, review: ReviewField[], snippets
     aesItn: blank(values.aesItn),
     hawb: blank(values.hawb),
     dgDeclarable: values.dg === "1",
+    cargoAircraftOnly: values.dg === "1" && values.cao === "1",
     unNumbers: blank(values.unNumbers),
     bup: values.bup === "1",
     bupItems: blank(values.bupItems),
@@ -71,6 +72,7 @@ export function guiaValuesOf(document: {
   aesItn: string | null;
   hawb: string | null;
   dgDeclarable: boolean;
+  cargoAircraftOnly?: boolean;
   unNumbers: string | null;
   bup: boolean;
   bupItems: string | null;
@@ -100,6 +102,7 @@ export function guiaValuesOf(document: {
     aesItn: document.aesItn || "",
     hawb: document.hawb || "",
     dg: document.dgDeclarable ? "1" : "",
+    cao: document.dgDeclarable && document.cargoAircraftOnly ? "1" : "",
     unNumbers: document.unNumbers || "",
     bup: document.bup ? "1" : "",
     bupItems: document.bupItems || "",

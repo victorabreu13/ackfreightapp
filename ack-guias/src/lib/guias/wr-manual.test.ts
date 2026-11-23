@@ -8,6 +8,7 @@ const blank: GuiaValues = {
   client: "", shipper: "", shipperAddress: "", consignee: "", consigneeAddress: "", notify: "", notifyAddress: "", origin: "", destination: "",
   flightNumber: "", flightDate: "", pieces: "", chargeableKg: "", rate: "", grossKg: "", goods: "", handling: "", aesItn: "", hawb: "",
   dg: "", unNumbers: "", bup: "", bupItems: "", lithiumPi: "", issuingCompany: "ack",
+  cao: "",
 };
 
 /** One receipt: 5 pieces and 536.2 kg, with no measures, so its volume weight is 0 and the chargeable weight is 536.2. */

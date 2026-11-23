@@ -138,3 +138,16 @@ test("the Nature of Goods runs description, lithium types, AES ITN and then the 
   assert.deepEqual(bupItemList("ULD A - 5 PCS,  ULD B - 6 PCS; \n ,ULD C"), ["ULD A - 5 PCS", "ULD B - 6 PCS", "ULD C"]);
   assert.deepEqual(goodsForPrint(line("WIDGETS"), "X1", null, "").split("\n"), ["WIDGETS", "", "ITN: X1"]);
 });
+
+test("Cargo Aircraft Only adds - CAO after the DGD line, on the same line, and only with dangerous goods", () => {
+  assert.equal(handlingForPrint("", true, null, true), [handlingForPrint("", false), `${DG_HANDLING_LINE} - CAO`].join("\n"));
+  assert.ok(handlingForPrint("", true, null, true).split("\n").includes(`${DG_HANDLING_LINE} - CAO`));
+  assert.ok(handlingForPrint("", true, null, false).split("\n").includes(DG_HANDLING_LINE));
+  assert.ok(!handlingForPrint("", true, null, false).includes("CAO"));
+  // Without dangerous goods the CAO box means nothing and nothing prints.
+  assert.ok(!handlingForPrint("", false, null, true).includes("CAO"));
+  // A typed DGD line is replaced by the one with CAO, so it is not printed twice.
+  const typed = handlingForPrint(`KEEP DRY\n${DG_HANDLING_LINE}`, true, null, true);
+  assert.equal(typed.split(DG_HANDLING_LINE).length - 1, 1);
+  assert.ok(typed.includes(`${DG_HANDLING_LINE} - CAO`));
+});

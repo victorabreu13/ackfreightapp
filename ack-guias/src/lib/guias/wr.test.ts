@@ -7,6 +7,7 @@ const blank: GuiaValues = {
   client: "", shipper: "", shipperAddress: "", consignee: "", consigneeAddress: "", notify: "", notifyAddress: "", origin: "", destination: "",
   flightNumber: "", flightDate: "", pieces: "", chargeableKg: "", rate: "", grossKg: "", goods: "", handling: "", aesItn: "", hawb: "",
   dg: "", unNumbers: "", bup: "", bupItems: "", lithiumPi: "", issuingCompany: "ack",
+  cao: "",
 };
 
 test("receipt and pickup numbers", () => {

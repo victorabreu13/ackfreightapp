@@ -234,6 +234,7 @@ export function handlingForPrint(
   entered: string | null | undefined,
   dangerousGoods = false,
   unNumbers: string | null | undefined = null,
+  cargoAircraftOnly = false,
 ): string {
   const user = plain(entered);
   const cargoOnly = unRequiresCargoAircraftOnly(unNumbers);
@@ -247,7 +248,7 @@ export function handlingForPrint(
   });
   const lines = [...typed];
   const has = (value: string) => lines.some((line) => line.toLowerCase().includes(value.toLowerCase()));
-  if (dangerousGoods && !has(DG_HANDLING_LINE)) lines.push(DG_HANDLING_LINE);
+  if (dangerousGoods && !has(DG_HANDLING_LINE)) lines.push(cargoAircraftOnly ? `${DG_HANDLING_LINE} - CAO` : DG_HANDLING_LINE);
   if (cargoOnly && !has(CARGO_AIRCRAFT_ONLY_LINE)) lines.push(CARGO_AIRCRAFT_ONLY_LINE);
   return lines.join("\n");
 }
@@ -480,7 +481,7 @@ export async function renderCorteAwb(document: GuiaRecord, company: CompanyView,
   const lineTotal = first?.total ?? (rate != null && chargeable != null ? rate * chargeable : null);
   const prepaid = (document.chgsCode || "PP").toUpperCase().startsWith("C") ? "" : money(document.weightCharge ?? lineTotal);
   const natureText = goodsForPrint(goods, document.aesItn, document.lithiumPi, document.bup ? document.bupItems : null, !house && (document._count?.houses ?? 0) > 0);
-  const handlingText = handlingForPrint(document.handling, document.dgDeclarable, document.dgDeclarable ? document.unNumbers : null);
+  const handlingText = handlingForPrint(document.handling, document.dgDeclarable, document.dgDeclarable ? document.unNumbers : null, document.dgDeclarable && document.cargoAircraftOnly);
   const accounting = plain(document.accountingInfo) || ((document.chgsCode || "PP").toUpperCase().startsWith("C") ? "FREIGHT COLLECT" : "FREIGHT PREPAID");
   const tel = [phone ? `TEL: ${phone}` : "", email].filter(Boolean).join("   ");
   const countryLine = address.find((line) => /UNITED STATES/i.test(line)) ?? "";
