@@ -5,6 +5,7 @@ import {
   companyKey,
   kindFromFileName,
   logLookup,
+  publishUnlinkedPdf,
   parseImport,
   resolveKind,
   saveDocumentLog,
@@ -115,6 +116,26 @@ test("a FAILED import is stored and the next save of that file updates the same 
     assert.equal(second.client, "PINTO INTERNATIONAL LOGISTICS");
     assert.equal(second.generatedBy, "andres.alvarado@ackfreight.com");
     assert.equal(await prisma.guiaDocument.count({ where: { fileName } }), 1);
+  } finally {
+    await prisma.guiaDocument.deleteMany({ where: { fileName } });
+    await prisma.$disconnect();
+  }
+});
+
+test("a PDF with no guía is saved in the client folder under its own folder, and saving it again replaces it", { skip: !process.env.DATABASE_URL }, async () => {
+  const fileName = `test-unlinked-${Date.now()}.pdf`;
+  const input = { client: "PACIFIKO LLC", folder: "Warehouse receipts (sin guia)", company: "ack", kind: "warehouse-receipt", fileName, generatedBy: "andres.alvarado@ackfreight.com", rootId: "" };
+  try {
+    // Without a Drive root the upload fails, but the copy is kept in the database and shows as FAILED.
+    const first = await publishUnlinkedPdf({ ...input, bytes: Buffer.from("%PDF-1.4 one") });
+    const second = await publishUnlinkedPdf({ ...input, bytes: Buffer.from("%PDF-1.4 two") });
+    assert.equal(second.id, first.id);
+    const rows = await prisma.guiaDocument.findMany({ where: { fileName }, include: { file: true } });
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].guiaId, null);
+    assert.equal(rows[0].client, "PACIFIKO LLC");
+    assert.equal(rows[0].awb, "Warehouse receipts (sin guia)");
+    assert.equal(Buffer.from(rows[0].file!.bytes).toString("latin1"), "%PDF-1.4 two");
   } finally {
     await prisma.guiaDocument.deleteMany({ where: { fileName } });
     await prisma.$disconnect();

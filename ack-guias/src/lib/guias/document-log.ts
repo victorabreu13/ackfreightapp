@@ -291,6 +291,43 @@ export async function publishRenderedPdf(input: {
   return { ...outcome, id: saved.id };
 }
 
+/**
+ * Saves a PDF that belongs to no guía yet in the client folder of Drive, under a folder of its own, and logs it. Saving the
+ * same file name again replaces it. It is logged as an "import" so the lookup finds it again by client folder and name.
+ */
+export async function publishUnlinkedPdf(input: {
+  client: string;
+  folder: string;
+  company: string;
+  kind: string;
+  fileName: string;
+  bytes: Buffer;
+  generatedBy: string;
+  rootId?: string;
+  libraryName?: string;
+  fetchImpl?: DriveFetch;
+  session?: DriveSession;
+  serviceAccountJson?: string;
+}) {
+  const client = input.client.trim() || "No client";
+  const outcome = await sendToDrive({ ...input, client, awb: input.folder });
+  const saved = await saveDocumentLog({
+    source: "import",
+    guiaId: null,
+    client,
+    awb: input.folder,
+    company: input.company,
+    kind: input.kind,
+    fileName: input.fileName,
+    generatedBy: input.generatedBy,
+    bytes: input.bytes,
+    size: input.bytes.byteLength,
+    mime: "application/pdf",
+    ...outcome,
+  });
+  return { ...outcome, id: saved.id };
+}
+
 export async function importGuiaPdf(input: {
   client: string;
   awb: string;
