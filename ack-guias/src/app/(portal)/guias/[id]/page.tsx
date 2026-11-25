@@ -29,6 +29,7 @@ import { isPendingMigration, logMigrationError } from "@/lib/guias/migration-err
 import { requestAckTripRequest } from "@/server/ack-freight-actions";
 import { FLIGHT_STATUS_LABEL, isFlightStatus } from "@/lib/guias/flight-status";
 import { SubmitButton } from "@/components/submit-button";
+import { hasRate, NO_RATE_MESSAGE } from "@/lib/guias/issue-rules";
 import { truckerNames } from "@/lib/guias/trucker-names";
 import { LABEL_KINDS, OPTIONAL_KINDS, packKinds } from "@/lib/guias/guia-pack";
 import { assignGuiaAwb, checkGuiaFlight, issueGuia, refreshGuiaDate, releaseGuiaAwb, saveGuiaToDrive } from "@/server/guia-actions";
@@ -355,6 +356,7 @@ export default async function GuiaDetailPage({
             {review.length ? (
               <p className="text-sm text-amber-800">Some fields are under review. They do not stop you from issuing.</p>
             ) : null}
+            {!hasRate(document.lines) ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{NO_RATE_MESSAGE}</p> : null}
             <form action={issueGuia} className="flex flex-col gap-3 md:flex-row md:items-end">
               <input type="hidden" name="id" value={document.id} />
               <input type="hidden" name="agentKey" value={document.agentKey} />

@@ -27,6 +27,7 @@ import { createInvoiceForGuia } from "@/lib/guias/invoice-service";
 import { newDriveSession } from "@/lib/guias/drive";
 import { aircraftFrom, driveKinds } from "@/lib/guias/guia-pack";
 import { roundUpText } from "@/lib/guias/round-up";
+import { hasRate, NO_RATE_MESSAGE } from "@/lib/guias/issue-rules";
 import { parseOtherCharges, serializeOtherCharges } from "@/lib/guias/other-charges";
 
 /** Every guía belongs to a client of the book. The client portal and its emails depend on it. */
@@ -332,9 +333,10 @@ export async function releaseGuiaAwb(formData: FormData) {
 export async function issueGuia(formData: FormData) {
   const user = await requireGuiaTeam();
   const id = text(formData.get("id"));
-  const existing = await prisma.airWaybillDocument.findUnique({ where: { id } });
+  const existing = await prisma.airWaybillDocument.findUnique({ where: { id }, include: { lines: { select: { rate: true } } } });
   if (!existing || existing.product !== "guia") redirect("/guias?error=Gu%C3%ADa%20not%20found");
   if (existing.agentKey !== "ack") redirect(`/guias/${id}?error=ACK%20TEAM%20LLC%20is%20the%20only%20issuer`);
+  if (!hasRate(existing.lines)) redirect(`/guias/${id}?error=${encodeURIComponent(NO_RATE_MESSAGE)}`);
   const agent = await prisma.issuingAgent.findUnique({ where: { key: "ack" } });
   if (!agent) redirect(`/guias/${id}?error=ACK%20TEAM%20LLC%20is%20the%20only%20issuer`);
   const assignedStock = existing.awb.trim() ? await prisma.awbStockNumber.findFirst({ where: { documentId: id, agentKey: "ack" } }) : null;
