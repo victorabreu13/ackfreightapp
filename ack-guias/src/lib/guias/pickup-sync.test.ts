@@ -4,11 +4,11 @@ import { planPickupSync, type GuiaPickupView, type PickupFields } from "@/lib/gu
 
 const before: PickupFields = {
   shipperName: "PACIFIKO, LLC", shipperAddress: "8504 NW 70th St", consigneeName: "PACIFIKO GT", consigneeAddress: "GUATEMALA", destination: "GUA",
-  pieces: 11, weightKg: 400, description: "ELECTRONICS", truckerName: "RL SERVICES", truckerPhone: "305-111", driverName: "YUNIOR", packageType: "Pallet",
+  pieces: 11, weightKg: 400, description: "ELECTRONICS", truckerName: "RL SERVICES", truckerPhone: "305-111", driverName: "YUNIOR", packageType: "Pallet", notes: "Call before arriving",
 };
 const guia = (over: Partial<GuiaPickupView> = {}): GuiaPickupView => ({
   shipperName: "PACIFIKO, LLC", shipperAddress: "8504 NW 70th St", consigneeName: "PACIFIKO GT", consigneeAddress: "GUATEMALA", destination: "GUA",
-  truckerName: "RL SERVICES", pickupTruckerName: "RL SERVICES", truckerPhone: "305-111", driverName: "YUNIOR", packageType: "Pallet",
+  truckerName: "RL SERVICES", pickupTruckerName: "RL SERVICES", pickupNotes: "Call before arriving", truckerPhone: "305-111", driverName: "YUNIOR", packageType: "Pallet",
   line: { id: "l1", pieces: 11, grossWeight: 400, chargeableWeight: 400, nature: "ELECTRONICS" },
   ...over,
 });

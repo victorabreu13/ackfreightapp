@@ -59,6 +59,7 @@ export function GuiaForm({
   note,
   truckerName = "",
   pickupTruckerName = "",
+  pickupNotes = "",
   truckers = [],
   truckerPhone = "",
   driverName = "",
@@ -78,6 +79,8 @@ export function GuiaForm({
   truckerName?: string;
   /** Who did the pickup, for the pickup order. Empty means the trucker. */
   pickupTruckerName?: string;
+  /** Notes that print in the Notes box of the pickup order. */
+  pickupNotes?: string;
   /** The providers of the accounting, suggested in the Trucker fields. */
   truckers?: string[];
   truckerPhone?: string;
@@ -425,6 +428,18 @@ export function GuiaForm({
         <div className="space-y-1.5">
           <Label htmlFor="seal">Seal (optional)</Label>
           <Input id="seal" name="seal" defaultValue={seal} />
+        </div>
+        <div className="space-y-1.5 md:col-span-2 lg:col-span-5">
+          <Label htmlFor="pickupNotes">Pickup order notes</Label>
+          <textarea
+            id="pickupNotes"
+            name="pickupNotes"
+            rows={2}
+            defaultValue={pickupNotes}
+            placeholder="Pickup instructions: contact, dock, schedule…"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+          <p className="text-xs text-muted-foreground">Prints in the Notes box of the pickup order. A pickup request fills it with its Notas.</p>
         </div>
       </section>
       {mode === "new" ? (

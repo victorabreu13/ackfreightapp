@@ -106,6 +106,7 @@ export function guiaFieldLabel(field: string): string {
     executedOn: "Executed on (date)",
     trucker: "Trucker",
     pickupTrucker: "Pickup trucker",
+    pickupNotes: "Pickup order notes",
     truckerPhone: "Trucker phone",
     driver: "Driver",
     packageType: "Package",

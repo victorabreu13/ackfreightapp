@@ -149,6 +149,8 @@ model AirWaybillDocument {
   cargoAircraftOnly Boolean    @default(false)
   /// Extra charges of the guía as JSON [{description, amount}]. They print in Other Charges and add to Total Prepaid.
   otherChargesJson String?     @db.Text
+  /// Notes of the pickup order, from the pickup request. They print in the Notes box of the pickup order.
+  pickupNotes      String?     @db.Text
   /// UN numbers of the dangerous goods, like "UN3481, UN1950".
   unNumbers        String?
   /// Moves as a BUP (unit load device). The shipment checklist then lists the CCSF and the CCSP.

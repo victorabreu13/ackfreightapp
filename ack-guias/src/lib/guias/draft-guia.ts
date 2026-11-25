@@ -41,7 +41,7 @@ export const EMPTY_GUIA_VALUES: GuiaValues = {
  */
 export async function createDraftGuia(
   values: GuiaValues,
-  extra: { createdBy: string; truckerName?: string; pickupTruckerName?: string; truckerPhone?: string; driverName?: string; packageType?: string },
+  extra: { createdBy: string; truckerName?: string; pickupTruckerName?: string; pickupNotes?: string; truckerPhone?: string; driverName?: string; packageType?: string },
 ): Promise<{ id: string }> {
   const billTo = await ensureGuiaClient("ack", values.client);
   const created = await prisma.airWaybillDocument.create({
@@ -56,6 +56,7 @@ export async function createDraftGuia(
       createdBy: extra.createdBy,
       truckerName: blank(extra.truckerName ?? ""),
       pickupTruckerName: blank(extra.pickupTruckerName ?? extra.truckerName ?? ""),
+      pickupNotes: blank(extra.pickupNotes ?? ""),
       truckerPhone: blank(extra.truckerPhone ?? ""),
       driverName: blank(extra.driverName ?? ""),
       packageType: blank(packageTypeFrom(extra.packageType)),

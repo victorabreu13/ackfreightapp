@@ -452,6 +452,7 @@ export default async function GuiaDetailPage({
         snippets={snippets}
         truckerName={document.truckerName || ""}
         pickupTruckerName={document.pickupTruckerName || ""}
+        pickupNotes={document.pickupNotes || ""}
         truckers={await truckerNames()}
         truckerPhone={document.truckerPhone || ""}
         driverName={document.driverName || ""}

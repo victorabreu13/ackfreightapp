@@ -303,18 +303,27 @@ export async function renderMagayaPickup(
     head("Weight", 430);
     head("Volume", 520);
 
-    rows.slice(0, 8).forEach((row, index) => {
-      const y = 354 + index * 24;
-      put(doc, row.pcs ? String(row.pcs) : "", 24, y, 9);
-      put(doc, row.pkg, 56, y, 9, "Helvetica", "#000000", 64);
-      put(doc, row.description, 126, y, 9, "Helvetica", "#000000", 196);
+    // The description wraps inside its column and the row grows with it, so it is read whole. The rows stop above the Notes.
+    let rowY = 354;
+    for (const row of rows) {
+      const description = plain(row.description);
+      doc.font("Helvetica").fontSize(9);
+      const height = Math.max(24, (description ? doc.heightOfString(description, { width: 196 }) : 0) + 10);
+      if (rowY > 354 && rowY + height > 640) break;
+      put(doc, row.pcs ? String(row.pcs) : "", 24, rowY, 9);
+      put(doc, row.pkg, 56, rowY, 9, "Helvetica", "#000000", 64);
+      if (description) doc.fillColor("#000000").font("Helvetica").fontSize(9).text(description, 126, rowY, { width: 196, height: Math.max(640 - rowY, 12), ellipsis: true });
       const weight = num(row.kg);
-      if (weight) put(doc, `${weight} kg`, 430, y, 9);
+      if (weight) put(doc, `${weight} kg`, 430, rowY, 9);
       const vkg = num(row.vkg);
-      if (vkg) put(doc, `${vkg} VKg`, 520, y, 9);
-    });
+      if (vkg) put(doc, `${vkg} VKg`, 520, rowY, 9);
+      rowY += height;
+    }
 
     put(doc, "Notes", 14, 650, 8, "Helvetica-Bold");
+    // The notes of the pickup order, from the AWB: they keep their lines and wrap inside the box.
+    const notes = (document.pickupNotes ?? "").replace(/\r\n?/g, "\n").trim();
+    if (notes) doc.fillColor("#000000").font("Helvetica").fontSize(8).text(notes, 14, 664, { width: 350, height: 44, ellipsis: true });
     put(doc, "Pieces", 379, 664, 7, "Helvetica", GREY);
     put(doc, "Weight", 450, 664, 7, "Helvetica", GREY);
     put(doc, "Volume", 530, 664, 7, "Helvetica", GREY);

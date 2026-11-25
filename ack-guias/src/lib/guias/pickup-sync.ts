@@ -17,6 +17,7 @@ export type PickupFields = {
   truckerPhone: string | null;
   driverName: string | null;
   packageType: string | null;
+  notes: string | null;
 };
 
 export type GuiaPickupView = {
@@ -27,6 +28,7 @@ export type GuiaPickupView = {
   destination: string | null;
   truckerName: string | null;
   pickupTruckerName: string | null;
+  pickupNotes: string | null;
   truckerPhone: string | null;
   driverName: string | null;
   packageType: string | null;
@@ -92,6 +94,7 @@ export function planPickupSync(before: PickupFields, after: PickupFields, guia: 
     { label: "Pickup trucker", field: "pickupTrucker", from: before.truckerName, to: after.truckerName, current: guia.pickupTruckerName, scope: "party", write: column("pickupTruckerName") },
     { label: "Trucker phone", field: "truckerPhone", from: before.truckerPhone, to: after.truckerPhone, current: guia.truckerPhone, scope: "party", write: column("truckerPhone") },
     { label: "Driver", field: "driver", from: before.driverName, to: after.driverName, current: guia.driverName, scope: "party", write: column("driverName") },
+    { label: "Pickup notes", field: "pickupNotes", from: before.notes, to: after.notes, current: guia.pickupNotes, scope: "party", write: column("pickupNotes") },
     { label: "Package", field: "packageType", from: before.packageType, to: after.packageType, current: guia.packageType, scope: "party", write: column("packageType") },
     { label: "Destino", field: "destination", from: before.destination, to: after.destination, current: guia.destination, scope: "cargo", write: column("destination") },
   ];

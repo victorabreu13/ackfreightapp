@@ -84,7 +84,7 @@ export async function savePickupRequest(formData: FormData) {
       chargeableKg: weight == null ? "" : String(weight),
       goods: data.description ?? "",
     },
-    { createdBy: user.email, truckerName: data.truckerName ?? "", pickupTruckerName: data.truckerName ?? "", truckerPhone: data.truckerPhone ?? "", driverName: data.driverName ?? "", packageType: data.packageType ?? "" },
+    { createdBy: user.email, truckerName: data.truckerName ?? "", pickupTruckerName: data.truckerName ?? "", pickupNotes: data.notes ?? "", truckerPhone: data.truckerPhone ?? "", driverName: data.driverName ?? "", packageType: data.packageType ?? "" },
   );
   await prisma.pickupRequest.update({ where: { id: request.id }, data: { guiaId: draft.id } });
   // The AWB number, when one was asked for, is reserved for the draft right away.
@@ -198,6 +198,7 @@ export async function updatePickupRequest(formData: FormData) {
     truckerPhone: row.truckerPhone,
     driverName: row.driverName,
     packageType: row.packageType,
+    notes: row.notes,
   });
   await prisma.pickupRequest.update({ where: { id }, data });
   let kept: string[] = [];
@@ -216,6 +217,7 @@ export async function updatePickupRequest(formData: FormData) {
         destination: guia.destination,
         truckerName: guia.truckerName,
         pickupTruckerName: guia.pickupTruckerName,
+        pickupNotes: guia.pickupNotes,
         truckerPhone: guia.truckerPhone,
         driverName: guia.driverName,
         packageType: guia.packageType,
