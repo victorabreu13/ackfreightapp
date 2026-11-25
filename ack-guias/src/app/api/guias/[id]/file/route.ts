@@ -11,6 +11,7 @@ import { GUIA_FILE_KINDS, guiaFileName, renderGuiaPdf, type GuiaFileKind, type G
 import type { CompanyView } from "@/lib/guias/company-profile";
 import { draftPrintPage } from "@/lib/guias/draft-print-page";
 import { guiaBillToName } from "@/lib/guias/guia-client";
+import { pickupNumberForGuia } from "@/lib/guias/pickup-number";
 import { zipStored } from "@/lib/guias/zip";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -34,6 +35,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   });
   if (typeof company === "string") return NextResponse.json({ error: company }, { status: 400 });
   const master = "";
+  // The pickup order prints the PU number of its pickup request.
+  const pickupNo = kind === "pickup" && !draft ? await pickupNumberForGuia(document, user.email) : "";
   const printOptions = (masterLabel = false): GuiaPrintOptions => ({
     email: user.email,
     name: user.name,
@@ -42,6 +45,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     truckerPhone: params.get("truckerPhone") ?? document.truckerPhone,
     seal: params.get("seal") ?? document.seal,
     driver: params.get("driver") ?? document.driverName,
+    pickupNumber: pickupNo,
     masterLabel,
     draft,
     labelAwb,

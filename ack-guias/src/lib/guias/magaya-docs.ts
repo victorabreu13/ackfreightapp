@@ -226,7 +226,8 @@ export async function renderMagayaPickup(
 ): Promise<Buffer> {
   const awb = plain(document.awb) || loaded.awb;
   const master = plain(loaded.awb) || awb;
-  const number = `KPU-${master.replace(/\D/g, "").slice(3, 11)}`;
+  // The pickup order carries the PU number of its pickup request, the same one the system shows.
+  const number = plain(options.pickupNumber) || `KPU-${master.replace(/\D/g, "").slice(3, 11)}`;
   const when = kopeDateTime(options.now ?? new Date());
   const receivedBy = signerName(options.name, options.email);
   const trucker = plain(options.trucker ?? document.truckerName);

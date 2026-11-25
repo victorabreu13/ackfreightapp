@@ -28,6 +28,7 @@ import { newDriveSession } from "@/lib/guias/drive";
 import { aircraftFrom, driveKinds } from "@/lib/guias/guia-pack";
 import { roundUpText } from "@/lib/guias/round-up";
 import { hasRate, NO_RATE_MESSAGE } from "@/lib/guias/issue-rules";
+import { pickupNumberForGuia } from "@/lib/guias/pickup-number";
 import { parseOtherCharges, serializeOtherCharges } from "@/lib/guias/other-charges";
 
 /** Every AWB belongs to a client of the book. The client portal and its emails depend on it. */
@@ -230,6 +231,7 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
     const fileName = guiaFileName(kind, document.awb, master);
     try {
       const bytes = await renderGuiaPdf(kind, document, company, {
+        pickupNumber: kind === "pickup" ? await pickupNumberForGuia(document, user.email) : null,
         email: user.email,
         name: user.name,
         trucker: document.truckerName,

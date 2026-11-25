@@ -209,6 +209,10 @@ test("AWBs sheet documents match the original functions", async () => {
     assert.match(pickupText, /Luis Perez/);
     assert.match(pickupText, /\(305\) 555-0199/);
     assert.doesNotMatch(pickupText, /DELIVERY ORDER/);
+    // With the PU number of its pickup request, the order prints that number and not the KPU one.
+    const numbered = pdfText(await renderGuiaPdf("pickup", record, company(), { ...options, pickupNumber: "PU-0061" }));
+    assert.match(numbered, /PU-0061/);
+    assert.doesNotMatch(numbered, /KPU-/);
     assert.match(pageInfo(pickupGuia), /612 x 792/);
     assert.equal(imageWidths(pickupGuia).includes(1958), true);
     assert.match(pdfText(pickupSheet), /KOPE LOGISTICS INC\./);

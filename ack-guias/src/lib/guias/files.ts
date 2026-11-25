@@ -26,6 +26,8 @@ export type GuiaPrintOptions = {
   truckerPhone?: string | null;
   seal?: string | null;
   driver?: string | null;
+  /** The PU number of the pickup request, printed on the pickup order. Without it the old KPU number of the AWB is used. */
+  pickupNumber?: string | null;
   now?: Date;
   /** Master labels use the shipment AWB, master carrier, and destination MIA. */
   masterLabel?: boolean;

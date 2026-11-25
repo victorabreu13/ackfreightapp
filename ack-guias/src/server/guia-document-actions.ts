@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { loadCompany } from "@/lib/guias/company";
 import { backupStoredDocument, guiaAwbFolder, importGuiaPdf, parseImport, publishRenderedPdf } from "@/lib/guias/document-log";
 import { guiaBillToName } from "@/lib/guias/guia-client";
+import { pickupNumberForGuia } from "@/lib/guias/pickup-number";
 import { GUIA_FILE_KINDS, guiaFileName, renderGuiaPdf, type GuiaFileKind } from "@/lib/guias/files";
 
 function text(value: FormDataEntryValue | null): string {
@@ -73,6 +74,7 @@ export async function retryGuiaDocument(formData: FormData) {
     const company = await loadCompany("ack");
     const master = "";
     const bytes = await renderGuiaPdf(row.kind as GuiaFileKind, document, company, {
+      pickupNumber: row.kind === "pickup" ? await pickupNumberForGuia(document, user.email) : null,
       email: user.email,
       name: user.name,
       trucker: document.truckerName,
