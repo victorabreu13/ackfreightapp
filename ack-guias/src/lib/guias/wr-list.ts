@@ -66,7 +66,7 @@ export function awbVariants(text: string): string[] {
   return [...variants];
 }
 
-function shiftDay(value: string, days: number): Date {
+export function shiftDay(value: string, days: number): Date {
   const date = new Date(`${value}T12:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date;
