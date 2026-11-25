@@ -103,6 +103,11 @@ export function guiaFieldLabel(field: string): string {
     bup: "BUP",
     bupItems: "BUP items",
     lithiumPi: "Lithium batteries",
+    trucker: "Trucker",
+    pickupTrucker: "Pickup trucker",
+    truckerPhone: "Trucker phone",
+    driver: "Driver",
+    packageType: "Package",
   };
   return labels[field] ?? field;
 }

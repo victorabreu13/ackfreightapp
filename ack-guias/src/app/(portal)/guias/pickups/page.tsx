@@ -116,7 +116,10 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
                     )}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <form action={deletePickupRequest}>
+                    <Link href={`/guias/pickups/${request.id}`} className="mr-3 text-xs underline-offset-2 hover:underline">
+                      Edit
+                    </Link>
+                    <form action={deletePickupRequest} className="inline">
                       <input type="hidden" name="id" value={request.id} />
                       <button type="submit" className="text-xs text-stuck underline-offset-2 hover:underline">
                         Delete

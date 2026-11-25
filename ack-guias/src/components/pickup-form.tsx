@@ -8,32 +8,77 @@ import { Label } from "@/components/ui/label";
 import { PackageSelect } from "@/components/package-select";
 import { TruckerInput } from "@/components/trucker-input";
 import { roundUpText } from "@/lib/guias/round-up";
-import { savePickupRequest } from "@/server/pickup-actions";
+import { savePickupRequest, updatePickupRequest } from "@/server/pickup-actions";
 
 const AREA = "block w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 
-/** The pickup request form. Saving it starts the draft guía. */
-export function PickupForm({ awbOptions = [], truckers = [] }: { awbOptions?: Array<{ prefix: string; airline: string; left: number }>; truckers?: string[] }) {
-  const [client, setClient] = useState("");
-  const [shipper, setShipper] = useState("");
-  const [shipperAddress, setShipperAddress] = useState("");
-  const [consignee, setConsignee] = useState("");
-  const [consigneeAddress, setConsigneeAddress] = useState("");
+/** What a saved pickup request fills the form with when it is corrected. Everything is text, as the form shows it. */
+export type PickupFormValues = {
+  id: string;
+  client: string;
+  destination: string;
+  shipper: string;
+  shipperAddress: string;
+  consignee: string;
+  consigneeAddress: string;
+  contactName: string;
+  contactPhone: string;
+  contactEmail: string;
+  pieces: string;
+  packageType: string;
+  weightKg: string;
+  pickupDate: string;
+  readyTime: string;
+  description: string;
+  truckerName: string;
+  truckerPhone: string;
+  driverName: string;
+  notes: string;
+};
+
+/** The pickup request form. Saving a new one starts the draft guía. With saved values it corrects that pickup request. */
+export function PickupForm({
+  awbOptions = [],
+  truckers = [],
+  initial,
+}: {
+  awbOptions?: Array<{ prefix: string; airline: string; left: number }>;
+  truckers?: string[];
+  initial?: PickupFormValues;
+}) {
+  const editing = Boolean(initial);
+  const [client, setClient] = useState(initial?.client ?? "");
+  const [shipper, setShipper] = useState(initial?.shipper ?? "");
+  const [shipperAddress, setShipperAddress] = useState(initial?.shipperAddress ?? "");
+  const [consignee, setConsignee] = useState(initial?.consignee ?? "");
+  const [consigneeAddress, setConsigneeAddress] = useState(initial?.consigneeAddress ?? "");
 
   return (
-    <form action={savePickupRequest} className="space-y-4 rounded-lg border border-border bg-card p-4">
+    <form action={editing ? updatePickupRequest : savePickupRequest} className="space-y-4 rounded-lg border border-border bg-card p-4">
+      {initial ? <input type="hidden" name="id" value={initial.id} /> : null}
       <div>
-        <h2 className="font-display text-2xl">New pickup request</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Saving it creates the guía draft with this data. The pickup order comes from that guía.</p>
+        <h2 className="font-display text-2xl">{editing ? "Edit pickup request" : "New pickup request"}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {editing
+            ? "The pickup order of its guía follows what you correct here, also when the guía is already issued, except for fields the guía already has its own value in. Pieces, kilos, destino and goods of an issued guía are never changed from here."
+            : "Saving it creates the guía draft with this data. The pickup order comes from that guía."}
+        </p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="client">Client</Label>
-          <GuiaLookupInput id="client" name="client" required type="client" value={client} onChange={setClient} onPick={(item) => setClient(item.name)} />
+          {editing ? (
+            <>
+              <Input id="client" name="client" value={client} readOnly className="bg-muted" />
+              <p className="text-xs text-muted-foreground">The client also decides how the guía is billed, so it is changed in the guía.</p>
+            </>
+          ) : (
+            <GuiaLookupInput id="client" name="client" required type="client" value={client} onChange={setClient} onPick={(item) => setClient(item.name)} />
+          )}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="destination">Destino (aeropuerto)</Label>
-          <Input id="destination" name="destination" placeholder="GUA" />
+          <Input id="destination" name="destination" placeholder="GUA" defaultValue={initial?.destination} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="shipper">Shipper (where it is picked up)</Label>
@@ -76,60 +121,61 @@ export function PickupForm({ awbOptions = [], truckers = [] }: { awbOptions?: Ar
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="contactName">Pickup contact</Label>
-          <Input id="contactName" name="contactName" />
+          <Input id="contactName" name="contactName" defaultValue={initial?.contactName} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="contactPhone">Phone</Label>
-            <Input id="contactPhone" name="contactPhone" />
+            <Input id="contactPhone" name="contactPhone" defaultValue={initial?.contactPhone} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="contactEmail">Email</Label>
-            <Input id="contactEmail" name="contactEmail" type="email" />
+            <Input id="contactEmail" name="contactEmail" type="email" defaultValue={initial?.contactEmail} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5 md:col-span-2">
           <div className="space-y-1.5">
             <Label htmlFor="pieces">Pieces</Label>
-            <Input id="pieces" name="pieces" inputMode="numeric" />
+            <Input id="pieces" name="pieces" inputMode="numeric" defaultValue={initial?.pieces} />
           </div>
-          <PackageSelect />
+          <PackageSelect defaultValue={initial?.packageType} />
           <div className="space-y-1.5">
             <Label htmlFor="weightKg">Kilos</Label>
-            <Input id="weightKg" name="weightKg" inputMode="decimal" onBlur={(event) => (event.currentTarget.value = roundUpText(event.currentTarget.value))} />
+            <Input id="weightKg" name="weightKg" inputMode="decimal" defaultValue={initial?.weightKg} onBlur={(event) => (event.currentTarget.value = roundUpText(event.currentTarget.value))} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pickupDate">Pickup date</Label>
-            <Input id="pickupDate" name="pickupDate" type="date" />
+            <Input id="pickupDate" name="pickupDate" type="date" defaultValue={initial?.pickupDate} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="readyTime">Ready time</Label>
-            <Input id="readyTime" name="readyTime" type="time" />
+            <Input id="readyTime" name="readyTime" type="time" defaultValue={initial?.readyTime} />
           </div>
         </div>
         <div className="space-y-1.5 md:col-span-2">
           <Label htmlFor="description">Cargo description</Label>
-          <textarea id="description" name="description" rows={2} className={AREA} />
+          <textarea id="description" name="description" rows={2} defaultValue={initial?.description} className={AREA} />
         </div>
         <div className="grid gap-3 md:col-span-2 md:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="truckerName">Trucker</Label>
-            <TruckerInput id="truckerName" name="truckerName" names={truckers} />
+            <TruckerInput id="truckerName" name="truckerName" names={truckers} defaultValue={initial?.truckerName} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="truckerPhone">Trucker phone</Label>
-            <Input id="truckerPhone" name="truckerPhone" />
+            <Input id="truckerPhone" name="truckerPhone" defaultValue={initial?.truckerPhone} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="driverName">Chofer</Label>
-            <Input id="driverName" name="driverName" />
+            <Input id="driverName" name="driverName" defaultValue={initial?.driverName} />
           </div>
         </div>
         <div className="space-y-1.5 md:col-span-2">
           <Label htmlFor="notes">Notas</Label>
-          <textarea id="notes" name="notes" rows={2} className={AREA} />
+          <textarea id="notes" name="notes" rows={2} defaultValue={initial?.notes} className={AREA} />
         </div>
       </div>
+      {editing ? null : (
       <div className="space-y-3 rounded-md border border-border p-3">
         <div>
           <h3 className="font-display text-xl">Guía AWB (optional)</h3>
@@ -153,7 +199,8 @@ export function PickupForm({ awbOptions = [], truckers = [] }: { awbOptions?: Ar
           </div>
         </div>
       </div>
-      <Button type="submit">Create pickup and guía draft</Button>
+      )}
+      <Button type="submit">{editing ? "Save pickup" : "Create pickup and guía draft"}</Button>
     </form>
   );
 }
