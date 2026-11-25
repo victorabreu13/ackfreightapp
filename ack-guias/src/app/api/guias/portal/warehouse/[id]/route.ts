@@ -7,7 +7,7 @@ import { renderWarehouseReceipt } from "@/lib/guias/wr-pdf";
 
 /**
  * A warehouse receipt of a shipment of the client that is signed in. Only the receipt itself is shown, not the cargo
- * acceptance checklist, and only when the receipt belongs to an issued guía of that client.
+ * acceptance checklist, and only when the receipt belongs to an issued AWB of that client.
  */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();

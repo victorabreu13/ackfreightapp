@@ -51,7 +51,7 @@ const guia = (over: Row): Row => ({
   lines: [{ pieces: 6, grossWeight: 1018, chargeableWeight: 1550.36 }], ...over,
 });
 
-test("an issued guía makes its accounting row with the costs, the sell and the split of its client", async () => {
+test("an issued AWB makes its accounting row with the costs, the sell and the split of its client", async () => {
   state.guias = [guia({})];
   state.shipments = [];
   state.splits = [];
@@ -70,7 +70,7 @@ test("an issued guía makes its accounting row with the costs, the sell and the 
   assert.equal(shipment.pickupSold, 152.7);
   assert.equal(shipment.handlingSold, 203.6);
   assert.equal(shipment.transferSold, 152.7);
-  // ACK TEAM LLC charges 40 per trip for the pickup and 40 for the transfer, and this is the only guía of the day.
+  // ACK TEAM LLC charges 40 per trip for the pickup and 40 for the transfer, and this is the only AWB of the day.
   assert.equal(shipment.pickupCost, 40);
   assert.equal(shipment.transferCost, 40);
   assert.equal(shipment.pickupProvider, "ACK Team LLC");
@@ -80,18 +80,18 @@ test("an issued guía makes its accounting row with the costs, the sell and the 
   assert.equal(Math.round(((shipment.invoiced as number) - (shipment.costTotal as number)) * 100) / 100, shipment.profit);
 });
 
-test("a guía that is already in the accounting is not made twice", async () => {
+test("an AWB that is already in the accounting is not made twice", async () => {
   state.guias = [guia({})];
   const before = state.shipments.length;
   const { createAcctForGuia } = await import("@/lib/guias/acct-service");
-  // The first test left its guía in the accounting: its row has its guiaId.
+  // The first test left its AWB in the accounting: its row has its guiaId.
   state.shipments[0].guiaId = "g1";
   const result = await createAcctForGuia("g1");
   assert.equal(result.created, false);
   assert.equal(state.shipments.length, before);
 });
 
-test("the cost of the trip of the day goes to the biggest guía, and RL Services is charged by the pallets of the pickup order", async () => {
+test("the cost of the trip of the day goes to the biggest AWB, and RL Services is charged by the pallets of the pickup order", async () => {
   state.shipments = [];
   state.splits = [];
   state.guias = [
@@ -102,10 +102,10 @@ test("the cost of the trip of the day goes to the biggest guía, and RL Services
   const { createAcctForGuia } = await import("@/lib/guias/acct-service");
   for (const id of ["small", "big", "rl"]) await createAcctForGuia(id);
   const byGuia = (id: string) => state.shipments.find((row) => row.guiaId === id) as Row;
-  // Pickup by ACK Team: one trip for the two guías, charged to the bigger one.
+  // Pickup by ACK Team: one trip for the two AWBs, charged to the bigger one.
   assert.equal(byGuia("small").pickupCost, 0);
   assert.equal(byGuia("big").pickupCost, 40);
-  // Transfer by ACK Team: one trip for the three guías of the day, to the biggest of them.
+  // Transfer by ACK Team: one trip for the three AWBs of the day, to the biggest of them.
   assert.equal(byGuia("big").transferCost, 40);
   assert.equal(byGuia("small").transferCost, 0);
   assert.equal(byGuia("rl").transferCost, 0);

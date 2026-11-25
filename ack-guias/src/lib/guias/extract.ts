@@ -37,7 +37,7 @@ export type GuiaValues = {
   handling: string;
   aesItn: string;
   hawb: string;
-  /** "1" when the guía carries declarable dangerous goods. */
+  /** "1" when the AWB carries declarable dangerous goods. */
   dg: string;
   /** "1" when the dangerous goods are Cargo Aircraft Only (CAO). It prints after the DGD line. */
   cao: string;
@@ -310,7 +310,7 @@ export type AiComplete = (prompt: string) => Promise<string>;
 
 export function extractionPrompt(text: string): string {
   return [
-    "Extract a cargo guía from the message below.",
+    "Extract a cargo AWB from the message below.",
     "Return JSON only, shape {\"fields\": {\"client\": {\"value\": \"\", \"uncertain\": false, \"snippet\": \"\"}}}.",
     "Fields: client, shipper, shipperAddress, consignee, consigneeAddress, notify, notifyAddress, origin, destination, flightNumber, flightDate, pieces, chargeableKg, grossKg, goods, handling, hawb, issuingCompany.",
     "pieces is Shipping Units or a pieces line that is not a HAWB piece count. chargeableKg is only a chargeable weight. A plain Weight line is grossKg.",

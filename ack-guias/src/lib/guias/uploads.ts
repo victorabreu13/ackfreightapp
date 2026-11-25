@@ -83,7 +83,7 @@ export async function deleteUploadedFile(input: {
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "";
       if (!/HTTP 404/.test(message)) {
-        return { ok: false, error: "The file could not be deleted in Drive. It stays on the guía.", guiaId: row.guiaId };
+        return { ok: false, error: "The file could not be deleted in Drive. It stays on the AWB.", guiaId: row.guiaId };
       }
     }
   }

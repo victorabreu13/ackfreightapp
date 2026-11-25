@@ -48,7 +48,7 @@ type GuiaPartyFields = {
 };
 
 /**
- * The directory rows hidden in past guías: one per client, role and name. The newest guía
+ * The directory rows hidden in past AWBs: one per client, role and name. The newest AWB
  * decides the address, and an older one fills it in when the newest has none.
  */
 export function partiesFromGuias(rows: GuiaPartyFields[]): PartyDraft[] {
@@ -78,7 +78,7 @@ function isUnique(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
 
-/** Copies the parties of every saved guía into the directory. Safe to run again. */
+/** Copies the parties of every saved AWB into the directory. Safe to run again. */
 export async function backfillPartiesFromGuias(agentKey: string): Promise<number> {
   const guias = await prisma.airWaybillDocument.findMany({
     where: { product: "guia", agentKey },
@@ -110,7 +110,7 @@ export async function backfillPartiesFromGuias(agentKey: string): Promise<number
   return created.count;
 }
 
-/** The first time the directory is opened it is filled from the guías that already exist. */
+/** The first time the directory is opened it is filled from the AWBs that already exist. */
 export async function ensureDirectorySeeded(agentKey: string): Promise<void> {
   const existing = await prisma.guiaParty.count({ where: { agentKey } });
   if (existing > 0) return;
@@ -127,7 +127,7 @@ export type PartyValues = {
 };
 
 /**
- * Every saved guía adds its shipper, consignee and notify to the directory under the client.
+ * Every saved AWB adds its shipper, consignee and notify to the directory under the client.
  * A party that is already there is left alone, except that a blank address is filled in.
  */
 export async function rememberGuiaParties(agentKey: string, guiaClientId: string | null, values: PartyValues): Promise<void> {

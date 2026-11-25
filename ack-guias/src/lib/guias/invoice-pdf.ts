@@ -39,7 +39,7 @@ function quantity(value: number): string {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(value);
 }
 
-/** What the invoice prints at the top. It is the billing office, not the office of the guía. */
+/** What the invoice prints at the top. It is the billing office, not the office of the AWB. */
 export const INVOICE_LETTERHEAD = {
   name: "ACK TEAM LLC",
   addressLines: ["6450 NW 97th Ave Unit 130", "Doral FL 33178-1770"],

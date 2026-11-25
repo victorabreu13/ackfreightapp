@@ -6,7 +6,7 @@ export type WrFilters = {
   number: string;
   /** Part of the client or of the shipper. */
   client: string;
-  /** Part of the AWB of the guía, or of the tracking number of the receipt. */
+  /** Part of the AWB number, or of the tracking number of the receipt. */
   awb: string;
   /** Days, as YYYY-MM-DD, in New York time. */
   from: string;

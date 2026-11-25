@@ -28,7 +28,7 @@ test("the volume and the volume weight of a unit match the reference receipt K54
   assert.equal(lineVolumeM3({ length: null, width: 10, height: 10 }), 0);
 });
 
-test("the receipts of a guía add up and fill only what the guía left empty", () => {
+test("the receipts of an AWB add up and fill only what the AWB left empty", () => {
   const receipts = [
     { client: "PACIFIKO, LLC", shipperName: "PACIFIKO, LLC", shipperAddress: "8504 NW 70th St", consigneeName: "Pacifiko Fulfillment", consigneeAddress: "GUATEMALA", dangerousGood: "HAZMAT - UN 3481", lines: [{ pieces: 4, length: 40.2, width: 33.9, height: 50.4, weightKg: 117.5, description: "ELECTRONICS" }] },
     { lines: [{ pieces: 3, length: 37.4, width: 35.8, height: 48.4, weightKg: 152, description: "ELECTRONICS" }] },
@@ -43,7 +43,7 @@ test("the receipts of a guía add up and fill only what the guía left empty", (
   assert.equal(fed.values.dg, "");
   assert.equal(fed.values.unNumbers, "");
   assert.deepEqual(fed.dangerousGoods, { text: "HAZMAT - UN 3481", unNumbers: ["UN3481"] });
-  // What the guía already has stays, but the numbers follow the receipts.
+  // What the AWB already has stays, but the numbers follow the receipts.
   const kept = applyReceiptsToGuia({ ...blank, shipper: "OTHER", pieces: "99", goods: "TYPED", dg: "", unNumbers: "UN1950" }, receipts);
   assert.equal(kept.values.shipper, "OTHER");
   assert.equal(kept.values.goods, "TYPED");

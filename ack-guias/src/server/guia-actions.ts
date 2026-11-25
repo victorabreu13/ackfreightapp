@@ -30,8 +30,8 @@ import { roundUpText } from "@/lib/guias/round-up";
 import { hasRate, NO_RATE_MESSAGE } from "@/lib/guias/issue-rules";
 import { parseOtherCharges, serializeOtherCharges } from "@/lib/guias/other-charges";
 
-/** Every guía belongs to a client of the book. The client portal and its emails depend on it. */
-const CLIENT_REQUIRED = "Type the client of the guía.";
+/** Every AWB belongs to a client of the book. The client portal and its emails depend on it. */
+const CLIENT_REQUIRED = "Type the client of the AWB.";
 
 function text(value: FormDataEntryValue | null): string {
   return String(value ?? "").trim();
@@ -40,7 +40,7 @@ function text(value: FormDataEntryValue | null): string {
 async function requireGuiaTeam() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (!canManageGuias(user)) redirect("/guias?error=Only%20the%20ACK%20team%20can%20change%20a%20gu%C3%ADa");
+  if (!canManageGuias(user)) redirect("/guias?error=Only%20the%20ACK%20team%20can%20change%20an%20AWB");
   return user;
 }
 
@@ -93,12 +93,12 @@ function snippetsFromForm(formData: FormData): Record<string, string> {
   }
 }
 
-/** The directory is a convenience. A failure there never blocks saving the guía. */
+/** The directory is a convenience. A failure there never blocks saving the AWB. */
 async function rememberParties(guiaClientId: string | null, values: GuiaValues) {
   try {
     await rememberGuiaParties("ack", guiaClientId, values);
   } catch (error) {
-    console.error("guía directory", error);
+    console.error("AWB directory", error);
   }
 }
 
@@ -123,7 +123,7 @@ export async function saveNewGuia(formData: FormData) {
       serial: "",
       agentKey: agent.key,
       createdBy: user.email,
-      // What was typed in the new guía form is by hand, so a warehouse receipt later keeps it.
+      // What was typed in the new AWB form is by hand, so a warehouse receipt later keeps it.
       piecesManual: values.pieces !== "",
       grossManual: values.grossKg !== "",
       chargeableManual: values.chargeableKg !== "",
@@ -146,7 +146,7 @@ export async function saveNewGuia(formData: FormData) {
       await assignAwbToGuia(created.id, wantedAwb, wantedPrefix);
     } catch (error) {
       revalidatePath("/guias");
-      redirect(`/guias/${created.id}?error=${encodeURIComponent(`The guía was saved, but the AWB was not assigned. ${issueErrorMessage(error)}`)}`);
+      redirect(`/guias/${created.id}?error=${encodeURIComponent(`The AWB was saved, but its AWB number was not assigned. ${issueErrorMessage(error)}`)}`);
     }
     revalidatePath("/guias");
     redirect(`/guias/${created.id}?assigned=1`);
@@ -209,7 +209,7 @@ export async function pushGuiaToDrive(id: string): Promise<string | null> {
     where: { id },
     include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true, _count: { select: { houses: true } } },
   });
-  if (!document || document.agentKey !== "ack") return "Guía not found";
+  if (!document || document.agentKey !== "ack") return "AWB not found";
   let company;
   try {
     company = await loadCompany("ack");
@@ -364,7 +364,7 @@ export async function issueGuia(formData: FormData) {
         shipperSignature: signed,
         executedOn: miamiDate(),
         executedAt: "MIA",
-        // The AES ITN is entered once, in the guía form, and issuing leaves it as saved.
+        // The AES ITN is entered once, in the AWB form, and issuing leaves it as saved.
       },
     });
   } catch (error) {
@@ -374,7 +374,7 @@ export async function issueGuia(formData: FormData) {
     where: { id, agentKey: agent.key, product: "guia" },
     data: { guiaClientId: billTo?.id ?? null },
   });
-  // The accounting row of the guía: its costs, its sell and the split of its profit. It never stops the issue.
+  // The accounting row of the AWB: its costs, its sell and the split of its profit. It never stops the issue.
   try {
     await createAcctForGuia(id);
     revalidatePath("/guias/accounting");
@@ -395,7 +395,7 @@ export async function issueGuia(formData: FormData) {
   redirect(`/guias/${id}?issued=1${drive}`);
 }
 
-/** Looks up the flight of one guía now, and emails the client if the status changed. */
+/** Looks up the flight of one AWB now, and emails the client if the status changed. */
 export async function checkGuiaFlight(formData: FormData) {
   await requireGuiaTeam();
   const id = text(formData.get("id"));
@@ -408,13 +408,13 @@ export async function checkGuiaFlight(formData: FormData) {
   redirect(`${target}${joiner}flight=ok`);
 }
 
-/** The team marks a guía completed so it leaves the Guías screen, or brings it back. */
+/** The team marks an AWB completed so it leaves the AWBs screen, or brings it back. */
 export async function setGuiaCompleted(formData: FormData) {
   const user = await requireGuiaTeam();
   const id = text(formData.get("id"));
   const done = text(formData.get("done")) === "1";
   const guia = await prisma.airWaybillDocument.findFirst({ where: { id, product: "guia" }, select: { id: true, awb: true } });
-  if (!guia) redirect(`/guias?error=${encodeURIComponent("The guía was not found.")}`);
+  if (!guia) redirect(`/guias?error=${encodeURIComponent("The AWB was not found.")}`);
   await prisma.airWaybillDocument.update({
     where: { id },
     data: done ? { completedAt: new Date(), completedBy: user.email } : { completedAt: null, completedBy: null },
@@ -423,23 +423,23 @@ export async function setGuiaCompleted(formData: FormData) {
   revalidatePath(`/guias/${id}`);
   const target = safeGuiaReturn(text(formData.get("returnTo")), done ? "/guias" : `/guias/${id}`);
   if (done && target === "/guias") {
-    redirect(`/guias?notice=${encodeURIComponent(`Guía ${guia.awb || "draft"} marked as completed. It no longer appears on this screen; it stays in Documents.`)}`);
+    redirect(`/guias?notice=${encodeURIComponent(`AWB ${guia.awb || "draft"} marked as completed. It no longer appears on this screen; it stays in Documents.`)}`);
   }
   redirect(target);
 }
 
 /**
- * Deletes a guía from the system, its documents in Documentos with it, and gives its AWB number back to stock.
- * An issued guía can only be deleted by an Admin. Copies already saved in Google Drive are not touched.
+ * Deletes an AWB from the system, its documents in Documentos with it, and gives its AWB number back to stock.
+ * An issued AWB can only be deleted by an Admin. Copies already saved in Google Drive are not touched.
  */
 export async function deleteGuia(formData: FormData) {
   const user = await requireGuiaTeam();
   const id = text(formData.get("id"));
   const guia = await prisma.airWaybillDocument.findFirst({ where: { id, product: "guia" }, select: { id: true, awb: true, status: true } });
-  if (!guia) redirect(`/guias?error=${encodeURIComponent("The guía was not found.")}`);
+  if (!guia) redirect(`/guias?error=${encodeURIComponent("The AWB was not found.")}`);
   const label = guia.awb || "en borrador";
   if (guia.status === "issued" && !isAdmin(user)) {
-    redirect(`/guias?error=${encodeURIComponent(`Only an Admin can delete an issued guía (${label}).`)}`);
+    redirect(`/guias?error=${encodeURIComponent(`Only an Admin can delete an issued AWB (${label}).`)}`);
   }
   const [returned] = await prisma.$transaction([
     // The number goes back to stock, reserved or already issued.
@@ -450,7 +450,7 @@ export async function deleteGuia(formData: FormData) {
   ]);
   revalidatePath("/guias");
   revalidatePath("/guias/documents");
-  redirect(`/guias?notice=${encodeURIComponent(`Guía ${label} deleted, with its documents.${returned.count ? " The AWB number went back to stock." : ""}`)}`);
+  redirect(`/guias?notice=${encodeURIComponent(`AWB ${label} deleted, with its documents.${returned.count ? " The AWB number went back to stock." : ""}`)}`);
 }
 
 export async function saveGuiaToDrive(formData: FormData) {
@@ -518,7 +518,7 @@ export async function saveCompanyProfile(formData: FormData) {
 }
 
 /**
- * "Update date": an issued guía keeps the date it was issued on (Executed on), and the documents that print it show that
+ * "Update date": an issued AWB keeps the date it was issued on (Executed on), and the documents that print it show that
  * day. This sets it to today, so the documents downloaded from now on carry today. The pickup and delivery orders already
  * print the day they are downloaded. The old date stays in the change history.
  */
@@ -527,7 +527,7 @@ export async function refreshGuiaDate(formData: FormData) {
   const id = text(formData.get("id"));
   const guia = await prisma.airWaybillDocument.findFirst({ where: { id, product: "guia", agentKey: "ack" }, select: { id: true, status: true, executedOn: true } });
   if (!guia) redirect("/guias?error=Gu%C3%ADa%20not%20found");
-  if (guia.status !== "issued") redirect(`/guias/${id}?error=${encodeURIComponent("Only an issued guía has a date to update.")}`);
+  if (guia.status !== "issued") redirect(`/guias/${id}?error=${encodeURIComponent("Only an issued AWB has a date to update.")}`);
   const today = miamiDate();
   if ((guia.executedOn ?? "").trim() !== today) {
     await prisma.airWaybillDocument.update({ where: { id }, data: { executedOn: today } });

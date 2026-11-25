@@ -35,7 +35,7 @@ const accounting: SessionUser = {
   agentKey: "ack",
 };
 
-test("admins and operations manage ACK guías, accounting invoices them, and viewers only read", () => {
+test("admins and operations manage ACK AWBs, accounting invoices them, and viewers only read", () => {
   assert.equal(canManageGuias(admin), true);
   assert.equal(canManageGuias(team), true);
   assert.equal(canManageGuias(accounting), false);

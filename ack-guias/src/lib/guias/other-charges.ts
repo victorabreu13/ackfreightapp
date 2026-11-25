@@ -1,4 +1,4 @@
-/** The extra charges of a guía, like "DG Charge 150.00". They print one under the other in the Other Charges box and add to Total Prepaid. */
+/** The extra charges of an AWB, like "DG Charge 150.00". They print one under the other in the Other Charges box and add to Total Prepaid. */
 export type OtherCharge = { description: string; amount: number };
 
 /** The box on the air waybill has room for this many lines. */
@@ -21,7 +21,7 @@ export function cleanOtherCharges(rows: Array<{ description?: unknown; amount?: 
     .slice(0, MAX_OTHER_CHARGES);
 }
 
-/** The stored text of a guía's other charges (JSON), or "" when it has none. */
+/** The stored text of an AWB's other charges (JSON), or "" when it has none. */
 export function serializeOtherCharges(rows: Array<{ description?: unknown; amount?: unknown }>): string {
   const clean = cleanOtherCharges(rows);
   return clean.length ? JSON.stringify(clean) : "";

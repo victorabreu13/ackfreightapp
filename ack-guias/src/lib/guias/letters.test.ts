@@ -126,7 +126,7 @@ test("file names use the sheet names, and master labels use the master AWB", () 
   assert.equal(guiaFileName("lithium", "729-95048310"), "FORM_LithiumBatteryLetter_729-95048310.pdf");
 });
 
-test("Guías sheet documents match the original functions", async () => {
+test("AWBs sheet documents match the original functions", async () => {
   const record = {
     id: "guia-test",
     agentKey: "ack",
@@ -236,7 +236,7 @@ test("Guías sheet documents match the original functions", async () => {
     const ccsfSheet = await ccsfLetter(loaded, opts);
     const ccsfText = pdfText(ccsfGuia);
     assert.match(ccsfText, /CCSSSF CERTIFICATE ?OF ?TENDER ?TO A CARGO CARRIER/);
-    // The CCSF is always Kope's certificate, even for an ACK guía.
+    // The CCSF is always Kope's certificate, even for an ACK AWB.
     assert.match(ccsfText, /KOPE LOGISTICS INC/);
     assert.doesNotMatch(ccsfText, /ACK TEAM LLC/);
     assert.match(ccsfText, /Unknown Shipper/);

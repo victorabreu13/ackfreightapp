@@ -45,7 +45,7 @@ export default async function GuiasPage({
     logMigrationError("/guias", caught);
     return <MigrationPending />;
   }
-  // Drafts and guías that have not flown yet. Documentos keeps every guía, and accounting needs the flown ones to invoice.
+  // Drafts and AWBs that have not flown yet. Documentos keeps every AWB, and accounting needs the flown ones to invoice.
   const guias = (accounting ? all : all.filter((guia) => guiaOnList(guia))).slice(0, 100);
 
   return (
@@ -53,18 +53,18 @@ export default async function GuiasPage({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <GuiaEyebrow />
-          <h1 className="font-display text-4xl">Guías</h1>
+          <h1 className="font-display text-4xl">AWB</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             {accounting
-              ? "Only the guías of your company. You can see chargeable kilos, the agreed rate and the documents."
+              ? "Only the AWBs of your company. You can see chargeable kilos, the agreed rate and the documents."
               : readOnly
-                ? "Guías are read-only for this role."
-                : "Draft a guía from client instructions, issue a number from airline stock, and print the AWB, orders, letters, and labels."}
+                ? "AWBs are read-only for this role."
+                : "Draft an AWB from client instructions, issue a number from airline stock, and print the AWB, orders, letters, and labels."}
           </p>
         </div>
         {canManageGuias(user) ? (
           <Link href="/guias/new" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
-            New guía
+            New AWB
           </Link>
         ) : null}
       </div>
@@ -72,7 +72,7 @@ export default async function GuiasPage({
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
       {guias.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-card px-4 py-10 text-sm text-muted-foreground">
-          {accounting ? "There are no guías for your company." : readOnly ? "No guías yet." : "No guías yet. New guía starts from a pasted email. A sheet arrival is not required."}
+          {accounting ? "There are no AWBs for your company." : readOnly ? "No AWBs yet." : "No AWBs yet. New AWB starts from a pasted email. A sheet arrival is not required."}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card">

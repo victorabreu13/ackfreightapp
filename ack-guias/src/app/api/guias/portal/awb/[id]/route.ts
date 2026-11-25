@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { loadCompany } from "@/lib/guias/company";
 import { renderGuiaPdf } from "@/lib/guias/files";
 
-/** The AWB of one guía, for the client that owns it. It is the only document a client can open. */
+/** The AWB of one AWB, for the client that owns it. It is the only document a client can open. */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser();
   if (!user || user.role !== "CUSTOMER" || !user.clientId) return NextResponse.json({ error: "Sign in first." }, { status: 401 });

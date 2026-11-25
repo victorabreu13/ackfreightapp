@@ -79,14 +79,14 @@ export default async function WarehouseReceiptPage({
           <p className="mt-2 text-sm text-muted-foreground">
             {receipt.guia ? (
               <>
-                Linked to the guía{" "}
+                Linked to the AWB{" "}
                 <Link href={`/guias/${receipt.guia.id}`} className="underline-offset-2 hover:underline">
                   {receipt.guia.awb || "draft"}
                 </Link>
-                . {receipt.guia.status === "issued" ? "It is already issued: changes to the receipt do not modify it." : "When you save, the guía is updated with the receipt data."}
+                . {receipt.guia.status === "issued" ? "It is already issued: changes to the receipt do not modify it." : "When you save, the AWB is updated with the receipt data."}
               </>
             ) : (
-              "No guía. It is linked from the guía, in the Warehouse receipts section, or with a pickup request."
+              "No AWB. It is linked from the AWB, in the Warehouse receipts section, or with a pickup request."
             )}
           </p>
         </div>

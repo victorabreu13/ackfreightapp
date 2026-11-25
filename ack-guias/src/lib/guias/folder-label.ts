@@ -23,7 +23,7 @@ export function folderRoute(document: { departure?: string | null; destination?:
 export function renderFolderLabel(document: GuiaRecord, _company: CompanyView, _options: GuiaPrintOptions): Promise<Buffer> {
   const awb = plain(document.awb);
   if (!awb) {
-    return Promise.reject(Object.assign(new Error("Issue the guía, or enter its AWB number, before printing the folder label."), { status: 409 }));
+    return Promise.reject(Object.assign(new Error("Issue the AWB, or enter its AWB number, before printing the folder label."), { status: 409 }));
   }
   const route = folderRoute(document);
   return new Promise((resolve, reject) => {

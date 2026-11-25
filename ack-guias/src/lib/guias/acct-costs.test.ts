@@ -28,7 +28,7 @@ test("a manual rule, a missing price or no pallets has no cost to give", () => {
   assert.equal(ruleCost({ ...rl, baseCost: null }, 5), null);
 });
 
-test("the biggest guía of a trip carries its whole cost and the others none", () => {
+test("the biggest AWB of a trip carries its whole cost and the others none", () => {
   const trip = [{ id: "a", weight: 400 }, { id: "b", weight: 1200 }, { id: "c", weight: 300 }];
   assert.deepEqual([...chargeToLargest(trip, 40)], [["a", 0], ["b", 40], ["c", 0]]);
   // A tie goes to the first one listed.

@@ -28,7 +28,7 @@ export async function sendPickupToAckFreight(pickup: PickupInput): Promise<SendR
   }
 }
 
-/** The guía's latest AWB, pickup order and delivery order PDFs, as the documents of the trip request. */
+/** The AWB's latest AWB, pickup order and delivery order PDFs, as the documents of the trip request. */
 async function loadTripDocuments(guiaId: string): Promise<TripDocument[]> {
   const rows = await prisma.guiaDocument.findMany({
     where: { guiaId, kind: { in: Object.keys(DOCUMENT_SLOT_BY_KIND) } },
@@ -47,15 +47,15 @@ async function loadTripDocuments(guiaId: string): Promise<TripDocument[]> {
   return documents;
 }
 
-/** The guía whose cargo is ready -> a trip request in ACK Freight, with its documents. Never throws. */
+/** The AWB whose cargo is ready -> a trip request in ACK Freight, with its documents. Never throws. */
 export async function sendGuiaToAckFreight(guiaId: string): Promise<SendResult> {
   try {
     const guia = await prisma.airWaybillDocument.findFirst({
       where: { id: guiaId, product: "guia" },
       include: { lines: true, guiaClient: true },
     });
-    if (!guia) return { state: "failed", message: "The guía was not found." };
-    if (!guia.awb.trim()) return { state: "failed", message: "Assign the AWB to the guía before requesting the trip request." };
+    if (!guia) return { state: "failed", message: "The AWB was not found." };
+    if (!guia.awb.trim()) return { state: "failed", message: "Assign the AWB to the AWB before requesting the trip request." };
     const documents = await loadTripDocuments(guia.id);
     return await sendTripRequest(
       deliveryTripPayload(
@@ -80,7 +80,7 @@ export async function sendGuiaToAckFreight(guiaId: string): Promise<SendResult> 
       ),
     );
   } catch (error) {
-    console.error("ACK Freight link (guía)", error);
+    console.error("ACK Freight link (AWB)", error);
     return { state: "failed", message: "The trip request could not be sent to ACK Freight." };
   }
 }

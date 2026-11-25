@@ -1,7 +1,7 @@
 /**
- * Correcting a pickup request also corrects the guía it started, because the pickup order is printed from the guía. A guía
- * field is only changed when it still holds what the pickup request had before: if the team already changed it in the guía,
- * that value stays and is reported. On a guía that is already issued only the parties and the trucker are corrected; its
+ * Correcting a pickup request also corrects the AWB it started, because the pickup order is printed from the AWB. An AWB
+ * field is only changed when it still holds what the pickup request had before: if the team already changed it in the AWB,
+ * that value stays and is reported. On an AWB that is already issued only the parties and the trucker are corrected; its
  * destination, pieces, weights and goods are never touched.
  */
 export type PickupFields = {
@@ -34,13 +34,13 @@ export type GuiaPickupView = {
 };
 
 export type PickupSyncPlan = {
-  /** Columns of the guía to write. */
+  /** Columns of the AWB to write. */
   guia: Record<string, string | null>;
   /** Columns of its first goods line to write. */
   line: Record<string, string | number | null>;
-  /** For the change history of the guía: the field name it shows, the value before and the value after. */
+  /** For the change history of the AWB: the field name it shows, the value before and the value after. */
   changes: Array<{ field: string; oldValue: string; newValue: string }>;
-  /** Labels of the fields left as they were because the guía had its own value. */
+  /** Labels of the fields left as they were because the AWB had its own value. */
   kept: string[];
 };
 
@@ -72,7 +72,7 @@ type Rule = {
   from: Value;
   to: Value;
   current: Value;
-  /** "cargo" fields are left alone on an issued guía. */
+  /** "cargo" fields are left alone on an issued AWB. */
   scope: "party" | "cargo";
   write: (plan: PickupSyncPlan, value: Value) => void;
 };

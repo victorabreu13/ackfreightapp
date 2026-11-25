@@ -13,7 +13,7 @@ import { identityFor, kopeIdentity, normalizeTrucker, signerName } from "@/lib/s
 export type GuiaRecord = Prisma.AirWaybillDocumentGetPayload<{
   include: { lines: true; agent: true; guiaClient: true };
 }> & {
-  /** How many houses travel under this guía. When the query asks for it, the master prints as a consolidation. */
+  /** How many houses travel under this AWB. When the query asks for it, the master prints as a consolidation. */
   _count?: { houses: number };
 };
 
@@ -29,11 +29,11 @@ export type GuiaPrintOptions = {
   now?: Date;
   /** Master labels use the shipment AWB, master carrier, and destination MIA. */
   masterLabel?: boolean;
-  /** One draft copy of the AWB face, marked DRAFT. Works before the guía is issued. */
+  /** One draft copy of the AWB face, marked DRAFT. Works before the AWB is issued. */
   draft?: boolean;
   /** The copy a client sees: the shipper original and the conditions page, 2 pages instead of 12. */
   customerCopy?: boolean;
-  /** AWB number the labels carry while the guía is not issued yet. */
+  /** AWB number the labels carry while the AWB is not issued yet. */
   labelAwb?: string | null;
   /** Prints the air waybill as a house: ACK in Issued By, and the master it travels under at the bottom right. */
   house?: { master: string };
@@ -85,7 +85,7 @@ function wallDate(value: string | null | undefined): Date | null {
   return null;
 }
 
-/** ACK Guías has no shipment book. Labels and pickup use the guía itself. */
+/** ACK Guías has no shipment book. Labels and pickup use the AWB itself. */
 async function loadShipment(_shipmentId?: string | null): Promise<null> {
   return null;
 }
@@ -218,7 +218,7 @@ function extraFromGuia(document: GuiaRecord, company: CompanyView, options: Guia
 
 export async function renderGuiaPdf(kind: GuiaFileKind, document: GuiaRecord, company: CompanyView, options: GuiaPrintOptions): Promise<Buffer> {
   if (document.status !== "issued" && (kind === "awb" || kind === "labels") && !options.draft) {
-    throw Object.assign(new Error("Issue the guía before printing the AWB or labels."), { status: 409 });
+    throw Object.assign(new Error("Issue the AWB before printing the AWB or labels."), { status: 409 });
   }
   if ((kind === "labels" || kind === "folder-label") && document.status !== "issued") {
     // A draft that already carries an AWB number prints it. A typed number wins over it.
@@ -249,7 +249,7 @@ export async function renderGuiaPdf(kind: GuiaFileKind, document: GuiaRecord, co
   return renderMagayaLabels(document, company, options, loaded);
 }
 
-/** Who did the pickup of a guía: its pickup trucker, or the trucker that delivers when none was written. */
+/** Who did the pickup of an AWB: its pickup trucker, or the trucker that delivers when none was written. */
 export function pickupTruckerOf(
   document: { pickupTruckerName?: string | null; truckerName?: string | null },
   options?: { pickupTrucker?: string | null; trucker?: string | null },

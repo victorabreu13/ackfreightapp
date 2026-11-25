@@ -4,10 +4,10 @@ import { GUIAS_MENU, GUIAS_NAV, isNavGroup, menuFor } from "@/lib/guias/nav";
 
 const labels = (role: string) => menuFor(role).map((item) => (isNavGroup(item) ? `${item.label}: ${item.links.map((link) => link.label).join(" | ")}` : item.label));
 
-test("the menu is Guías, Documents, AWB Status and the groups", () => {
+test("the menu is AWBs, Documents, AWB Status and the groups", () => {
   assert.deepEqual(
     GUIAS_MENU.map((item) => item.label),
-    ["Guías", "Documents", "AWB Status", "Operations", "Clients", "Accounting", "Resources", "Settings"],
+    ["AWB", "Documents", "AWB Status", "Operations", "Clients", "Accounting", "Resources", "Settings"],
   );
 });
 
@@ -27,7 +27,7 @@ test("the submenus are in alphabetical order, and Settings holds Company and Use
 
 test("each role sees only its own links, and an empty group is left out", () => {
   assert.deepEqual(labels("ADMIN"), [
-    "Guías",
+    "AWB",
     "Documents",
     "AWB Status",
     "Operations: Houses | Pickup requests | Warehouse receipts",
@@ -36,9 +36,9 @@ test("each role sees only its own links, and an empty group is left out", () => 
     "Resources: AWB stock | Carriers | Custom Labels | Drivers | Labels DG | Templates",
     "Settings: Company | Users",
   ]);
-  assert.deepEqual(labels("OPERATIONS"), ["Guías", "Documents", "AWB Status", "Operations: Houses | Pickup requests | Warehouse receipts", "Clients: Directory", "Resources: AWB stock | Carriers | Custom Labels | Drivers | Labels DG | Templates"]);
-  assert.deepEqual(labels("ACCOUNTING"), ["Guías", "Documents", "AWB Status", "Accounting: Clients & team | Commissions | Costs | Invoices | Rates | Reports | Shipments", "Resources: Templates"]);
-  assert.deepEqual(labels("VIEWER"), ["Guías", "Documents", "AWB Status", "Resources: Templates"]);
+  assert.deepEqual(labels("OPERATIONS"), ["AWB", "Documents", "AWB Status", "Operations: Houses | Pickup requests | Warehouse receipts", "Clients: Directory", "Resources: AWB stock | Carriers | Custom Labels | Drivers | Labels DG | Templates"]);
+  assert.deepEqual(labels("ACCOUNTING"), ["AWB", "Documents", "AWB Status", "Accounting: Clients & team | Commissions | Costs | Invoices | Rates | Reports | Shipments", "Resources: Templates"]);
+  assert.deepEqual(labels("VIEWER"), ["AWB", "Documents", "AWB Status", "Resources: Templates"]);
 });
 
 test("the flat list still has every page of the menu", () => {

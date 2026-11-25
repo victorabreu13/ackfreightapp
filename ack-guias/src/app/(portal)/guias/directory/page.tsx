@@ -114,7 +114,7 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Directorio</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Clients with their shippers, consignees and notify parties. When you type in a new guía, these names appear as suggestions and fill in the address. Each guía you save adds whatever is missing here.
+          Clients with their shippers, consignees and notify parties. When you type in a new AWB, these names appear as suggestions and fill in the address. Each AWB you save adds whatever is missing here.
         </p>
       </div>
       {saved ? <p className="text-sm text-muted-foreground">{SAVED_TEXT[saved] ?? "Saved."}</p> : null}
@@ -163,7 +163,7 @@ export default async function GuiaDirectoryPage({ searchParams }: { searchParams
                 >
                   <span>{client.name}</span>
                   <span className="text-xs text-muted-foreground">
-                    {client.parties} · {client.guias} guías
+                    {client.parties} · {client.guias} AWBs
                   </span>
                 </Link>
               </li>

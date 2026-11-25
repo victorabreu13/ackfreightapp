@@ -48,7 +48,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Invoices</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Each guía that is issued makes the invoice of its client as a draft, with the charges of its accounting row. Review it, correct what is needed and send it: the client gets it by email with the copy of the guía and sees it in its portal.
+          Each AWB that is issued makes the invoice of its client as a draft, with the charges of its accounting row. Review it, correct what is needed and send it: the client gets it by email with the copy of the AWB and sees it in its portal.
         </p>
       </div>
       {notice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{notice}</p> : null}
@@ -100,7 +100,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
             {invoices.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-3 py-6 text-muted-foreground">
-                  There are no invoices here yet. The next guía that is issued makes one.
+                  There are no invoices here yet. The next AWB that is issued makes one.
                 </td>
               </tr>
             ) : (

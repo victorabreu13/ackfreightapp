@@ -114,7 +114,7 @@ test("upload names, types, and delete rights", () => {
   assert.equal(page.includes('status === "issued"') && page.indexOf("<GuiaUploads") > page.indexOf('status === "issued"'), true);
 });
 
-test("a guía keeps each uploaded file, even when the name looks like an AWB", { skip: !process.env.DATABASE_URL }, async () => {
+test("an AWB keeps each uploaded file, even when the name looks like an AWB", { skip: !process.env.DATABASE_URL }, async () => {
   const stamp = Date.now();
   const drive = mockDrive();
   await prisma.issuingAgent.upsert({

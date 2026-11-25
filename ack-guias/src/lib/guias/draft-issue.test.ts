@@ -14,7 +14,7 @@ test("an unchecked review list is saved empty", () => {
 
 test("a draft AWB or labels URL is a Spanish page", () => {
   const html = draftPrintPage("guia_123");
-  assert.match(html, /Issue the guía first/);
+  assert.match(html, /Issue the AWB first/);
   assert.match(html, /href="\/guias\/guia_123"/);
   assert.doesNotMatch(html, /\{"error"/);
   assert.equal(draftPrintPage("bad id<script>").includes("<script>"), false);
@@ -31,13 +31,13 @@ test("issue failures name the reason", () => {
   assert.equal(issueErrorMessage(new IssueConflict("no_stock", "No stock left")), "There is no stock left for that prefix.");
   assert.equal(issueErrorMessage(new IssueConflict("invalid", "Enter a valid mod-7 AWB")), "The number is not a valid AWB (mod-7).");
   assert.equal(issueErrorMessage(new IssueConflict("number_taken", "number already issued")), "That number was already issued.");
-  assert.equal(issueErrorMessage(new Error("boom")), "The guía could not be issued.");
+  assert.equal(issueErrorMessage(new Error("boom")), "The AWB could not be issued.");
 });
 
-test("the draft guía page does not block Issue on review", () => {
+test("the draft AWB page does not block Issue on review", () => {
   const page = readFileSync(new URL("../../app/(portal)/guias/[id]/page.tsx", import.meta.url), "utf8");
   const form = readFileSync(new URL("../../components/guia-form.tsx", import.meta.url), "utf8");
   assert.equal(page.includes("Issuing stays blocked"), false);
-  assert.match(page, /Issue the guía or use Print without issuing/);
+  assert.match(page, /Issue the AWB or use Print without issuing/);
   assert.match(form, /Confirm all/);
 });

@@ -58,7 +58,7 @@ export function WarehouseReceiptForm({ initial, pickups }: { initial: ReceiptFor
               </option>
             ))}
           </select>
-          <p className="text-xs text-muted-foreground">With a pickup, the receipt is linked to its guía draft and feeds it.</p>
+          <p className="text-xs text-muted-foreground">With a pickup, the receipt is linked to its AWB draft and feeds it.</p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="client">Client</Label>

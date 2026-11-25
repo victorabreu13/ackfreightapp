@@ -97,7 +97,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
         <div>
           <h2 className="font-display text-2xl">Pickups and transfers</h2>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Who does the job and how it charges. One price per trip is for a trip that carries several guías, usually all of the day: its cost goes to the biggest guía of the trip. Base price, then steps is by pallets: the base covers the first pallets and each further group of pallets, or a pallet or piece left over, adds the step price, up to the most it can cost when one is set.
+            Who does the job and how it charges. One price per trip is for a trip that carries several AWBs, usually all of the day: its cost goes to the biggest AWB of the trip. Base price, then steps is by pallets: the base covers the first pallets and each further group of pallets, or a pallet or piece left over, adds the step price, up to the most it can cost when one is set.
           </p>
         </div>
         {providers.map((provider) => (

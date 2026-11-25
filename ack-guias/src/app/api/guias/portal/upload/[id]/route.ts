@@ -5,7 +5,7 @@ import { downloadDriveFile } from "@/lib/guias/drive";
 import { UPLOAD_KIND, contentDisposition, isCategoryUpload } from "@/lib/guias/upload-rules";
 
 /**
- * The commercial invoice or the manifest uploaded to a guía, for the client that owns the guía. Any other file the team
+ * The commercial invoice or the manifest uploaded to an AWB, for the client that owns the AWB. Any other file the team
  * uploaded (signed DGD, internal papers) is not shown to the client.
  */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {

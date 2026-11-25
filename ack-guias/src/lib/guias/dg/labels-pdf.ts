@@ -357,7 +357,7 @@ export function hazardLabelName(code: string): string {
 export type DgChecklistOptions = {
   /** Packages, so each label says how many are needed. */
   copies: number;
-  /** Shown at the top, like the AWB number of the guía. */
+  /** Shown at the top, like the AWB number of the AWB. */
   reference?: string;
 };
 

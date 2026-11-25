@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 
-/** The master guías a house can be linked to: the latest ones, newest first, with the AWB or the client to tell them apart. */
+/** The master AWBs a house can be linked to: the latest ones, newest first, with the AWB or the client to tell them apart. */
 export async function masterOptions(): Promise<Array<{ id: string; label: string }>> {
   const masters = await prisma.airWaybillDocument.findMany({
     where: { product: "guia", agentKey: "ack" },

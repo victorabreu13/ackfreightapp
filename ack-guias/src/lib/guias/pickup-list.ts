@@ -7,7 +7,7 @@ export type PickupFilters = {
   number: string;
   /** Part of the client or of the shipper. */
   client: string;
-  /** Part of the AWB of the guía. */
+  /** Part of the AWB number. */
   awb: string;
   /** Part of the destino. */
   destination: string;

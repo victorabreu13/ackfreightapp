@@ -5,7 +5,7 @@ import { airlineOfAwb, linesFor, matchProvider, NO_RULES, totalsOf, tripShares, 
 import { pickupTruckerOf } from "@/lib/guias/files";
 import { normalizeBillToName } from "@/lib/guias/guia-client";
 
-/** The accounting row of a guía: made when the guía is issued, from its numbers, its client and its truckers. */
+/** The accounting row of an AWB: made when the AWB is issued, from its numbers, its client and its truckers. */
 
 /** Today in New York, as YYYY-MM-DD. */
 function today(): string {
@@ -40,7 +40,7 @@ export function totalsFromShipment(shipment: ShipmentLines) {
   return totalsOf(lines, shipment.kopeInCost, shipment.invoicedOverride);
 }
 
-/** The accounting client of a guía, by its name. */
+/** The accounting client of an AWB, by its name. */
 async function clientFor(name: string) {
   const wanted = normalizeBillToName(name);
   if (!wanted) return null;
@@ -77,7 +77,7 @@ export async function settleTrips(date: Date, provider: string, kind: "pickup" |
 }
 
 /**
- * Makes the accounting row of an issued guía, once. The client rules, the rate table of its date, the ULDs of its BUP and
+ * Makes the accounting row of an issued AWB, once. The client rules, the rate table of its date, the ULDs of its BUP and
  * the providers of its pickup order and its delivery order give its costs and its sell. What could not be worked out
  * is written in the note of the row, to be filled in by hand.
  */

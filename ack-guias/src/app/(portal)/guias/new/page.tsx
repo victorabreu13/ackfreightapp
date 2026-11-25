@@ -41,7 +41,7 @@ const blank: GuiaValues = {
 export default async function NewGuiaPage() {
   const user = await getSessionUser();
   if (!user) return null;
-  if (!canManageGuias(user)) redirect("/guias?error=Only%20the%20ACK%20team%20can%20create%20a%20gu%C3%ADa");
+  if (!canManageGuias(user)) redirect("/guias?error=Only%20the%20ACK%20team%20can%20create%20an%20AWB");
   const prefixes = await prisma.airlinePrefix.findMany({ orderBy: { prefix: "asc" }, take: 200 });
   const stock = await prisma.awbStockNumber.groupBy({
     by: ["prefix"],
@@ -54,9 +54,9 @@ export default async function NewGuiaPage() {
     <div className="space-y-4">
       <div>
         <GuiaEyebrow />
-        <h1 className="font-display text-4xl">New guía</h1>
+        <h1 className="font-display text-4xl">New AWB</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Chargeable kg is the weight that bills. Gross is optional. Every guía is issued by ACK TEAM LLC.
+          Chargeable kg is the weight that bills. Gross is optional. Every AWB is issued by ACK TEAM LLC.
         </p>
       </div>
       <GuiaForm mode="new" values={blank} review={[]} snippets={{}} awbOptions={awbOptions} carrierOptions={carrierOptions} truckers={await truckerNames()} />

@@ -66,8 +66,8 @@ export async function saveAgreedRate(formData: FormData) {
 export async function markGuiaInvoiced(formData: FormData) {
   const id = text(formData.get("id"));
   const { user, guia } = await guiaForBilling(id);
-  if (!canInvoiceGuia(user, guia.agentKey)) back(id, "You cannot invoice this guía.");
-  if (guia.status !== "issued") back(id, "Issue the guía before invoicing.");
+  if (!canInvoiceGuia(user, guia.agentKey)) back(id, "You cannot invoice this AWB.");
+  if (guia.status !== "issued") back(id, "Issue the AWB before invoicing.");
   const invoiceNumber = text(formData.get("invoiceNumber"));
   const invoiceDate = text(formData.get("invoiceDate"));
   const amount = Number(text(formData.get("invoiceAmount")).replace(/,/g, ""));
@@ -90,9 +90,9 @@ export async function markGuiaInvoiced(formData: FormData) {
 export async function createQboInvoice(formData: FormData) {
   const id = text(formData.get("id"));
   const { user, guia } = await guiaForBilling(id);
-  if (!canInvoiceGuia(user, guia.agentKey)) back(id, "You cannot invoice this guía.");
+  if (!canInvoiceGuia(user, guia.agentKey)) back(id, "You cannot invoice this AWB.");
   const agentKey = companyKeyOrNull(guia.agentKey);
-  if (!agentKey) back(id, "You cannot invoice this guía.");
+  if (!agentKey) back(id, "You cannot invoice this AWB.");
   const pieces = guia.lines.reduce((sum, line) => sum + (line.pieces ?? 0), 0);
   const chargeableKg = guia.lines.reduce((sum, line) => sum + (line.chargeableWeight ?? 0), 0);
   const lineRate = guia.lines.find((line) => line.rate != null)?.rate ?? null;

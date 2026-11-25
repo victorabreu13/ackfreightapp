@@ -159,7 +159,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Send emails the invoice and the copy of the guía from billing@ackfreight.com, and shows the invoice in the portal of the client. A sent invoice can no longer be edited.
+            Send emails the invoice and the copy of the AWB from billing@ackfreight.com, and shows the invoice in the portal of the client. A sent invoice can no longer be edited.
           </p>
         </form>
       ) : (

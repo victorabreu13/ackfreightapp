@@ -25,7 +25,7 @@ export default async function CustomerPortalPage() {
       flightCheckedAt: true,
       flightEvents: { orderBy: { createdAt: "desc" }, take: 6, select: { id: true, status: true, createdAt: true } },
       warehouseReceipts: { orderBy: { seq: "asc" }, select: { id: true, seq: true } },
-      // The invoice or the manifest uploaded to the guía. The other files of the team stay internal.
+      // The invoice or the manifest uploaded to the AWB. The other files of the team stay internal.
       loggedDocuments: {
         where: {
           kind: UPLOAD_KIND,
@@ -59,7 +59,7 @@ export default async function CustomerPortalPage() {
         <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{user.clientName}</p>
         <h1 className="font-display text-4xl">Sus embarques</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Aquí ve la guía aérea (AWB) de cada embarque y el estatus de su vuelo. Le enviamos un correo cuando el estatus cambie.
+          Aquí ve el AWB de cada embarque y el estatus de su vuelo. Le enviamos un correo cuando el estatus cambie.
         </p>
       </div>
       {guias.length === 0 ? (

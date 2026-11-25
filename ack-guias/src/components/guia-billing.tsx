@@ -87,7 +87,7 @@ export function GuiaBilling({
         companyClients && companyClients.length > 0 ? (
           <GuiaClientRateForm guiaId={guiaId} clients={companyClients} selectedId={selectedClientId ?? null} />
         ) : (
-          <p className="text-sm text-muted-foreground">Save the client on the guía to create it in {company}.</p>
+          <p className="text-sm text-muted-foreground">Save the client on the AWB to create it in {company}.</p>
         )
       ) : null}
       {invoiceNumber ? (
@@ -98,7 +98,7 @@ export function GuiaBilling({
         </p>
       ) : null}
       {qboDone ? <p className="text-sm">Factura en QuickBooks {qboDocNumber || qboInvoiceId}.</p> : null}
-      {qboPending ? <p className="text-sm text-stuck">The invoice for this guía is already being created in QuickBooks.</p> : null}
+      {qboPending ? <p className="text-sm text-stuck">The invoice for this AWB is already being created in QuickBooks.</p> : null}
       {canInvoice && issued ? (
         <form action={markGuiaInvoiced} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <input type="hidden" name="id" value={guiaId} />
@@ -121,7 +121,7 @@ export function GuiaBilling({
           </div>
         </form>
       ) : null}
-      {canInvoice && !issued ? <p className="text-sm text-muted-foreground">Issue the guía before invoicing.</p> : null}
+      {canInvoice && !issued ? <p className="text-sm text-muted-foreground">Issue the AWB before invoicing.</p> : null}
       {canInvoice && issued && !qboDone && !qboPending ? (
         <form action={createQboInvoice}>
           <input type="hidden" name="id" value={guiaId} />

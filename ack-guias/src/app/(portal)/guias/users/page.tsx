@@ -37,8 +37,8 @@ export default async function UsersPage({
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Users</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Only people on this list or in ADMIN_EMAILS can log in. Admin sees everything. Operations builds guías and stock. Accounting
-          invoices and sees the guías without editing them. Viewer only reads the guías.
+          Only people on this list or in ADMIN_EMAILS can log in. Admin sees everything. Operations builds AWBs and stock. Accounting
+          invoices and sees the AWBs without editing them. Viewer only reads the AWBs.
         </p>
       </div>
       <section className="rounded-lg border border-border bg-card p-4">

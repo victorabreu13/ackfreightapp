@@ -14,8 +14,8 @@ import {
 import { sendMail, type MailSender } from "@/lib/guias/mailer";
 
 /**
- * A guía is watched from the day before its flight to the day after, until it lands or is canceled. The status
- * source has a monthly quota, so each guía is looked up only every few hours, and more often once it is flying.
+ * An AWB is watched from the day before its flight to the day after, until it lands or is canceled. The status
+ * source has a monthly quota, so each AWB is looked up only every few hours, and more often once it is flying.
  */
 const DAYS_BEFORE = 1;
 const DAYS_AFTER = 1;
@@ -56,12 +56,12 @@ export type FlightCheckOptions = {
   now?: Date;
   fetchImpl?: FlightFetch;
   mailer?: MailSender;
-  /** Only these guías. Used by the Check now button. */
+  /** Only these AWBs. Used by the Check now button. */
   guiaIds?: string[];
 };
 
 /**
- * Looks up the flight of every issued guía that is inside its watch window, saves a change of status, and emails
+ * Looks up the flight of every issued AWB that is inside its watch window, saves a change of status, and emails
  * the client's logins when the change is worth telling them about.
  */
 export async function checkFlights(options: FlightCheckOptions = {}): Promise<FlightCheckSummary> {

@@ -63,7 +63,7 @@ test("uploaded files stay searchable by type File and by file name", () => {
   assert.equal(filterLoggedDocuments(rows, {}).length, 2);
 });
 
-test("documents group by client A to Z, then one subfolder per guía", () => {
+test("documents group by client A to Z, then one subfolder per AWB", () => {
   const doc = (overrides: Partial<LoggedDocument>): LoggedDocument => ({
     id: "x",
     guiaId: null,
@@ -96,7 +96,7 @@ test("documents group by client A to Z, then one subfolder per guía", () => {
   assert.deepEqual(pacifiko.guias[1].documents.map((row) => row.kind), ["awb", "labels"]);
 });
 
-test("the guía list shows the creation day in New York time", () => {
+test("the AWB list shows the creation day in New York time", () => {
   assert.equal(formatNyDate(new Date("2026-10-23T02:55:00.000Z")), "Oct 22, 2026");
   assert.equal(formatNyDate(new Date("2026-10-23T14:00:00.000Z")), "Oct 23, 2026");
 });

@@ -36,7 +36,7 @@ export type PickupFormValues = {
   notes: string;
 };
 
-/** The pickup request form. Saving a new one starts the draft guía. With saved values it corrects that pickup request. */
+/** The pickup request form. Saving a new one starts the draft AWB. With saved values it corrects that pickup request. */
 export function PickupForm({
   awbOptions = [],
   truckers = [],
@@ -60,8 +60,8 @@ export function PickupForm({
         <h2 className="font-display text-2xl">{editing ? "Edit pickup request" : "New pickup request"}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {editing
-            ? "The pickup order of its guía follows what you correct here, also when the guía is already issued, except for fields the guía already has its own value in. Pieces, kilos, destino and goods of an issued guía are never changed from here."
-            : "Saving it creates the guía draft with this data. The pickup order comes from that guía."}
+            ? "The pickup order of its AWB follows what you correct here, also when the AWB is already issued, except for fields the AWB already has its own value in. Pieces, kilos, destino and goods of an issued AWB are never changed from here."
+            : "Saving it creates the AWB draft with this data. The pickup order comes from that AWB."}
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
@@ -70,7 +70,7 @@ export function PickupForm({
           {editing ? (
             <>
               <Input id="client" name="client" value={client} readOnly className="bg-muted" />
-              <p className="text-xs text-muted-foreground">The client also decides how the guía is billed, so it is changed in the guía.</p>
+              <p className="text-xs text-muted-foreground">The client also decides how the AWB is billed, so it is changed in the AWB.</p>
             </>
           ) : (
             <GuiaLookupInput id="client" name="client" required type="client" value={client} onChange={setClient} onPick={(item) => setClient(item.name)} />
@@ -178,8 +178,8 @@ export function PickupForm({
       {editing ? null : (
       <div className="space-y-3 rounded-md border border-border p-3">
         <div>
-          <h3 className="font-display text-xl">Guía AWB (optional)</h3>
-          <p className="mt-1 text-xs text-muted-foreground">When the draft is created this number from stock is assigned to it, and its drafts, labels and Folder Label already print with it. If you choose nothing, the guía has no number.</p>
+          <h3 className="font-display text-xl">AWB number (optional)</h3>
+          <p className="mt-1 text-xs text-muted-foreground">When the draft is created this number from stock is assigned to it, and its drafts, labels and Folder Label already print with it. If you choose nothing, the AWB has no number.</p>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1.5">
@@ -200,7 +200,7 @@ export function PickupForm({
         </div>
       </div>
       )}
-      <Button type="submit">{editing ? "Save pickup" : "Create pickup and guía draft"}</Button>
+      <Button type="submit">{editing ? "Save pickup" : "Create pickup and AWB draft"}</Button>
     </form>
   );
 }

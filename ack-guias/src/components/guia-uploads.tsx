@@ -24,7 +24,7 @@ export function DeleteUploadButton({ id, fileName, returnTo }: { id: string; fil
     <form
       action={deleteGuiaUpload}
       onSubmit={(event) => {
-        const ok = window.confirm(`Delete «${fileName}»? It is removed from the guía and from Drive.`);
+        const ok = window.confirm(`Delete «${fileName}»? It is removed from the AWB and from Drive.`);
         if (!ok) event.preventDefault();
       }}
     >
@@ -84,8 +84,8 @@ export function GuiaUploads({
         <h2 className="font-display text-2xl">Files / Upload</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {readOnly
-            ? "Files of this guía. You can download them."
-            : "The team can upload PDFs, images, Excel or other files. Several at a time. They are saved in Drive under ACK Guías / client / AWB and stay on this guía and in Documents."}
+            ? "Files of this AWB. You can download them."
+            : "The team can upload PDFs, images, Excel or other files. Several at a time. They are saved in Drive under ACK Guías / client / AWB and stay on this AWB and in Documents."}
         </p>
       </div>
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
@@ -177,7 +177,7 @@ export function GuiaUploads({
       </form>
       )}
       {files.length === 0 ? (
-        <p className="text-sm text-muted-foreground">There are no files on this guía yet.</p>
+        <p className="text-sm text-muted-foreground">There are no files on this AWB yet.</p>
       ) : (
         <ul className="space-y-3">
           {files.map((file) => (

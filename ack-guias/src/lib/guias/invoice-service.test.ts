@@ -39,7 +39,7 @@ test("the first invoice is number 3000 and each one after takes the next number"
   assert.equal(await nextInvoiceNumber(), 3001);
 });
 
-test("the draft invoice of a guía holds the charges of its accounting row and the data of its client", async () => {
+test("the draft invoice of an AWB holds the charges of its accounting row and the data of its client", async () => {
   state.counter = { id: "invoice", lastNumber: 2999 };
   state.invoices = [];
   state.shipments = [shipment];
@@ -76,7 +76,7 @@ test("a client without address or emails still gets its draft, with a note for a
   assert.match(String(invoice.note), /email/);
 });
 
-test("a guía that already has its invoice does not get a second one", async () => {
+test("an AWB that already has its invoice does not get a second one", async () => {
   state.invoices = [{ shipmentId: "s1", number: 3001 }];
   const { createInvoiceForGuia } = await import("@/lib/guias/invoice-service");
   assert.deepEqual(await createInvoiceForGuia("g1"), { created: false, number: 3001 });

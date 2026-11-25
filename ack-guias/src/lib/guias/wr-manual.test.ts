@@ -35,7 +35,7 @@ test("a manual number that already agrees with the receipt gives no notice", () 
   assert.deepEqual(result.conflicts, []);
 });
 
-test("a guía with nothing typed by hand takes the pieces and the weights of the receipt", () => {
+test("an AWB with nothing typed by hand takes the pieces and the weights of the receipt", () => {
   const result = applyReceiptsToGuia({ ...blank, pieces: "1", grossKg: "10", chargeableKg: "10" }, [receipt()], manualKeysOf({}));
   assert.equal(result.values.pieces, "5");
   assert.equal(result.values.grossKg, "537");
@@ -75,7 +75,7 @@ type Writes = { document: Array<Record<string, unknown>>; line: Array<Record<str
 
 /**
  * A stand-in for the database that records what the sync writes. The database client is created once, the first time
- * the sync is imported, so the stand-in is installed once and each test only swaps the guía and the receipts in it.
+ * the sync is imported, so the stand-in is installed once and each test only swaps the AWB and the receipts in it.
  */
 const state: { guia: Record<string, unknown>; receipts: unknown[]; writes: Writes } = { guia: {}, receipts: [], writes: { document: [], line: [], log: [] } };
 (globalThis as { prisma?: unknown }).prisma = {
@@ -144,12 +144,12 @@ test("a reset takes the receipt values again, clears the mark and says so in the
   assert.ok(writes.log.some((entry) => entry.field === "chargeableKg" && entry.oldValue === "638" && entry.newValue === "537" && entry.source === "reset"));
 });
 
-test("linking a receipt to an issued guía changes nothing", async () => {
+test("linking a receipt to an issued AWB changes nothing", async () => {
   const writes = fakeDatabase(draftGuia({ status: "issued" }), [dbReceipt("HAZMAT - UN 3481")]);
   const { syncGuiaFromReceipts } = await import("@/lib/guias/wr-sync");
   const result = await syncGuiaFromReceipts("guia-1", "team@ackfreight.com");
   assert.deepEqual(result, { changed: [], skipped: true });
-  // A reset on an issued guía does not clear its marks either.
+  // A reset on an issued AWB does not clear its marks either.
   const reset = await syncGuiaFromReceipts("guia-1", "team@ackfreight.com", { source: "reset", reset: "all" });
   assert.equal(reset.skipped, true);
   assert.deepEqual(writes, { document: [], line: [], log: [] });

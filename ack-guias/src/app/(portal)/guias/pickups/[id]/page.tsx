@@ -65,7 +65,7 @@ export default async function EditPickupPage({
           </Link>
           {request.guia ? (
             <>
-              {" · Guía "}
+              {" · AWB "}
               <Link href={`/guias/${request.guia.id}`} className="underline-offset-2 hover:underline">
                 {request.guia.awb || "Draft"}
               </Link>

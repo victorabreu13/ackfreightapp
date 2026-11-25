@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   icons: { icon: "/brand-icon" },
 };
 
-/** The client's own space. Only a customer login gets in, and it sees only the guías of its client. */
+/** The client's own space. Only a customer login gets in, and it sees only the AWBs of its client. */
 export default async function CustomerPortalLayout({ children }: { children: ReactNode }) {
   const user = await getSessionUser();
   if (!user) redirect("/login?customer=1");

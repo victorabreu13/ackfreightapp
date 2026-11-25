@@ -141,7 +141,7 @@ export default async function AccountingShipmentsPage({ searchParams }: { search
             {shipments.length === 0 ? (
               <tr>
                 <td colSpan={12} className="px-3 py-6 text-muted-foreground">
-                  There are no shipments here yet. Load the Shipments tab of the Sheet as a CSV, or issue a guía.
+                  There are no shipments here yet. Load the Shipments tab of the Sheet as a CSV, or issue an AWB.
                 </td>
               </tr>
             ) : (

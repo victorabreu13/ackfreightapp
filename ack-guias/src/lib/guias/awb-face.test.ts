@@ -7,7 +7,7 @@ import test from "node:test";
 import { renderAwbPdf, type AwbPdfModel } from "@/lib/awb/pdf";
 import { awbDate, flightDateLine, guiaPdfOverlay, routingTo } from "./awb-face";
 
-test("the guía face fills routing, flight, country, notify, and AS ARRANGED", () => {
+test("the AWB face fills routing, flight, country, notify, and AS ARRANGED", () => {
   assert.equal(routingTo("MIA"), "MIA");
   assert.equal(routingTo("Bogota"), "BOG");
   assert.equal(routingTo("Doral FL"), "");

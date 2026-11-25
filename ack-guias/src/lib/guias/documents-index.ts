@@ -19,7 +19,7 @@ export const GUIA_FILE_LABELS: Record<GuiaFileKind, string> = {
 
 export const UPLOAD_LABEL = "File";
 
-/** The name of a kind of logged document, for the kinds that are not one of the guía files. */
+/** The name of a kind of logged document, for the kinds that are not one of the AWB files. */
 export function documentKindLabel(kind: string): string {
   if (kind === "warehouse-receipt") return "Warehouse receipt";
   return (GUIA_FILE_LABELS as Record<string, string>)[kind] ?? kind;
@@ -116,7 +116,7 @@ function kindRank(kind: string): number {
   return index < 0 ? GUIA_FILE_KINDS.length : index;
 }
 
-/** Client folders A to Z. Inside each, one subfolder per guía (newest first) holding that guía's documents in print order. */
+/** Client folders A to Z. Inside each, one subfolder per AWB (newest first) holding that AWB's documents in print order. */
 export function groupDocumentsByClient(rows: LoggedDocument[]): ClientFolder[] {
   const clients = new Map<string, { client: string; guias: Map<string, GuiaFolder> }>();
   for (const row of rows) {

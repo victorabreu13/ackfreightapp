@@ -43,7 +43,7 @@ export default async function AwbStockPage({
     <div className="space-y-6">
       <div>
         <Link href="/guias" className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-          Guías
+          AWBs
         </Link>
         <h1 className="mt-2 font-display text-4xl">AWB stock</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">

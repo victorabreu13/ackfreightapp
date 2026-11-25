@@ -1,6 +1,6 @@
 /**
  * Some papers carry the name and the full address of a shipper or consignee and nothing else: no phone, fax, email or
- * contact person. Guía addresses are free text and often carry those details, on their own line or at the end of the
+ * contact person. AWB addresses are free text and often carry those details, on their own line or at the end of the
  * address line, so they are cut here.
  */
 

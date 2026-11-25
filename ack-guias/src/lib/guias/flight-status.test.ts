@@ -29,7 +29,7 @@ test("the source's statuses are folded into the ones the client sees", () => {
   assert.equal(isFinalStatus("DELAYED"), false);
 });
 
-test("flight dates and numbers are read from the way the guía form stores them", () => {
+test("flight dates and numbers are read from the way the AWB form stores them", () => {
   assert.equal(flightDateIso("2026-10-21"), "2026-10-21");
   assert.equal(flightDateIso("Oct/21/26"), "2026-10-21");
   assert.equal(flightDateIso("Sep/3/2026"), "2026-09-03");
@@ -66,7 +66,7 @@ test("an email is worth sending for a real change, not for the first on-schedule
   assert.equal(shouldNotify("DEPARTED", "ARRIVED"), true);
 });
 
-test("the flight that leaves the guía's origin is the one picked", () => {
+test("the flight that leaves the AWB's origin is the one picked", () => {
   const flights = [
     { status: "Expected", departure: { airport: { iata: "BOG" } } },
     { status: "Departed", departure: { airport: { iata: "MIA" } } },

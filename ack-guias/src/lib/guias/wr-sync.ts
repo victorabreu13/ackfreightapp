@@ -15,7 +15,7 @@ type ReceiptRow = {
   lines: Array<{ pieces: number; length: number | null; width: number | null; height: number | null; weightKg: number | null; description: string | null }>;
 };
 
-/** The part of each receipt that feeds a guía. */
+/** The part of each receipt that feeds an AWB. */
 export function receiptFeeds(receipts: ReceiptRow[]): ReceiptFeed[] {
   return receipts.map((receipt) => ({
     client: receipt.clientLabel,
@@ -43,10 +43,10 @@ export type SyncOptions = {
 };
 
 /**
- * Feeds a draft guía from the warehouse receipts linked to it. The pieces and the weights follow the receipts, except
- * the ones the user typed by hand, which stay. The client, the parties and the goods are filled when the guía has none.
- * Dangerous Goods never change: the guía only shows a suggestion. A guía that is already issued is left exactly as it
- * is, since its AWB was printed; only the link between the receipt and the guía is kept. Every change is written to the
+ * Feeds a draft AWB from the warehouse receipts linked to it. The pieces and the weights follow the receipts, except
+ * the ones the user typed by hand, which stay. The client, the parties and the goods are filled when the AWB has none.
+ * Dangerous Goods never change: the AWB only shows a suggestion. An AWB that is already issued is left exactly as it
+ * is, since its AWB was printed; only the link between the receipt and the AWB is kept. Every change is written to the
  * change history. Returns the fields that changed.
  */
 export async function syncGuiaFromReceipts(guiaId: string, actor: string, options: SyncOptions = {}): Promise<{ changed: string[]; skipped: boolean }> {
@@ -86,7 +86,7 @@ export async function syncGuiaFromReceipts(guiaId: string, actor: string, option
   const manual = hasHouses ? new Set<ManualKey>(["pieces", "grossKg", "chargeableKg"]) : manualKeysOf(flags);
   const { values, changed } = applyReceiptsToGuia(current, receiptFeeds(receipts), manual);
 
-  // The Package of the pickup order is the first one a receipt line names, when the guía has none.
+  // The Package of the pickup order is the first one a receipt line names, when the AWB has none.
   const received = receipts.flatMap((receipt) => receipt.lines).map((line) => packageTypeFrom(line.packageType)).find(Boolean);
   if (received && !document.packageType?.trim()) {
     await prisma.airWaybillDocument.update({ where: { id: guiaId }, data: { packageType: received } });
@@ -126,7 +126,7 @@ export async function syncGuiaFromReceipts(guiaId: string, actor: string, option
   return { changed, skipped: false };
 }
 
-/** Keeps the guía's own number over the receipt's: the notice stays hidden until the receipt says something else. */
+/** Keeps the AWB's own number over the receipt's: the notice stays hidden until the receipt says something else. */
 export async function keepGuiaValue(guiaId: string, key: ManualKey, receiptValue: string): Promise<void> {
   const document = await prisma.airWaybillDocument.findUnique({ where: { id: guiaId }, select: { wrDismissed: true } });
   if (!document) return;

@@ -33,7 +33,7 @@ test("the template list covers every document kind once", () => {
   assert.equal(isTemplateKind("nope"), false);
 });
 
-test("every template draws a PDF from the sample guía", async () => {
+test("every template draws a PDF from the sample AWB", async () => {
   for (const kind of GUIA_FILE_KINDS) {
     const pdf = await renderGuiaPdf(kind, sampleGuia(), company, samplePrintOptions("team@ackfreight.com", "Team"));
     assert.equal(pdf.subarray(0, 5).toString("latin1"), "%PDF-", kind);

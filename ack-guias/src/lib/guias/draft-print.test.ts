@@ -28,7 +28,7 @@ const company: CompanyView = {
 const pages = (pdf: Buffer) => (pdf.toString("latin1").match(/\/Type \/Page\b(?!s)/g) ?? []).length;
 const options = samplePrintOptions("team@ackfreight.com", "Team");
 
-/** A guía that has no AWB number yet. */
+/** An AWB that has no AWB number yet. */
 function draftGuia(): GuiaRecord {
   return { ...sampleGuia(), status: "draft", awb: "", prefix: "", serial: "" } as GuiaRecord;
 }

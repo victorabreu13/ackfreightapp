@@ -26,7 +26,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true, _count: { select: { houses: true } } },
   });
   if (!document || document.product !== "guia" || document.agentKey !== "ack") {
-    return NextResponse.json({ error: "Guía not found." }, { status: 404 });
+    return NextResponse.json({ error: "AWB not found." }, { status: 404 });
   }
   const company = await loadCompany("ack").catch((error: unknown) => {
     const message = error instanceof Error ? error.message : "Unknown issuing company";
@@ -48,7 +48,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   });
   if (kind === "all") {
     const packed = await packGuia(document, company, printOptions, master, user.email);
-    const zipName = `GUIA ${document.awb.trim() || "DRAFT"} documentos.zip`;
+    const zipName = `AWB ${document.awb.trim() || "DRAFT"} documentos.zip`;
     return new NextResponse(new Uint8Array(packed), {
       headers: {
         "Content-Type": "application/zip",
@@ -114,7 +114,7 @@ async function packGuia(
 ): Promise<Buffer> {
   const files: Array<{ name: string; data: Buffer }> = [];
   const errors: string[] = [];
-  // The documents this guía carries: its aircraft's TSA, the CCSF and CCSP only when screened. The checklist, the
+  // The documents this AWB carries: its aircraft's TSA, the CCSF and CCSP only when screened. The checklist, the
   // labels and the pickup order are not in the zip.
   for (const item of packKinds(document)) {
     try {
@@ -136,7 +136,7 @@ async function packGuia(
       errors.push(`master labels: ${error instanceof Error ? error.message : "Could not render that document."}`);
     }
   }
-  // What the team uploaded for this guía goes in too: the signed DGD and the invoices or manifests.
+  // What the team uploaded for this AWB goes in too: the signed DGD and the invoices or manifests.
   const uploads = await prisma.guiaDocument.findMany({
     where: { guiaId: document.id, kind: UPLOAD_KIND, source: "upload" },
     orderBy: { generatedAt: "asc" },

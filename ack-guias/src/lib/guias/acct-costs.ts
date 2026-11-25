@@ -73,7 +73,7 @@ export function ruleCost(rule: CostRule, units: number): number | null {
 }
 
 /**
- * One trip carries several guías, usually all of the day. Its cost is charged to the biggest guía and the others
+ * One trip carries several AWBs, usually all of the day. Its cost is charged to the biggest AWB and the others
  * carry none. A tie goes to the first one listed.
  */
 export function chargeToLargest<T extends { id: string; weight: number }>(guias: T[], tripCost: number): Map<string, number> {

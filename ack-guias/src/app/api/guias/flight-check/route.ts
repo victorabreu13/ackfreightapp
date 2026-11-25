@@ -11,7 +11,7 @@ function sameSecret(given: string, expected: string): boolean {
 }
 
 /**
- * Called on a schedule (Cloud Scheduler, every 30 minutes). It looks up the flights of the guías that are
+ * Called on a schedule (Cloud Scheduler, every 30 minutes). It looks up the flights of the AWBs that are
  * about to fly or just flew, and emails the client when a status changes. The shared secret keeps it private.
  */
 async function run(request: Request) {

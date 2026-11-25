@@ -50,7 +50,7 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Pickup requests</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Each pickup request creates the draft of its guía. The Pickup Order comes from it, and when the cargo reaches the warehouse its Warehouse Receipt is linked.
+          Each pickup request creates the draft of its AWB. The Pickup Order comes from it, and when the cargo reaches the warehouse its Warehouse Receipt is linked.
         </p>
       </div>
       {notice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{notice}</p> : null}
@@ -104,7 +104,7 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
           ) : null}
           <span className="text-sm text-muted-foreground">
             {matching.length > requests.length ? `Showing the first ${requests.length} of ${matching.length} pickup requests. Narrow the search to see the rest.` : `${requests.length} pickup request${requests.length === 1 ? "" : "s"}`}
-            {" · Click Pickup, Creado, Client, Destino or Guía to sort."}
+            {" · Click Pickup, Creado, Client, Destino or AWB to sort."}
           </span>
         </div>
       </form>
@@ -120,7 +120,7 @@ export default async function PickupsPage({ searchParams }: { searchParams: Prom
               <th className="px-3 py-2">{sortHeader("Destino", "destination")}</th>
               <th className="px-3 py-2">Pieces / kg</th>
               <th className="px-3 py-2">Pickup</th>
-              <th className="px-3 py-2">{sortHeader("Guía", "awb")}</th>
+              <th className="px-3 py-2">{sortHeader("AWB", "awb")}</th>
               <th className="px-3 py-2">Warehouse</th>
               <th className="px-3 py-2" />
             </tr>

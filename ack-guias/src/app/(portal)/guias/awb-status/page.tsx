@@ -182,7 +182,7 @@ export default async function AwbStatusPage({ searchParams }: { searchParams: Pr
                     ? `Checked ${flightStamp(guia.flightCheckedAt)}${guia.flightStatus ? "" : ". The flight service does not have this flight yet; it tries again on its own."}`
                     : guia.flightNumber
                       ? "Not checked yet"
-                      : "No flight number on the guía"}
+                      : "No flight number on the AWB"}
                 </p>
               </li>
             );

@@ -9,7 +9,7 @@ const ROLE_BY_TYPE: Record<string, PartyRole> = {
   notify: "NOTIFY",
 };
 
-/** Suggestions for the new guía form: clients, and the shippers, consignees and notify parties of the directory. */
+/** Suggestions for the new AWB form: clients, and the shippers, consignees and notify parties of the directory. */
 export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user || !canReadGuias(user)) return NextResponse.json({ error: "Team only." }, { status: 401 });
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     const items = await searchParties({ agentKey: ACK_AGENT_KEY, role, query, clientName: (params.get("client") ?? "").slice(0, 160) });
     return NextResponse.json({ items }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    console.error("guía lookup", error);
+    console.error("AWB lookup", error);
     return NextResponse.json({ items: [] });
   }
 }

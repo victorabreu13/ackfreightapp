@@ -292,7 +292,7 @@ export async function publishRenderedPdf(input: {
 }
 
 /**
- * Saves a PDF that belongs to no guía yet in the client folder of Drive, under a folder of its own, and logs it. Saving the
+ * Saves a PDF that belongs to no AWB yet in the client folder of Drive, under a folder of its own, and logs it. Saving the
  * same file name again replaces it. It is logged as an "import" so the lookup finds it again by client folder and name.
  */
 export async function publishUnlinkedPdf(input: {

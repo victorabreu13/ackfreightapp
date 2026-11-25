@@ -31,7 +31,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       },
     });
   } catch (error) {
-    console.error("Guía upload download", error);
+    console.error("AWB upload download", error);
     return new NextResponse(uploadMissingPage(row.guiaId), {
       status: 502,
       headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store" },

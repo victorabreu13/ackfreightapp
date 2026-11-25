@@ -187,7 +187,7 @@ test("files of one batch share the token and the folders: they are looked up onc
   };
   const session = newDriveSession();
   const names = ["A.pdf", "B.pdf", "C.pdf", "D.pdf", "E.pdf"];
-  // At the same time, like the files of an issued guía.
+  // At the same time, like the files of an issued AWB.
   await Promise.all(names.map((fileName) => uploadDrivePdf({ ...upload, fileName, fetchImpl: counting, session })));
   assert.equal(calls.filter((call) => call === "token").length, 1);
   // The library, the client and the AWB folder, each created once, not once per file.

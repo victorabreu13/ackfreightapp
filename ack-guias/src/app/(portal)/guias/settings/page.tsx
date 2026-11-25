@@ -59,7 +59,7 @@ export default async function GuiaSettingsPage({
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Company profiles</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          ACK TEAM LLC is the only issuer. Letters leave a blank field off the page. A missing TSA IAC, CCSF, warehouse, or signer is flagged here and on the guía. The AWB legal entity stays ACK TEAM LLC.
+          ACK TEAM LLC is the only issuer. Letters leave a blank field off the page. A missing TSA IAC, CCSF, warehouse, or signer is flagged here and on the AWB. The AWB legal entity stays ACK TEAM LLC.
         </p>
       </div>
       {one(params, "saved") ? <p className="text-sm text-muted-foreground">Saved.</p> : null}
@@ -109,8 +109,8 @@ export default async function GuiaSettingsPage({
                 <input id={`${agent.key}-signature`} name="signature" type="file" accept="image/png,image/jpeg" className="block text-sm" />
                 <p className="text-xs text-muted-foreground">
                   {profile?.signature
-                    ? "This signature prints on its own on the issued guía and on the lithium battery document. Upload another image to change it."
-                    : "Upload the image of your signature (PNG or JPG, best with a transparent background). It will print on its own on the issued guía and on the lithium battery document."}
+                    ? "This signature prints on its own on the issued AWB and on the lithium battery document. Upload another image to change it."
+                    : "Upload the image of your signature (PNG or JPG, best with a transparent background). It will print on its own on the issued AWB and on the lithium battery document."}
                 </p>
                 {profile?.signature ? (
                   <label className="flex items-center gap-2 text-xs">

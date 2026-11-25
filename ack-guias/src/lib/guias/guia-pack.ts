@@ -1,6 +1,6 @@
 import type { GuiaFileKind } from "@/lib/guias/files";
 
-/** The aircraft the cargo flies on. It decides which TSA letter goes with the guía. */
+/** The aircraft the cargo flies on. It decides which TSA letter goes with the AWB. */
 export const AIRCRAFT = ["pax", "cargo"] as const;
 export type Aircraft = (typeof AIRCRAFT)[number];
 
@@ -14,8 +14,8 @@ export function aircraftFrom(value: unknown): Aircraft | "" {
 export type PackChoices = { aircraft?: string | null; screened?: boolean | null };
 
 /**
- * The documents a guía carries, in the order they are shown and zipped: the guía, the TSA letter of its aircraft, the
- * lithium battery letter and the delivery order, plus the CCSF and the CCSP when the cargo goes screened. A guía that
+ * The documents an AWB carries, in the order they are shown and zipped: the AWB, the TSA letter of its aircraft, the
+ * lithium battery letter and the delivery order, plus the CCSF and the CCSP when the cargo goes screened. An AWB that
  * has no aircraft picked yet shows both TSA letters, so none goes missing. The signed DGD and the invoices or
  * manifests are uploads, so they are not here.
  */
@@ -38,7 +38,7 @@ export const OPTIONAL_KINDS: readonly GuiaFileKind[] = ["checklist"];
 /** The labels have their own section. */
 export const LABEL_KINDS: readonly GuiaFileKind[] = ["labels", "folder-label"];
 
-/** What issuing a guía saves to Drive: its documents, and the pickup order that is only kept. */
+/** What issuing an AWB saves to Drive: its documents, and the pickup order that is only kept. */
 export function driveKinds(choices: PackChoices): GuiaFileKind[] {
   return [...packKinds(choices), ...STORED_KINDS];
 }

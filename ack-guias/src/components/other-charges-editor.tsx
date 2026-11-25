@@ -7,7 +7,7 @@ import { MAX_OTHER_CHARGES, parseOtherCharges, serializeOtherCharges } from "@/l
 
 type Row = { description: string; amount: string };
 
-/** Description and value lines for the Other Charges box of the guía. The rows travel in one hidden field as JSON. */
+/** Description and value lines for the Other Charges box of the AWB. The rows travel in one hidden field as JSON. */
 export function OtherChargesEditor({ value, onChange }: { value: string; onChange?: (value: string) => void }) {
   const [rows, setRows] = useState<Row[]>(() => parseOtherCharges(value).map((charge) => ({ description: charge.description, amount: String(charge.amount) })));
 

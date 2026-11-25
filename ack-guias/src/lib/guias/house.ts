@@ -2,7 +2,7 @@ import { sameNumber, type ManualKey } from "@/lib/guias/guia-manual";
 import { roundUp } from "@/lib/guias/round-up";
 
 /**
- * A house air waybill is a document of its own (product "house") that travels under one master guía. It has no airline
+ * A house air waybill is a document of its own (product "house") that travels under one master AWB. It has no airline
  * stock number: its number is the HAWB, handed out by ACK in order, like ACK-000123.
  */
 export const HOUSE_PREFIX = "ACK";

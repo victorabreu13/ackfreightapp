@@ -25,7 +25,7 @@ test("what a form field holds is rounded the same way, with thousands separators
   assert.equal(roundUpText(" 40.2 "), "41");
 });
 
-test("only the pieces and the weights of a guía follow the rule, not the rate", () => {
+test("only the pieces and the weights of an AWB follow the rule, not the rate", () => {
   assert.ok(ROUNDED_GUIA_FIELDS.has("chargeableKg") && ROUNDED_GUIA_FIELDS.has("grossKg") && ROUNDED_GUIA_FIELDS.has("pieces"));
   assert.ok(!ROUNDED_GUIA_FIELDS.has("rate"));
 });

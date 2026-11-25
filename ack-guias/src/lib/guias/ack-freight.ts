@@ -1,4 +1,4 @@
-// The link from ACK Guías to ACK Freight (the dispatch app): a pickup order or a guía
+// The link from ACK Guías to ACK Freight (the dispatch app): a pickup order or an AWB
 // whose cargo is ready becomes a trip request there. This file builds what is sent and
 // sends it; it needs no database, so it can be tested on its own.
 
@@ -153,7 +153,7 @@ export type DeliveryInput = {
   documents: TripDocument[];
 };
 
-/** Cargo ready -> trip request: from the warehouse to the airline, with the guía's documents attached. */
+/** Cargo ready -> trip request: from the warehouse to the airline, with the AWB's documents attached. */
 export function deliveryTripPayload(g: DeliveryInput, warehouse: string = ACK_FREIGHT_DEFAULT_WAREHOUSE): TripPayload {
   const pieces = g.lines.reduce((n, l) => n + (l.pieces ?? 0), 0);
   const kg = g.lines.reduce((n, l) => n + (l.kgLb === "L" ? (l.grossWeight ?? 0) / 2.20462 : (l.grossWeight ?? 0)), 0);
@@ -189,7 +189,7 @@ export function deliveryTripPayload(g: DeliveryInput, warehouse: string = ACK_FR
   };
 }
 
-/** Which ACK Freight document each kind of Guías document becomes (the pickup order is the authorization to truck). */
+/** Which ACK Freight document each kind of AWBs document becomes (the pickup order is the authorization to truck). */
 export const DOCUMENT_SLOT_BY_KIND: Record<string, TripDocument["slot"]> = { awb: "awb", pickup: "loa", delivery: "do" };
 
 type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ status: number; json: () => Promise<unknown> }>;

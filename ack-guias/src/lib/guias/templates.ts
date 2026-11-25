@@ -8,7 +8,7 @@ export type GuiaTemplate = {
   purpose: string;
   /** Page size and count of the sample render. */
   format: string;
-  /** What the guía needs before the real document can be printed. */
+  /** What the AWB needs before the real document can be printed. */
   needs: string;
   fileName: string;
 };
@@ -17,12 +17,12 @@ const INFO: Record<GuiaFileKind, { purpose: string; format: string; needs: strin
   checklist: {
     purpose: "Every document the shipment needs. A BUP adds the CCSF and the CCSP, and dangerous goods add the DGD and the DG labels.",
     format: "Letter",
-    needs: "Nothing extra. The BUP and DG boxes on the guía change the list.",
+    needs: "Nothing extra. The BUP and DG boxes on the AWB change the list.",
   },
   awb: {
     purpose: "Master air waybill with the 12-copy set and the conditions of contract.",
     format: "12 pages",
-    needs: "The guía must be issued.",
+    needs: "The AWB must be issued.",
   },
   delivery: {
     purpose: "Delivery order the trucker presents to pick up the freight.",
@@ -62,12 +62,12 @@ const INFO: Record<GuiaFileKind, { purpose: string; format: string; needs: strin
   "folder-label": {
     purpose: "Folder label, 4 x 6 in portrait: MAWB, the AWB number and the route, like MIA-GUA. Printed on its own.",
     format: "4 x 6 in portrait",
-    needs: "The guía must have its AWB number.",
+    needs: "The AWB must have its AWB number.",
   },
   labels: {
     purpose: "Cargo labels, one per piece.",
     format: "One label page per piece",
-    needs: "The guía must be issued.",
+    needs: "The AWB must be issued.",
   },
 };
 
@@ -92,7 +92,7 @@ export function guiaTemplates(): GuiaTemplate[] {
   }));
 }
 
-/** Made-up guía used to draw a template. It is never saved. */
+/** Made-up AWB used to draw a template. It is never saved. */
 export function sampleGuia(): GuiaRecord {
   const at = new Date("2026-01-15T12:00:00.000Z");
   return {

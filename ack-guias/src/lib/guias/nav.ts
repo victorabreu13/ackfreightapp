@@ -8,11 +8,11 @@ export function isNavGroup(item: NavItem): item is NavGroup {
 }
 
 /**
- * Guías header menu. Groups open a submenu and their links are in alphabetical order.
+ * AWBs header menu. Groups open a submenu and their links are in alphabetical order.
  * Every href must stay allowed when APP_MODE=guias.
  */
 export const GUIAS_MENU: NavItem[] = [
-  { href: "/guias", label: "Guías" },
+  { href: "/guias", label: "AWB" },
   { href: "/guias/documents", label: "Documents", team: true, accounting: true, viewer: true },
   { href: "/guias/awb-status", label: "AWB Status", team: true, accounting: true, viewer: true },
   {

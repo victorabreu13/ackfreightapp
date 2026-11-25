@@ -1,4 +1,4 @@
-/** The line printed in Handling Information when a guía carries declarable dangerous goods. */
+/** The line printed in Handling Information when an AWB carries declarable dangerous goods. */
 export const DG_HANDLING_LINE = "Dangerous Goods as per associated DGD";
 
 /** Every four-digit UN number in the text, once each, in the order written. */
@@ -43,7 +43,7 @@ export const LITHIUM_SECTION_II = [
 ] as const;
 
 /**
- * The battery types a guía can carry, as the boxes of the Lithium Battery Safety Document. A guía keeps the ones
+ * The battery types an AWB can carry, as the boxes of the Lithium Battery Safety Document. An AWB keeps the ones
  * checked as a comma list of these codes, such as "967,970". The "IB" ones are Section IB, which ship with a DGD.
  */
 export const LITHIUM_TYPES = [
@@ -70,7 +70,7 @@ export function isLithiumPi(value: string | null | undefined): boolean {
   return parseLithiumTypes(value).some((code) => LITHIUM_TYPES.find((type) => type.code === code)?.section === "II");
 }
 
-/** Whether the guía carries any lithium battery type, Section II or IB. */
+/** Whether the AWB carries any lithium battery type, Section II or IB. */
 export function hasLithiumTypes(value: string | null | undefined): boolean {
   return parseLithiumTypes(value).length > 0;
 }

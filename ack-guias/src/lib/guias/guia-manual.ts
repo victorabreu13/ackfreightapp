@@ -1,8 +1,8 @@
 import type { GuiaValues } from "@/lib/guias/extract";
 
 /**
- * The numbers a warehouse receipt can feed into a guía. When the user types one by hand it is marked manual and the
- * receipts stop overwriting it. The guía has no volume field, so the volume of a receipt is never copied.
+ * The numbers a warehouse receipt can feed into an AWB. When the user types one by hand it is marked manual and the
+ * receipts stop overwriting it. The AWB has no volume field, so the volume of a receipt is never copied.
  */
 export const MANUAL_FIELDS = [
   { key: "pieces", flag: "piecesManual", label: "Pieces", unit: "" },
@@ -24,7 +24,7 @@ export function manualFieldOf(key: ManualKey) {
   return MANUAL_FIELDS.find((field) => field.key === key)!;
 }
 
-/** The fields of the guía that are marked as typed by hand. */
+/** The fields of the AWB that are marked as typed by hand. */
 export function manualKeysOf(flags: Partial<ManualFlags>): Set<ManualKey> {
   return new Set(MANUAL_FIELDS.filter((field) => flags[field.flag]).map((field) => field.key));
 }
@@ -46,7 +46,7 @@ const NUMERIC_KEYS: ReadonlySet<keyof GuiaValues> = new Set(["pieces", "grossKg"
 
 export type FieldChange = { field: keyof GuiaValues; oldValue: string; newValue: string };
 
-/** Every field of the form that changed between two versions of the guía. Numbers are compared as numbers. */
+/** Every field of the form that changed between two versions of the AWB. Numbers are compared as numbers. */
 export function diffGuiaValues(before: GuiaValues, after: GuiaValues): FieldChange[] {
   const changes: FieldChange[] = [];
   for (const key of Object.keys(after) as Array<keyof GuiaValues>) {
@@ -76,7 +76,7 @@ export function parseDismissed(json: string | null | undefined): Partial<Record<
   }
 }
 
-/** The label of a field of the guía in the change history. */
+/** The label of a field of the AWB in the change history. */
 export function guiaFieldLabel(field: string): string {
   const manual = MANUAL_FIELDS.find((item) => item.key === field);
   if (manual) return manual.label;

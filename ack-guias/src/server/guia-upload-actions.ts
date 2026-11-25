@@ -21,7 +21,7 @@ function withQuery(path: string, query: string): string {
 export async function uploadGuiaFiles(formData: FormData) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  if (!canManageGuias(user)) redirect("/guias?error=Only%20the%20Kope%20team%20can%20change%20a%20gu%C3%ADa");
+  if (!canManageGuias(user)) redirect("/guias?error=Only%20the%20Kope%20team%20can%20change%20an%20AWB");
   const id = text(formData.get("id"));
   const back = `/guias/${id}`;
   const document = await prisma.airWaybillDocument.findUnique({
@@ -29,13 +29,13 @@ export async function uploadGuiaFiles(formData: FormData) {
     include: { guiaClient: true },
   });
   if (!document || document.product !== "guia") {
-    redirect(`/guias?error=${encodeURIComponent("The guía was not found.")}`);
+    redirect(`/guias?error=${encodeURIComponent("The AWB was not found.")}`);
   }
   const files = formData.getAll("files").filter((item): item is File => item instanceof File);
   if (files.length === 0) {
     redirect(withQuery(back, `uploadError=${encodeURIComponent("Choose at least one file.")}`));
   }
-  // A field of the guía's Documents sends its files with its name, and they are saved with that name in front.
+  // A field of the AWB's Documents sends its files with its name, and they are saved with that name in front.
   const requested = text(formData.get("category"));
   const category = isUploadCategory(requested) ? requested : formData.get("dgd") === "1" ? "dgd" : null;
   const errors: string[] = [];

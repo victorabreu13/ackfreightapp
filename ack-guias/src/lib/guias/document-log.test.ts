@@ -122,7 +122,7 @@ test("a FAILED import is stored and the next save of that file updates the same 
   }
 });
 
-test("a PDF with no guía is saved in the client folder under its own folder, and saving it again replaces it", { skip: !process.env.DATABASE_URL }, async () => {
+test("a PDF with no AWB is saved in the client folder under its own folder, and saving it again replaces it", { skip: !process.env.DATABASE_URL }, async () => {
   const fileName = `test-unlinked-${Date.now()}.pdf`;
   const input = { client: "PACIFIKO LLC", folder: "Warehouse receipts (sin guia)", company: "ack", kind: "warehouse-receipt", fileName, generatedBy: "andres.alvarado@ackfreight.com", rootId: "" };
   try {

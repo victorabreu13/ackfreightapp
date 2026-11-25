@@ -42,7 +42,7 @@ export default async function AcctClientsPage({ searchParams }: { searchParams: 
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Clients &amp; team</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          How each client is charged and how its profit is shared. A new shipment takes these rules when its guía is issued. Shipments already made keep their own numbers and their own split.
+          How each client is charged and how its profit is shared. A new shipment takes these rules when its AWB is issued. Shipments already made keep their own numbers and their own split.
         </p>
       </div>
       {notice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{notice}</p> : null}
@@ -157,7 +157,7 @@ export default async function AcctClientsPage({ searchParams }: { searchParams: 
                       <Textarea id={`billmail-${client.id}`} name="billingEmails" rows={2} defaultValue={client.billingEmails ?? ""} />
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">Printed on the invoice and used to send it. A new invoice takes them when its guía is issued.</p>
+                  <p className="text-xs text-muted-foreground">Printed on the invoice and used to send it. A new invoice takes them when its AWB is issued.</p>
                 </fieldset>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <button type="submit" formAction={deleteAcctClient} formNoValidate className="text-xs text-stuck underline-offset-2 hover:underline">

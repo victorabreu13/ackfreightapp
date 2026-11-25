@@ -13,7 +13,7 @@ const guia = (over: Partial<GuiaPickupView> = {}): GuiaPickupView => ({
   ...over,
 });
 
-test("a corrected pickup request corrects the guía fields that still hold the old value", () => {
+test("a corrected pickup request corrects the AWB fields that still hold the old value", () => {
   const after = { ...before, shipperAddress: "9000 NW 12th St", truckerName: "KAY AIR", pieces: 12, weightKg: 420 };
   const plan = planPickupSync(before, after, guia(), false);
   assert.deepEqual(plan.guia, { shipperAddress: "9000 NW 12th St", truckerName: "KAY AIR", pickupTruckerName: "KAY AIR" });
@@ -22,22 +22,22 @@ test("a corrected pickup request corrects the guía fields that still hold the o
   assert.ok(plan.changes.some((change) => change.field === "shipperAddress" && change.oldValue === "8504 NW 70th St" && change.newValue === "9000 NW 12th St"));
 });
 
-test("a guía field the team already changed is kept and reported", () => {
+test("an AWB field the team already changed is kept and reported", () => {
   const after = { ...before, shipperName: "PACIFIKO LLC", driverName: "PEDRO" };
   const plan = planPickupSync(before, after, guia({ shipperName: "PACIFIKO USA", driverName: "" }), false);
-  // The shipper was changed in the guía, so it stays. The driver was empty, so it is filled.
+  // The shipper was changed in the AWB, so it stays. The driver was empty, so it is filled.
   assert.deepEqual(plan.guia, { driverName: "PEDRO" });
   assert.deepEqual(plan.kept, ["Shipper"]);
 });
 
-test("an issued guía only gets its parties and trucker corrected, never its cargo", () => {
+test("an issued AWB only gets its parties and trucker corrected, never its cargo", () => {
   const after = { ...before, shipperAddress: "NEW ADDRESS", destination: "SJO", pieces: 99, weightKg: 1, description: "OTHER" };
   const plan = planPickupSync(before, after, guia(), true);
   assert.deepEqual(plan.guia, { shipperAddress: "NEW ADDRESS" });
   assert.deepEqual(plan.line, {});
 });
 
-test("nothing changes when the pickup request did not change, and a guía with no goods line is fine", () => {
+test("nothing changes when the pickup request did not change, and an AWB with no goods line is fine", () => {
   const plan = planPickupSync(before, { ...before }, guia(), false);
   assert.deepEqual(plan.changes, []);
   const noLine = planPickupSync(before, { ...before, pieces: 3 }, guia({ line: null }), false);

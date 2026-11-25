@@ -1,5 +1,5 @@
 /**
- * The rule for every weight and every dimension typed in a pickup request, a warehouse receipt or a guía: a number with
+ * The rule for every weight and every dimension typed in a pickup request, a warehouse receipt or an AWB: a number with
  * decimals goes up to the next whole number, so 54.2 is 55 and 54 stays 54. The rate is a price, not a weight, so it
  * does not follow this rule.
  */
@@ -22,5 +22,5 @@ export function roundUpText(value: string): string {
   return Number.isFinite(parsed) ? String(roundUp(parsed)) : value;
 }
 
-/** The guía fields that hold a weight or a count and follow the rule. */
+/** The AWB fields that hold a weight or a count and follow the rule. */
 export const ROUNDED_GUIA_FIELDS: ReadonlySet<string> = new Set(["pieces", "chargeableKg", "grossKg"]);

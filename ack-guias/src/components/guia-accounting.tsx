@@ -66,7 +66,7 @@ export function GuiaAccountingView({
     <div className="space-y-6">
       <div>
         <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-          <Link href="/guias">Guías {companyTitle(agentKey)}</Link>
+          <Link href="/guias">AWBs {companyTitle(agentKey)}</Link>
         </p>
         <h1 className="font-display text-4xl">{awb || "Draft"}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -99,7 +99,7 @@ export function GuiaAccountingView({
             const needsIssue = (kind === "awb" || kind === "labels") && !issued;
             const label = LABELS[kind] ?? kind;
             return needsIssue ? (
-              <span key={kind} title="Issue the guía first" className="inline-flex cursor-not-allowed">
+              <span key={kind} title="Issue the AWB first" className="inline-flex cursor-not-allowed">
                 <Button type="button" disabled variant="outline" className="w-full justify-start">
                   {label}
                 </Button>

@@ -1,5 +1,5 @@
 /**
- * Flight status for a guía. The status comes from AeroDataBox (via RapidAPI): one request per flight number and
+ * Flight status for an AWB. The status comes from AeroDataBox (via RapidAPI): one request per flight number and
  * date. Raw statuses are folded into a short list the client understands.
  */
 export const FLIGHT_STATUSES = ["SCHEDULED", "DELAYED", "DEPARTED", "ARRIVED", "CANCELED", "DIVERTED", "UNKNOWN"] as const;
@@ -52,7 +52,7 @@ export function statusFromAeroDataBox(raw: string | null | undefined): FlightSta
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
-/** The flight date as YYYY-MM-DD, from the formats the guía form accepts. Null when it cannot be read. */
+/** The flight date as YYYY-MM-DD, from the formats the AWB form accepts. Null when it cannot be read. */
 export function flightDateIso(value: string | null | undefined): string | null {
   const raw = (value ?? "").trim();
   if (!raw) return null;
@@ -105,7 +105,7 @@ function clock(block: TimeBlock): string {
 }
 
 /**
- * The flight of the guía among the ones the source returns for that number and day. A number can show several
+ * The flight of the AWB among the ones the source returns for that number and day. A number can show several
  * legs, or a flight that only arrives that day, so the one that leaves the origin and lands at the destination
  * wins, then the one that leaves the origin, then the one that lands at the destination, then the first.
  */
@@ -142,7 +142,7 @@ export async function fetchFlightStatus(input: {
   flightNumber: string;
   date: string;
   origin: string;
-  /** Airport of destination, when the guía has one. Picks the right leg of a flight number. */
+  /** Airport of destination, when the AWB has one. Picks the right leg of a flight number. */
   destination?: string;
   apiKey: string;
   fetchImpl?: FlightFetch;
@@ -187,7 +187,7 @@ function when(value: string | undefined): string {
   return match ? `${match[1]} ${match[2]}` : text;
 }
 
-/** The email a client gets when the flight of one of its guías changes status. */
+/** The email a client gets when the flight of one of its AWBs changes status. */
 export function flightEmail(input: FlightEmailInput): { subject: string; text: string; html: string } {
   const label = FLIGHT_STATUS_LABEL[input.status];
   const subject = `AWB ${input.awb}: vuelo ${input.flightNumber} ${label.toLowerCase()}`;
@@ -204,7 +204,7 @@ export function flightEmail(input: FlightEmailInput): { subject: string; text: s
       ? `Llegada: ${when(input.detail.revisedArrival || input.detail.scheduledArrival)}`
       : "",
     "",
-    `Puede ver su guía y el estatus aquí: ${input.portalUrl}`,
+    `Puede ver su AWB y el estatus aquí: ${input.portalUrl}`,
     "",
     "ACK TEAM LLC",
   ].filter((line, index, all) => line !== "" || all[index - 1] !== "");

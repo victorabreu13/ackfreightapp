@@ -99,7 +99,7 @@ export default async function GuiaDocumentsPage({
   const page = Math.min(requestedPage, pages);
   const visible = folders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const guiaFiltered = Boolean(filters.awb?.trim());
-  // The day each guía was issued, as printed on its AWB. A draft has none yet.
+  // The day each AWB was issued, as printed on its AWB. A draft has none yet.
   const guiaIds = visible.flatMap((folder) => folder.guias.map((guia) => guia.guiaId)).filter((id): id is string => Boolean(id));
   const issuedRows = guiaIds.length
     ? await prisma.airWaybillDocument.findMany({ where: { id: { in: guiaIds } }, select: { id: true, status: true, executedOn: true, updatedAt: true } })
@@ -114,7 +114,7 @@ export default async function GuiaDocumentsPage({
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           {accountingCompany
             ? "Only your company documents."
-            : "Every PDF Guías generates is saved here and uploaded to Drive under ACK Guías / client / AWB. Files the team uploads on a guía are listed too, under type File. A failed upload stays on this list so it can be retried."}
+            : "Every PDF this app generates is saved here and uploaded to Drive under ACK Guías / client / AWB. Files the team uploads on an AWB are listed too, under type File. A failed upload stays on this list so it can be retried."}
         </p>
       </div>
       {removed ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{removed}</p> : null}
@@ -210,7 +210,7 @@ export default async function GuiaDocumentsPage({
       </form>
       {rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-card px-4 py-10 text-sm text-muted-foreground">
-          No documents yet. Open a file on a guía, issue it, or import a PDF.
+          No documents yet. Open a file on an AWB, issue it, or import a PDF.
         </div>
       ) : (
         <div className="space-y-4">
@@ -219,20 +219,20 @@ export default async function GuiaDocumentsPage({
               <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 px-4 py-3">
                 <span className="font-display text-2xl">{folder.client}</span>
                 <span className="text-sm text-muted-foreground">
-                  {folder.guias.length} {folder.guias.length === 1 ? "guía" : "guías"} · {folder.count} {folder.count === 1 ? "document" : "documents"}
+                  {folder.guias.length} {folder.guias.length === 1 ? "AWB" : "AWBs"} · {folder.count} {folder.count === 1 ? "document" : "documents"}
                 </span>
               </summary>
               <div className="space-y-2 border-t border-border px-3 py-3">
                 {folder.guias.map((guia) => (
                   <details key={guia.key} open={guiaFiltered || folder.guias.length === 1} className="rounded-md border border-border bg-background">
                     <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-3 px-3 py-2">
-                      <span className="w-28 shrink-0 text-sm text-muted-foreground" title="Date the guía was issued">
+                      <span className="w-28 shrink-0 text-sm text-muted-foreground" title="Date the AWB was issued">
                         {(guia.guiaId && issuedOn.get(guia.guiaId)) || "—"}
                       </span>
                       <span className="font-medium">{guia.awb}</span>
                       {guia.guiaId ? (
                         <Link href={`/guias/${guia.guiaId}`} className="text-sm underline-offset-2 hover:underline">
-                          Open guía
+                          Open AWB
                         </Link>
                       ) : null}
                       <span className="text-sm text-muted-foreground">
@@ -241,7 +241,7 @@ export default async function GuiaDocumentsPage({
                     </summary>
                     {!guia.guiaId && admin ? (
                       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-3 py-2 text-sm text-muted-foreground">
-                        <span>The guía no longer exists in the system.</span>
+                        <span>The AWB no longer exists in the system.</span>
                         <OrphanRemoveButton awb={guia.awb} count={guia.documents.length} />
                       </div>
                     ) : null}

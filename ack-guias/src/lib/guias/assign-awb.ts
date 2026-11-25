@@ -17,8 +17,8 @@ export async function carrierData(agent: { accountNo: string | null }, destinati
 }
 
 /**
- * Reserves an AWB number for a draft guía, from the stock of an airline prefix or a number typed from stock. The
- * draft's drafts and labels already carry it, and issuing the guía later uses the same number.
+ * Reserves an AWB number for a draft AWB, from the stock of an airline prefix or a number typed from stock. The
+ * draft's drafts and labels already carry it, and issuing the AWB later uses the same number.
  */
 export async function assignAwbToGuia(id: string, manualAwb: string, prefix: string) {
   const existing = await prisma.airWaybillDocument.findUnique({ where: { id } });

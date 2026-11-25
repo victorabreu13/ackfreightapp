@@ -83,11 +83,11 @@ export function GuiaForm({
   truckerPhone?: string;
   driverName?: string;
   seal?: string;
-  /** "pax" or "cargo", which TSA letter the guía carries. Empty on a guía that has none picked yet. */
+  /** "pax" or "cargo", which TSA letter the AWB carries. Empty on an AWB that has none picked yet. */
   aircraft?: string;
   /** Screened cargo carries the CCSF and the CCSP. */
   screened?: boolean;
-  /** Airline prefixes with the numbers left in stock. Only the new guía form offers them. */
+  /** Airline prefixes with the numbers left in stock. Only the new AWB form offers them. */
   awbOptions?: Array<{ prefix: string; airline: string; left: number }>;
   /** The carriers of the list, for the Carrier field that follows Destination. */
   carrierOptions?: Array<{ id: string; label: string }>;
@@ -379,9 +379,9 @@ export function GuiaForm({
       </section>
       <section className="space-y-3 rounded-md border border-border p-3">
         <div>
-          <h2 className="font-display text-2xl">Guía documents</h2>
+          <h2 className="font-display text-2xl">AWB documents</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Only the documents this cargo needs are generated. Always: the guía, the battery letter and the delivery order. With DG the signed DGD is added.
+            Only the documents this cargo needs are generated. Always: the AWB, the battery letter and the delivery order. With DG the signed DGD is added.
           </p>
         </div>
         <div className="flex flex-wrap gap-x-8 gap-y-3">
@@ -397,7 +397,7 @@ export function GuiaForm({
                 Cargo aircraft (TSA unknown shipper)
               </label>
             </div>
-            {mode === "edit" && !aircraft ? <p className="text-xs text-muted-foreground">Not chosen: the guía shows both TSA letters.</p> : null}
+            {mode === "edit" && !aircraft ? <p className="text-xs text-muted-foreground">Not chosen: the AWB shows both TSA letters.</p> : null}
           </fieldset>
           <label className="flex items-center gap-2 self-end text-sm font-medium">
             <input type="checkbox" name="screened" value="1" checked={screenedOn} onChange={(event) => setScreenedOn(event.target.checked)} />
@@ -432,7 +432,7 @@ export function GuiaForm({
           <div>
             <h2 className="font-display text-2xl">Assign AWB now (optional)</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Reserves the number from stock when saving. The guía draft, the labels and the Folder Label already print with that number, and the same one is used when issuing.
+              Reserves the number from stock when saving. The AWB draft, the labels and the Folder Label already print with that number, and the same one is used when issuing.
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -454,7 +454,7 @@ export function GuiaForm({
           </div>
         </section>
       ) : null}
-      <Button type="submit">{mode === "new" ? "Save draft" : "Save guía"}</Button>
+      <Button type="submit">{mode === "new" ? "Save draft" : "Save AWB"}</Button>
     </form>
   );
 }

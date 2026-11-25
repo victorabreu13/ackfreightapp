@@ -49,7 +49,7 @@ const sample: AckExportFile = {
   ],
 };
 
-test("export keeps ACK guías, their clients, AES ITN, every ACK stock prefix, and upload metadata", () => {
+test("export keeps ACK AWBs, their clients, AES ITN, every ACK stock prefix, and upload metadata", () => {
   const file = shapeAckExport(sample);
   assert.deepEqual(exportCounts(file), {
     guias: 1,

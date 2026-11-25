@@ -29,7 +29,7 @@ function housesBack(message: string, kind: "notice" | "error" = "notice"): never
   redirect(`/guias/houses?${kind}=${encodeURIComponent(message)}`);
 }
 
-/** The fields of a house form as the values of a guía. Pieces and weights go up to the next whole number. */
+/** The fields of a house form as the values of an AWB. Pieces and weights go up to the next whole number. */
 function valuesFromForm(formData: FormData): GuiaValues {
   return {
     ...EMPTY_GUIA_VALUES,
@@ -52,7 +52,7 @@ function valuesFromForm(formData: FormData): GuiaValues {
   };
 }
 
-/** The master a house is linked to, when it exists and is a master guía. */
+/** The master a house is linked to, when it exists and is a master AWB. */
 async function masterIdFrom(formData: FormData): Promise<string | null> {
   const id = text(formData.get("masterId"));
   if (!id) return null;
@@ -193,7 +193,7 @@ export async function resetMasterFromHouses(formData: FormData) {
   if (!keys) redirect(`/guias/${masterId}?error=${encodeURIComponent("That field does not follow the houses.")}`);
   const result = await syncMasterFromHouses(masterId, user.email, { source: "reset", reset: keys });
   revalidatePath(`/guias/${masterId}`);
-  redirect(`/guias/${masterId}?houses=${encodeURIComponent(result.skipped ? "The guía is already issued: it is not changed." : "The totals of the houses were taken again.")}`);
+  redirect(`/guias/${masterId}?houses=${encodeURIComponent(result.skipped ? "The AWB is already issued: it is not changed." : "The totals of the houses were taken again.")}`);
 }
 
 /** Keeps the master's own number over the sum of its houses. */

@@ -45,7 +45,7 @@ export default async function WarehousePage({ searchParams }: { searchParams: Pr
           <GuiaEyebrow />
           <h1 className="font-display text-4xl">Warehouse receipts</h1>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            Each receipt is cargo received at the warehouse. A guía can gather several, and while it is still a draft it takes from them the pieces, the weights, the shipper, the consignee and the goods.
+            Each receipt is cargo received at the warehouse. An AWB can gather several, and while it is still a draft it takes from them the pieces, the weights, the shipper, the consignee and the goods.
           </p>
         </div>
         <Link href="/guias/warehouse/new" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
@@ -76,11 +76,11 @@ export default async function WarehousePage({ searchParams }: { searchParams: Pr
           <input name="to" type="date" defaultValue={filters.to} className="block h-10 w-full rounded-md border border-input bg-background px-3" />
         </label>
         <label className="space-y-1 text-sm">
-          <span className="text-muted-foreground">Guía</span>
+          <span className="text-muted-foreground">AWB</span>
           <select name="link" defaultValue={filters.link} className="block h-10 w-full rounded-md border border-input bg-background px-3">
             <option value="">All</option>
-            <option value="linked">With guía</option>
-            <option value="unlinked">No guía yet</option>
+            <option value="linked">With AWB</option>
+            <option value="unlinked">No AWB yet</option>
           </select>
         </label>
         <input type="hidden" name="sort" value={filters.sort} />
@@ -96,7 +96,7 @@ export default async function WarehousePage({ searchParams }: { searchParams: Pr
           ) : null}
           <span className="text-sm text-muted-foreground">
             {matching.length > receipts.length ? `Showing the first ${receipts.length} of ${matching.length} receipts. Narrow the search to see the rest.` : `${receipts.length} receipt${receipts.length === 1 ? "" : "s"}`}
-            {" · Click Receipt, Received, Client or Guía to sort."}
+            {" · Click Receipt, Received, Client or AWB to sort."}
           </span>
         </div>
       </form>
@@ -111,7 +111,7 @@ export default async function WarehousePage({ searchParams }: { searchParams: Pr
               <th className="px-3 py-2">Pcs</th>
               <th className="px-3 py-2">Kg</th>
               <th className="px-3 py-2">VKg</th>
-              <th className="px-3 py-2">{sortHeader("Guía", "awb")}</th>
+              <th className="px-3 py-2">{sortHeader("AWB", "awb")}</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -144,7 +144,7 @@ export default async function WarehousePage({ searchParams }: { searchParams: Pr
                           {receipt.guia.awb || "Draft"}
                         </Link>
                       ) : (
-                        <span className="text-muted-foreground">No guía</span>
+                        <span className="text-muted-foreground">No AWB</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-right">

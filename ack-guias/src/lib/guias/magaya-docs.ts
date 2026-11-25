@@ -16,7 +16,7 @@ import {
 } from "@/lib/sheets/documents";
 
 /**
- * Guías copies of the Magaya forms the 729 corte does not include.
+ * AWBs copies of the Magaya forms the 729 corte does not include.
  * Coordinates are top-of-page points measured from the real PDFs:
  * MAGAYA_LABELS (letter cargo label), Pickup_Orders_KPU2009, and the CCSSSF certificate.
  * The sheet functions in documents.ts stay on their own layouts.
@@ -535,7 +535,7 @@ function ccsfDate(value: Date): string {
 }
 
 /**
- * CCSSSF certificate of tender. It is always Kope's certificate, whichever company issues the guía:
+ * CCSSSF certificate of tender. It is always Kope's certificate, whichever company issues the AWB:
  * Kope's name, TSA number, CCSSSF number and facility, with the color Kope logo. Layout follows the Kope
  * reference "CCSF LETTER - NEW ADDRESS": Calibri-style 9 pt text from a 71 pt margin, bold underlined
  * identifiers, and only the facility address at the foot. Baselines are measured from that PDF.

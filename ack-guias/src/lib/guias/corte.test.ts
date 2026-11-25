@@ -138,7 +138,7 @@ test("the ACK AWB corte matches the 12-page reference wording", async () => {
   assert.doesNotMatch(text, /KOPE LOGISTICS INC/);
 });
 
-test("a Kope guía uses the Kope letterhead on the same AWB form", async () => {
+test("a Kope AWB uses the Kope letterhead on the same AWB form", async () => {
   const text = pdfText(await renderCorteAwb(guia("kope"), company("kope"), { email: "ops@kopelogistics.com", now }));
   assert.match(text, /KOPE LOGISTICS INC/);
   assert.match(text, /\+1 \(786\) 719-0590/);

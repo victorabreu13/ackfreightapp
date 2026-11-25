@@ -22,7 +22,7 @@ test("party names match without case, accents or punctuation", () => {
   assert.equal(normalizePartyName("   "), "");
 });
 
-test("past guías become one directory row per client, role and name", () => {
+test("past AWBs become one directory row per client, role and name", () => {
   const rows = partiesFromGuias([
     guia({ shipperName: "Gwen Trading Corp", shipperAddress: "OLD ADDRESS", consigneeName: "Colocar Cargo", consigneeAddress: "Calle 26" }),
     guia({
@@ -45,7 +45,7 @@ test("past guías become one directory row per client, role and name", () => {
   assert.equal(rows.length, 4);
 });
 
-test("an older address fills in when the newest guía has none", () => {
+test("an older address fills in when the newest AWB has none", () => {
   const rows = partiesFromGuias([
     guia({ shipperName: "Acme", shipperAddress: "1 MAIN ST" }),
     guia({ createdAt: new Date("2026-10-20T12:00:00.000Z"), shipperName: "ACME", shipperAddress: "" }),

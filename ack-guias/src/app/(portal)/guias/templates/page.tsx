@@ -16,7 +16,7 @@ export default async function GuiaTemplatesPage() {
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Templates</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Every document Guías can generate. Previews use made-up sample data and are not saved or uploaded to Drive.
+          Every document this app can generate. Previews use made-up sample data and are not saved or uploaded to Drive.
         </p>
       </div>
       <div className="overflow-x-auto rounded-lg border border-border bg-card">

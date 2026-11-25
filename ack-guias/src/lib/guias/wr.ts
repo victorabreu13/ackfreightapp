@@ -66,16 +66,16 @@ function firstText(values: Array<string | null | undefined>): string {
   return values.map((value) => (value ?? "").trim()).find(Boolean) ?? "";
 }
 
-/** A number the guía holds by hand that the receipts do not agree with. The guía keeps its own until the user chooses. */
+/** A number the AWB holds by hand that the receipts do not agree with. The AWB keeps its own until the user chooses. */
 export type ReceiptConflict = { field: ManualKey; guia: string; wr: string };
 
-/** Hazmat the receipts name and the guía does not declare. Only a suggestion: the guía's Dangerous Goods never changes by itself. */
+/** Hazmat the receipts name and the AWB does not declare. Only a suggestion: the AWB's Dangerous Goods never changes by itself. */
 export type DangerousGoodsSuggestion = { text: string; unNumbers: string[] };
 
 /**
- * What the receipts of a guía give it: the pieces and the weights add up, and the text fields come from the first
+ * What the receipts of an AWB give it: the pieces and the weights add up, and the text fields come from the first
  * receipt that has them. The numbers follow the receipts, except the ones the user typed by hand (`manual`), which stay
- * and come back as conflicts when the receipts say something else. The text only fills what the guía left empty. The
+ * and come back as conflicts when the receipts say something else. The text only fills what the AWB left empty. The
  * receipts never change Dangerous Goods or the UN numbers: they only produce a suggestion.
  */
 export function applyReceiptsToGuia(
@@ -95,7 +95,7 @@ export function applyReceiptsToGuia(
   const totals = receiptTotals(lines);
   const follow = (key: ManualKey, total: number) => {
     if (total <= 0) return;
-    // The guía holds whole numbers: what the receipts add up to goes up to the next one.
+    // The AWB holds whole numbers: what the receipts add up to goes up to the next one.
     const amount = roundUp(total);
     if (!manual.has(key)) return set(key, String(amount));
     if (!sameNumber(current[key], amount)) conflicts.push({ field: key, guia: current[key], wr: String(amount) });

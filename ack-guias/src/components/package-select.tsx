@@ -1,7 +1,7 @@
 import { Label } from "@/components/ui/label";
 import { PACKAGE_TYPES, packageTypeFrom } from "@/lib/guias/package-types";
 
-/** The Package drop list of a pickup request and of a guía: Pallet, Box, Pieces or Crates. */
+/** The Package drop list of a pickup request and of an AWB: Pallet, Box, Pieces or Crates. */
 export function PackageSelect({ defaultValue = "" }: { defaultValue?: string }) {
   return (
     <div className="space-y-1.5">

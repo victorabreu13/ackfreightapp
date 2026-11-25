@@ -19,7 +19,7 @@ test("a review list is a warning and does not block issuing", () => {
   assert.equal(body.includes("needs_review"), false);
 });
 
-test("only admin and operations can create or issue a guía", () => {
+test("only admin and operations can create or issue an AWB", () => {
   const base = { id: "u", clientId: null, clientName: null };
   for (const role of ["ADMIN", "OPERATIONS"] as const) {
     assert.equal(canManageGuias({ ...base, email: "a@ackfreight.com", role } satisfies SessionUser), true);

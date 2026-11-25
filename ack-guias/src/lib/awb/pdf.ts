@@ -62,9 +62,9 @@ export type AwbPdfModel = {
   flightDate: string | null;
   insurance: string | null;
   handling: string | null;
-  /** Guía notify party, printed on its own line. Sheet waybills leave this empty. */
+  /** AWB notify party, printed on its own line. Sheet waybills leave this empty. */
   notifyParty?: string | null;
-  /** Guía rate and weight charge print AS ARRANGED instead of a computed amount. */
+  /** AWB rate and weight charge print AS ARRANGED instead of a computed amount. */
   asArranged?: boolean;
   sci: string | null;
   destCountry: string | null;

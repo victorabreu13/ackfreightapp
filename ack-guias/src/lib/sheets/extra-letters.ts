@@ -9,7 +9,7 @@ import {
   type Identity,
 } from "@/lib/sheets/layout";
 
-/** Handmade Guías letters. They do not call or patch the original sheet renderers. */
+/** Handmade AWBs letters. They do not call or patch the original sheet renderers. */
 export type ExtraLetter = {
   agentKey: string;
   identity: Identity;

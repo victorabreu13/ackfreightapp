@@ -570,7 +570,7 @@ async function labels(s: Loaded, which: "master" | "leg", brand?: LabelBrand): P
 async function awbCut(s: Loaded): Promise<Buffer> {
   const issued = s.airWaybills.find((item) => item.status === "issued" && item.awb === (s.legs[0]?.awb || s.awb)) ?? s.airWaybills.find((item) => item.status === "issued");
   if (issued) return renderAwbPdf(toPdfModel(issued, issued.agent));
-  throw new Error(`No issued air waybill for ${s.legs[0]?.awb || s.awb} in the Kope app yet. Issue it on the AWB page, then run "Corte de la guía" again.`);
+  throw new Error(`No issued air waybill for ${s.legs[0]?.awb || s.awb} in the Kope app yet. Issue it on the AWB page, then run "Corte del AWB" again.`);
 }
 
 export async function renderSheetDocument(shipmentId: string, kind: SheetDocument, options: DocumentOptions = {}) {

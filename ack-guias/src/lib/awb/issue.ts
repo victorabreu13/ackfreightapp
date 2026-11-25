@@ -60,18 +60,18 @@ export async function releaseUnattachedStock(stockId: string | null | undefined)
   });
 }
 
-/** Spanish text for the guía page. Review flags are not an issue failure. */
+/** Spanish text for the AWB page. Review flags are not an issue failure. */
 export function issueErrorMessage(error: unknown): string {
-  if (!(error instanceof IssueConflict)) return "The guía could not be issued.";
+  if (!(error instanceof IssueConflict)) return "The AWB could not be issued.";
   const text = error.message;
-  if (error.code === "already_issued" || text === "already issued") return "This guía is already issued.";
+  if (error.code === "already_issued" || text === "already issued") return "This AWB is already issued.";
   if (error.code === "number_taken" || text === "number already issued") return "That number was already issued.";
   if (text === "That number is not in stock") return "That number is not in stock.";
   if (error.code === "no_stock" || text === "No stock left") return "There is no stock left for that prefix.";
   if (text === "Enter a valid mod-7 AWB") return "The number is not a valid AWB (mod-7).";
   if (text === "Choose an airline prefix") return "Choose an airline prefix.";
-  if (text === "Waybill not found") return "The guía was not found.";
-  if (text === "This guía already has an AWB number") return "This guía already has an AWB assigned. Release the number before assigning another.";
+  if (text === "Waybill not found") return "The AWB was not found.";
+  if (text === "This AWB already has an AWB number") return "This AWB already has an AWB assigned. Release the number before assigning another.";
   return text;
 }
 
@@ -171,7 +171,7 @@ export async function issueWaybillAtomic(input: {
 
 /**
  * Gives a draft its AWB number from stock before it is issued, so the draft, the labels and the folder label
- * carry the real number. The stock number stays reserved for this guía until it is issued or released.
+ * carry the real number. The stock number stays reserved for this AWB until it is issued or released.
  */
 export async function assignDraftAwb(input: {
   documentId: string;
@@ -183,7 +183,7 @@ export async function assignDraftAwb(input: {
   const existing = await prisma.airWaybillDocument.findUnique({ where: { id: input.documentId } });
   if (!existing) throw new IssueConflict("invalid", "Waybill not found");
   if (existing.status !== "draft") throw new IssueConflict("already_issued", "already issued");
-  if (existing.awb.trim()) throw new IssueConflict("invalid", "This guía already has an AWB number");
+  if (existing.awb.trim()) throw new IssueConflict("invalid", "This AWB already has an AWB number");
 
   const manual = input.manualAwb?.trim() ?? "";
   let stock: { id: string; prefix: string; serial: string; awb: string };

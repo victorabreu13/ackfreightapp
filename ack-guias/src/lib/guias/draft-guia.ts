@@ -36,8 +36,8 @@ export const EMPTY_GUIA_VALUES: GuiaValues = {
 };
 
 /**
- * A draft guía for ACK TEAM LLC made from the values of a pickup request or a receipt. It has no AWB number yet, the
- * way a guía saved from the new guía form does not.
+ * A draft AWB for ACK TEAM LLC made from the values of a pickup request or a receipt. It has no AWB number yet, the
+ * way an AWB saved from the new AWB form does not.
  */
 export async function createDraftGuia(
   values: GuiaValues,
@@ -59,7 +59,7 @@ export async function createDraftGuia(
       truckerPhone: blank(extra.truckerPhone ?? ""),
       driverName: blank(extra.driverName ?? ""),
       packageType: blank(packageTypeFrom(extra.packageType)),
-      // A draft starts as cargo, like the new guía form. The team changes it in the form.
+      // A draft starts as cargo, like the new AWB form. The team changes it in the form.
       aircraft: "cargo",
       lines: { create: [lineData(values)] },
     },
@@ -67,7 +67,7 @@ export async function createDraftGuia(
   try {
     await rememberGuiaParties("ack", billTo?.id ?? null, values);
   } catch (error) {
-    console.error("guía directory", error);
+    console.error("AWB directory", error);
   }
   return { id: created.id };
 }

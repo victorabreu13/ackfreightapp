@@ -64,7 +64,7 @@ export async function createCustomerInvite(formData: FormData) {
     text: [
       `Hola,`,
       "",
-      `ACK TEAM LLC le invita a ver las guías aéreas (AWB) y el estatus de los vuelos de ${client.name}.`,
+      `ACK TEAM LLC le invita a ver sus AWB y el estatus de los vuelos de ${client.name}.`,
       "",
       `Cree su clave aquí (el enlace vence en 7 días): ${inviteLink(token)}`,
       "",

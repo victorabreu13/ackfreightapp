@@ -33,7 +33,7 @@ export default async function HousesPage({ searchParams }: { searchParams: Promi
           <GuiaEyebrow />
           <h1 className="font-display text-4xl">Houses</h1>
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-            A house air waybill (HAWB) is its own document. It has its own ACK number and its own shipper, consignee and cargo, and it travels under one master guía. The master adds up its houses.
+            A house air waybill (HAWB) is its own document. It has its own ACK number and its own shipper, consignee and cargo, and it travels under one master AWB. The master adds up its houses.
           </p>
         </div>
         <Link href="/guias/houses/new" className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">

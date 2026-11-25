@@ -1,4 +1,4 @@
-/** The packaging a pickup request and its guía can name. It prints in the Package column of the pickup order. */
+/** The packaging a pickup request and its AWB can name. It prints in the Package column of the pickup order. */
 export const PACKAGE_TYPES = ["Pallet", "Box", "Pieces", "Crates"] as const;
 export type PackageType = (typeof PACKAGE_TYPES)[number];
 

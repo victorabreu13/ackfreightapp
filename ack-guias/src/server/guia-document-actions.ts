@@ -67,7 +67,7 @@ export async function retryGuiaDocument(formData: FormData) {
     include: { lines: { orderBy: { sortOrder: "asc" } }, agent: true, guiaClient: true, _count: { select: { houses: true } } },
   });
   if (!document || document.product !== "guia" || document.agentKey !== "ack") {
-    documentsRedirect(`importError=${encodeURIComponent("Guía not found")}`);
+    documentsRedirect(`importError=${encodeURIComponent("AWB not found")}`);
   }
   try {
     const company = await loadCompany("ack");
@@ -104,8 +104,8 @@ export async function retryGuiaDocument(formData: FormData) {
 }
 
 /**
- * Removes from Documentos the documents of an AWB whose guía no longer exists, and gives its number back to stock.
- * Admin only. It does nothing for an AWB that a guía still uses.
+ * Removes from Documentos the documents of an AWB whose AWB no longer exists, and gives its number back to stock.
+ * Admin only. It does nothing for an AWB that an AWB still uses.
  */
 export async function removeOrphanDocuments(formData: FormData) {
   const user = await getSessionUser();
@@ -114,7 +114,7 @@ export async function removeOrphanDocuments(formData: FormData) {
   const awb = text(formData.get("awb"));
   if (!awb) documentsRedirect(`importError=${encodeURIComponent("The AWB is missing")}`);
   const inUse = await prisma.airWaybillDocument.findFirst({ where: { awb }, select: { id: true } });
-  if (inUse) documentsRedirect(`importError=${encodeURIComponent(`The guía ${awb} still exists. Delete it from the Guías list.`)}`);
+  if (inUse) documentsRedirect(`importError=${encodeURIComponent(`The AWB ${awb} still exists. Delete it from the AWBs list.`)}`);
   const [removed, stock] = await prisma.$transaction([
     prisma.guiaDocument.deleteMany({ where: { guiaId: null, awb } }),
     prisma.awbStockNumber.updateMany({ where: { awb, documentId: null, status: { not: "available" } }, data: { status: "available" } }),

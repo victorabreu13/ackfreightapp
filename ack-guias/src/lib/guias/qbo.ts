@@ -8,11 +8,11 @@ export const QBO_ITEM_NAME = "Flete aéreo";
 export const QBO_MINOR_VERSION = "75";
 
 export const QBO_NO_RATE = "This client has no agreed rate per kilo. The invoice was not created.";
-export const QBO_NO_KG = "This guía has no chargeable kilos. The invoice was not created.";
-export const QBO_NOT_ISSUED = "Issue the guía before invoicing.";
-export const QBO_DUPLICATE = "This guía already has an invoice in QuickBooks.";
-export const QBO_IN_PROGRESS = "The invoice for this guía is already being created in QuickBooks.";
-export const QBO_NO_CLIENT = "This guía has no client. The invoice was not created.";
+export const QBO_NO_KG = "This AWB has no chargeable kilos. The invoice was not created.";
+export const QBO_NOT_ISSUED = "Issue the AWB before invoicing.";
+export const QBO_DUPLICATE = "This AWB already has an invoice in QuickBooks.";
+export const QBO_IN_PROGRESS = "The invoice for this AWB is already being created in QuickBooks.";
+export const QBO_NO_CLIENT = "This AWB has no client. The invoice was not created.";
 export const QBO_WRONG_COMPANY = "The QuickBooks connection is not for this company. The invoice was not created.";
 export const QBO_DOWN = "QuickBooks did not respond. The invoice was not created.";
 export const QBO_NO_INCOME = "QuickBooks has no income account for the freight. The invoice was not created.";

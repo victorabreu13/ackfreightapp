@@ -3,7 +3,7 @@ import test from "node:test";
 import { GUIAS_NAV } from "./guias/nav";
 import { isGuiasAllowed, isGuiasApp } from "./app-mode";
 
-test("ACK Guías exposes guías, stock, and auth, and refuses the other product", () => {
+test("ACK Guías exposes AWBs, stock, and auth, and refuses the other product", () => {
   assert.equal(isGuiasApp(), true);
   for (const path of [
     "/",

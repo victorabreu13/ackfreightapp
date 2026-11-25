@@ -62,7 +62,7 @@ export default async function CarriersPage({ searchParams }: { searchParams: Pro
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Carriers</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          Each carrier has the name and address that print on the AWB: the name goes in By First Carrier and both go at the top right, under Issued By. On the guía you pick the carrier in the Carrier field, after Destination. If you pick none, the one with the AWB prefix is used.
+          Each carrier has the name and address that print on the AWB: the name goes in By First Carrier and both go at the top right, under Issued By. On the AWB you pick the carrier in the Carrier field, after Destination. If you pick none, the one with the AWB prefix is used.
         </p>
       </div>
       {notice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{notice}</p> : null}
@@ -75,7 +75,7 @@ export default async function CarriersPage({ searchParams }: { searchParams: Pro
             <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
               <span className="font-medium">{carrier.name}</span>
               <span className="text-muted-foreground">
-                {[carrier.prefix ? `Prefix ${carrier.prefix}` : "", carrier.iata ? `IATA ${carrier.iata}` : "", usedBy(carrier.id) ? `${usedBy(carrier.id)} guías` : ""].filter(Boolean).join(" · ")}
+                {[carrier.prefix ? `Prefix ${carrier.prefix}` : "", carrier.iata ? `IATA ${carrier.iata}` : "", usedBy(carrier.id) ? `${usedBy(carrier.id)} AWBs` : ""].filter(Boolean).join(" · ")}
               </span>
             </summary>
             <div className="space-y-3 border-t border-border p-4">

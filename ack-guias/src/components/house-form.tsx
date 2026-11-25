@@ -66,7 +66,7 @@ export function HouseForm({ id, initial, masters }: { id?: string; initial: Hous
           <p className="text-xs text-muted-foreground">The next ACK number is assigned on its own. Type one only if it must be a different number.</p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="masterId">Master guía</Label>
+          <Label htmlFor="masterId">Master AWB</Label>
           <select id="masterId" name="masterId" value={values.masterId} onChange={(event) => set("masterId", event.target.value)} className="block h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
             <option value="">Not linked yet</option>
             {masters.map((master) => (

@@ -165,7 +165,7 @@ export type AckExportFile = {
   stock: Array<Record<string, unknown>>;
   documents: Array<Record<string, unknown>>;
   driveFiles: Array<Record<string, unknown>>;
-  /** Kope address-book rows for the clients ACK guías use. Import copies them onto blank guía party fields. */
+  /** Kope address-book rows for the clients ACK AWBs use. Import copies them onto blank AWB party fields. */
   parties?: Array<Record<string, unknown>>;
 };
 
@@ -478,7 +478,7 @@ export function emptyAckExport(): AckExportFile {
   };
 }
 
-/** Keep ACK guía rows only. Drop shipment, client-book, token, and byte fields. */
+/** Keep ACK AWB rows only. Drop shipment, client-book, token, and byte fields. */
 export function shapeAckExport(input: {
   guias: unknown;
   lines: unknown;

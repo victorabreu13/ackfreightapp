@@ -35,8 +35,8 @@ function back(message: string, kind: "notice" | "error" = "notice"): never {
 }
 
 /**
- * Saves a pickup request and, with it, the draft guía it starts: the client, the shipper, the consignee, the pieces
- * and the weight go to the guía, and the trucker goes where the pickup order reads it.
+ * Saves a pickup request and, with it, the draft AWB it starts: the client, the shipper, the consignee, the pieces
+ * and the weight go to the AWB, and the trucker goes where the pickup order reads it.
  */
 export async function savePickupRequest(formData: FormData) {
   const user = await requireTeam();
@@ -130,14 +130,14 @@ export async function savePickupRequest(formData: FormData) {
         : ` ${ack.message}`;
   revalidatePath("/guias/pickups");
   revalidatePath("/guias");
-  if (assignError) back(`Pickup ${pickupNumber(request.seq)} created with its guía draft, but the AWB was not assigned. ${assignError}${ackNote}`, "error");
+  if (assignError) back(`Pickup ${pickupNumber(request.seq)} created with its AWB draft, but its AWB number was not assigned. ${assignError}${ackNote}`, "error");
   back(
-    `Pickup ${pickupNumber(request.seq)} created. Its guía draft is already in Guías${assigned ? ` with AWB ${assigned}` : ""}.${ackNote}`,
+    `Pickup ${pickupNumber(request.seq)} created. Its AWB draft is already in AWBs${assigned ? ` with AWB ${assigned}` : ""}.${ackNote}`,
     ack.state === "failed" ? "error" : "notice",
   );
 }
 
-/** Deletes the request. The draft guía it started stays, since it may already have been worked on. */
+/** Deletes the request. The draft AWB it started stays, since it may already have been worked on. */
 export async function deletePickupRequest(formData: FormData) {
   await requireTeam();
   const id = text(formData.get("id"));
@@ -145,13 +145,13 @@ export async function deletePickupRequest(formData: FormData) {
   if (!found) back("Pickup not found.", "error");
   await prisma.pickupRequest.delete({ where: { id } });
   revalidatePath("/guias/pickups");
-  back(`Pickup ${pickupNumber(found.seq)} deleted. Its guía draft stays in Guías.`);
+  back(`Pickup ${pickupNumber(found.seq)} deleted. Its AWB draft stays in AWBs.`);
 }
 
 /**
- * Corrects a pickup request, also after its guía is issued. The guía it started follows the correction in the fields that
+ * Corrects a pickup request, also after its AWB is issued. The AWB it started follows the correction in the fields that
  * still hold what the request had (see planPickupSync), so the pickup order prints the corrected data. The client is not
- * changed here, since it also decides how the guía is billed: that is done in the guía.
+ * changed here, since it also decides how the AWB is billed: that is done in the AWB.
  */
 export async function updatePickupRequest(formData: FormData) {
   const user = await requireTeam();
@@ -237,7 +237,7 @@ export async function updatePickupRequest(formData: FormData) {
   }
   revalidatePath("/guias/pickups");
   const number = pickupNumber(existing.seq);
-  const guiaNote = !guia ? "" : changed ? ` The pickup order of its guía follows the correction (${changed} field${changed === 1 ? "" : "s"}).` : " The pickup order of its guía did not need changes.";
-  const keptNote = kept.length ? ` Not changed in the guía, because it already had its own value: ${kept.join(", ")}.` : "";
+  const guiaNote = !guia ? "" : changed ? ` The pickup order of its AWB follows the correction (${changed} field${changed === 1 ? "" : "s"}).` : " The pickup order of its AWB did not need changes.";
+  const keptNote = kept.length ? ` Not changed in the AWB, because it already had its own value: ${kept.join(", ")}.` : "";
   back(`Pickup ${number} updated.${guiaNote}${keptNote} The trip request already sent to ACK Freight is not updated by this.`);
 }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { deleteGuia, setGuiaCompleted } from "@/server/guia-actions";
 
 /**
- * "More options" of a row of the Guías screen. Each choice asks to be confirmed, and the screen then says what was
+ * "More options" of a row of the AWBs screen. Each choice asks to be confirmed, and the screen then says what was
  * done. The menu is drawn at a fixed place under its button so the table's own scrolling does not cut it.
  */
 export function GuiaRowMenu({ id, label, issued, canDelete }: { id: string; label: string; issued: boolean; canDelete: boolean }) {
@@ -36,8 +36,8 @@ export function GuiaRowMenu({ id, label, issued, canDelete }: { id: string; labe
     setOpen((current) => !current);
   }
 
-  const completeMessage = `Mark guía ${label} as completed?\n\nIt leaves the Guías screen. It stays in Documents.`;
-  const deleteMessage = `Delete guía ${label}?\n\nIt is also deleted from Documents with all its documents and the AWB number returns to stock.${issued ? "\nIt is already issued." : ""}\nThis cannot be undone. Copies already in Google Drive are not touched.`;
+  const completeMessage = `Mark AWB ${label} as completed?\n\nIt leaves the AWBs screen. It stays in Documents.`;
+  const deleteMessage = `Delete AWB ${label}?\n\nIt is also deleted from Documents with all its documents and the AWB number returns to stock.${issued ? "\nIt is already issued." : ""}\nThis cannot be undone. Copies already in Google Drive are not touched.`;
 
   return (
     <div className="inline-block text-left">

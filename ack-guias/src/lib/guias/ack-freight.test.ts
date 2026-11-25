@@ -64,7 +64,7 @@ describe("ACK Freight link: what is sent", () => {
     assert.match(p.notes ?? "", /AWB reservado: 045-54066773/);
   });
 
-  it("a cargo-ready guía goes from the warehouse to the airline with its documents", () => {
+  it("a cargo-ready AWB goes from the warehouse to the airline with its documents", () => {
     const p = deliveryTripPayload({
       id: "guia1",
       awb: "045-54066773",

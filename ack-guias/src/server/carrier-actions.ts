@@ -41,14 +41,14 @@ export async function saveCarrier(formData: FormData) {
     await prisma.carrier.create({ data });
   }
   revalidatePath("/guias/carriers");
-  back(id ? "Carrier saved. Guías that already use it update when saved again." : "Carrier added.");
+  back(id ? "Carrier saved. AWBs that already use it update when saved again." : "Carrier added.");
 }
 
 export async function deleteCarrier(formData: FormData) {
   await requireTeam();
   const id = text(formData.get("id"));
   const used = await prisma.airWaybillDocument.count({ where: { carrierId: id } });
-  if (used > 0) back(`Cannot delete: ${used} ${used === 1 ? "guía uses it" : "guías use it"}.`, "error");
+  if (used > 0) back(`Cannot delete: ${used} ${used === 1 ? "AWB uses it" : "AWBs use it"}.`, "error");
   await prisma.carrier.deleteMany({ where: { id } });
   revalidatePath("/guias/carriers");
   back("Carrier borrado.");

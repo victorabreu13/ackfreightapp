@@ -34,7 +34,7 @@ export default async function DgLabelsPage({ searchParams }: { searchParams: Pro
   const marks = one(params, "marks") === "1";
   const guiaId = (one(params, "guia") ?? "").trim();
 
-  // The parties come from the guía when the page is opened from one, and can be changed here.
+  // The parties come from the AWB when the page is opened from one, and can be changed here.
   const guia = guiaId
     ? await prisma.airWaybillDocument.findFirst({
         where: { id: guiaId, ...guiaWhere(user) },
@@ -68,7 +68,7 @@ export default async function DgLabelsPage({ searchParams }: { searchParams: Pro
 
       <form action="/guias/dg-labels" className="space-y-4 rounded-lg border border-border bg-card p-4">
         {guiaId ? <input type="hidden" name="guia" value={guiaId} /> : null}
-        {guia ? <p className="text-sm text-muted-foreground">Guía {guia.awb || "draft"}: the Shipper and the Consignee come from the guía and can be changed here.</p> : null}
+        {guia ? <p className="text-sm text-muted-foreground">AWB {guia.awb || "draft"}: the Shipper and the Consignee come from the AWB and can be changed here.</p> : null}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <label className="space-y-1 text-sm md:col-span-2">
             <span className="text-muted-foreground">UN (several separated by commas)</span>
@@ -112,7 +112,7 @@ export default async function DgLabelsPage({ searchParams }: { searchParams: Pro
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          The DGD only carries the name and the full address. Phones, emails and contacts in the guía address are not included.
+          The DGD only carries the name and the full address. Phones, emails and contacts in the AWB address are not included.
         </p>
         <Button type="submit">Update</Button>
       </form>

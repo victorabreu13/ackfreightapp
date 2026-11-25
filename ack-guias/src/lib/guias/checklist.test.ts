@@ -43,7 +43,7 @@ test("labels, the client instructions and the AES ITN are not on the checklist",
   assert.ok(!all.some((title) => /label|instruction|AES|EEI|Pickup/i.test(title.replace("Lithium battery letter", ""))));
 });
 
-test("the checklist is one of the guía documents and has its own file name", () => {
+test("the checklist is one of the AWB documents and has its own file name", () => {
   assert.ok(GUIA_FILE_KINDS.includes("checklist"));
   assert.equal(guiaFileName("checklist", "045-55219415"), "CHECKLIST 045-55219415.pdf");
   assert.equal(guiaFileName("checklist", ""), "CHECKLIST DRAFT.pdf");

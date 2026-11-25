@@ -85,7 +85,7 @@ test("Handling Information says the DGD line once and Cargo Aircraft Only only w
 });
 
 
-test("the battery types checked on a guía are read from a comma list and keep the order of the document", () => {
+test("the battery types checked on an AWB are read from a comma list and keep the order of the document", () => {
   assert.deepEqual(parseLithiumTypes("970, 966 ,bogus,966,968IB"), ["966", "970", "968IB"]);
   assert.deepEqual(parseLithiumTypes(""), []);
   assert.deepEqual(parseLithiumTypes(null), []);

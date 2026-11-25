@@ -6,10 +6,10 @@ import { guiaBillToName } from "@/lib/guias/guia-client";
 import { receiptNumber } from "@/lib/guias/wr";
 import { renderWarehouseReceipt } from "@/lib/guias/wr-pdf";
 
-/** The kind a stored warehouse receipt has in the guía's documents. */
+/** The kind a stored warehouse receipt has in the AWB's documents. */
 export const RECEIPT_KIND = "warehouse-receipt";
 
-/** The folder, inside the client folder of Drive, where a receipt waits until it is linked to a guía. */
+/** The folder, inside the client folder of Drive, where a receipt waits until it is linked to an AWB. */
 export const UNLINKED_RECEIPT_FOLDER = "Warehouse receipts (sin guia)";
 
 export function receiptFileName(seq: number): string {
@@ -17,7 +17,7 @@ export function receiptFileName(seq: number): string {
 }
 
 /**
- * Saves the PDF of a receipt in the documents of the guía it is tied to, so it shows under the guía's Warehouse
+ * Saves the PDF of a receipt in the documents of the AWB it is tied to, so it shows under the AWB's Warehouse
  * receipt field and in Documentos. A failure of the Drive copy does not lose it: the file is kept in the database.
  */
 export async function storeReceiptInGuia(receiptId: string, generatedBy: string): Promise<void> {
@@ -43,14 +43,14 @@ export async function storeReceiptInGuia(receiptId: string, generatedBy: string)
   }
 }
 
-/** Takes the stored PDF of a receipt out of a guía's documents, when the receipt is let go of or deleted. */
+/** Takes the stored PDF of a receipt out of an AWB's documents, when the receipt is let go of or deleted. */
 export async function removeReceiptFromGuia(guiaId: string, seq: number): Promise<void> {
   await prisma.guiaDocument.deleteMany({ where: { guiaId, kind: RECEIPT_KIND, fileName: receiptFileName(seq) } });
 }
 
 /**
- * A receipt with no guía yet is saved in the client folder of Drive, under the "Warehouse receipts (sin guia)" folder, and it is replaced
- * each time the receipt is saved. When it is linked to a guía it moves to the guía folder (see removeUnlinkedReceipt).
+ * A receipt with no AWB yet is saved in the client folder of Drive, under the "Warehouse receipts (sin guia)" folder, and it is replaced
+ * each time the receipt is saved. When it is linked to an AWB it moves to the AWB folder (see removeUnlinkedReceipt).
  */
 export async function storeUnlinkedReceipt(receiptId: string, generatedBy: string): Promise<void> {
   try {

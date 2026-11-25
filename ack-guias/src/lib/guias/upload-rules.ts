@@ -1,4 +1,4 @@
-/** Team file attached to a guía. Not a generated PDF kind. */
+/** Team file attached to an AWB. Not a generated PDF kind. */
 export const UPLOAD_KIND = "UPLOAD";
 
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -74,7 +74,7 @@ export function contentDisposition(fileName: string): string {
 export function uploadFailureMessage(error: string | null | undefined): string {
   const text = error?.trim() ?? "";
   if (!text || text === "Drive is not configured" || text === "Drive upload failed") {
-    return "Drive is not configured. The file was recorded on the guía.";
+    return "Drive is not configured. The file was recorded on the AWB.";
   }
   return `Could not upload to Drive. ${text}`;
 }
@@ -82,7 +82,7 @@ export function uploadFailureMessage(error: string | null | undefined): string {
 export function uploadMissingPage(guiaId: string | null): string {
   const id = (guiaId ?? "").replace(/[^a-zA-Z0-9_-]/g, "");
   const back = id ? `/guias/${id}` : "/guias/documents";
-  const label = id ? "Back to the guía" : "Back to Documents";
+  const label = id ? "Back to the AWB" : "Back to Documents";
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -96,7 +96,7 @@ export function uploadMissingPage(guiaId: string | null): string {
 </head>
 <body>
   <h1>File not found</h1>
-  <p>That file is not in Drive, or it was already deleted. It stays on the guía only if the upload was recorded.</p>
+  <p>That file is not in Drive, or it was already deleted. It stays on the AWB only if the upload was recorded.</p>
   <p><a href="${back}">${label}</a></p>
 </body>
 </html>
@@ -114,7 +114,7 @@ export function dgdUploadName(awb: string | null | undefined, fileName: string):
   return `DGD ${(awb ?? "").trim() || "DRAFT"} - ${fileName}`.slice(0, 180);
 }
 
-/** The outside files of a guía that have a field of their own in its Documents. Each is told apart by how its name starts. */
+/** The outside files of an AWB that have a field of their own in its Documents. Each is told apart by how its name starts. */
 export const UPLOAD_CATEGORIES = {
   dgd: { prefix: "DGD", test: /^dgd\b/i },
   invoice: { prefix: "FACTURA-MANIFIESTO", test: /^(factura|manifiesto|invoice|manifest)/i },

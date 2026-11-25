@@ -108,7 +108,7 @@ export async function saveInvoice(formData: FormData) {
 const FROM = () => process.env.INVOICE_MAIL_FROM?.trim() || "ACK TEAM LLC <billing@ackfreight.com>";
 const REPLY_TO = () => process.env.INVOICE_REPLY_TO?.trim() || "billing@ackfreight.com";
 
-/** Emails the invoice, with its PDF and the copy of the guía, to the client. Returns an error text, or null when it went. */
+/** Emails the invoice, with its PDF and the copy of the AWB, to the client. Returns an error text, or null when it went. */
 async function deliver(id: string, viewer: { email: string; name?: string | null }): Promise<string | null> {
   const invoice = await prisma.invoice.findUnique({ where: { id }, include: { lines: true } });
   if (!invoice) return "That invoice was not found.";
@@ -135,7 +135,7 @@ async function deliver(id: string, viewer: { email: string; name?: string | null
       `Attached is invoice ${invoice.number} for ${total}, due ${dueText}${invoice.awb ? `, with the copy of the air waybill ${invoice.awb}` : ""}.`,
       "You can also see it in your ACK Guías account.",
       "",
-      `Hola, adjuntamos la factura ${invoice.number} por ${total}, con vencimiento ${dueText}${invoice.awb ? `, y la copia de la guía aérea ${invoice.awb}` : ""}. También puede verla en su cuenta de ACK Guías.`,
+      `Hola, adjuntamos la factura ${invoice.number} por ${total}, con vencimiento ${dueText}${invoice.awb ? `, y la copia del AWB ${invoice.awb}` : ""}. También puede verla en su cuenta de ACK Guías.`,
       "",
       "Thank you / Gracias,",
       "ACK TEAM LLC",

@@ -64,8 +64,8 @@ function linesFromForm(formData: FormData) {
 }
 
 /**
- * Saves a warehouse receipt. When it is tied to a pickup request it is tied to that pickup's draft guía too, and a
- * guía that is still a draft is fed from its receipts.
+ * Saves a warehouse receipt. When it is tied to a pickup request it is tied to that pickup's draft AWB too, and a
+ * AWB that is still a draft is fed from its receipts.
  */
 export async function saveWarehouseReceipt(formData: FormData) {
   const user = await requireTeam();
@@ -127,7 +127,7 @@ export async function saveWarehouseReceipt(formData: FormData) {
     await syncGuiaFromReceipts(guiaId, user.email);
     await storeReceiptInGuia(receiptId, user.email);
   } else {
-    // No guía yet: the receipt waits in the client folder.
+    // No AWB yet: the receipt waits in the client folder.
     await storeUnlinkedReceipt(receiptId, user.email);
     revalidatePath("/guias/documents");
   }
@@ -159,7 +159,7 @@ export async function deleteWarehouseReceipt(formData: FormData) {
   listBack(`Warehouse receipt ${receiptNumber(found.seq)} eliminado.`);
 }
 
-/** Ties a receipt to a guía, and feeds the guía when it is still a draft. */
+/** Ties a receipt to an AWB, and feeds the AWB when it is still a draft. */
 export async function linkReceiptToGuia(formData: FormData) {
   const user = await requireTeam();
   const guiaId = text(formData.get("guiaId"));
@@ -167,19 +167,19 @@ export async function linkReceiptToGuia(formData: FormData) {
   const back = `/guias/${guiaId}`;
   const guia = await prisma.airWaybillDocument.findFirst({ where: { id: guiaId, product: "guia" }, select: { id: true } });
   const receipt = await prisma.warehouseReceipt.findUnique({ where: { id: receiptId }, select: { id: true, seq: true, guiaId: true } });
-  if (!guia || !receipt) redirect(`${back}?error=${encodeURIComponent("Guía or warehouse receipt not found.")}`);
+  if (!guia || !receipt) redirect(`${back}?error=${encodeURIComponent("AWB or warehouse receipt not found.")}`);
   if (receipt.guiaId && receipt.guiaId !== guiaId) {
-    redirect(`${back}?error=${encodeURIComponent(`${receiptNumber(receipt.seq)} is already linked to another guía. Release it there first.`)}`);
+    redirect(`${back}?error=${encodeURIComponent(`${receiptNumber(receipt.seq)} is already linked to another AWB. Release it there first.`)}`);
   }
   await prisma.warehouseReceipt.update({ where: { id: receiptId }, data: { guiaId } });
   const synced = await syncGuiaFromReceipts(guiaId, user.email);
-  // The copy that waited in the client folder moves to the guía folder.
+  // The copy that waited in the client folder moves to the AWB folder.
   await removeUnlinkedReceipt(receipt.seq);
   await storeReceiptInGuia(receiptId, user.email);
   revalidatePath(back);
   revalidatePath("/guias/documents");
   revalidatePath("/guias/warehouse");
-  redirect(`${back}?receipts=${encodeURIComponent(synced.skipped ? `${receiptNumber(receipt.seq)} linked. The guía is already issued, it was not changed.` : `${receiptNumber(receipt.seq)} linked and the guía was updated. What you typed by hand stayed as it was.`)}`);
+  redirect(`${back}?receipts=${encodeURIComponent(synced.skipped ? `${receiptNumber(receipt.seq)} linked. The AWB is already issued, it was not changed.` : `${receiptNumber(receipt.seq)} linked and the AWB was updated. What you typed by hand stayed as it was.`)}`);
 }
 
 export async function unlinkReceiptFromGuia(formData: FormData) {
@@ -190,28 +190,28 @@ export async function unlinkReceiptFromGuia(formData: FormData) {
   await prisma.warehouseReceipt.updateMany({ where: { id: receiptId, guiaId }, data: { guiaId: null } });
   if (released) {
     await removeReceiptFromGuia(guiaId, released.seq);
-    // Let go of the guía, the receipt goes back to waiting in the client folder.
+    // Let go of the AWB, the receipt goes back to waiting in the client folder.
     await storeUnlinkedReceipt(receiptId, user.email);
   }
   await syncGuiaFromReceipts(guiaId, user.email);
   revalidatePath("/guias/documents");
   revalidatePath(`/guias/${guiaId}`);
   revalidatePath("/guias/warehouse");
-  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent("Warehouse receipt released from the guía.")}`);
+  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent("Warehouse receipt released from the AWB.")}`);
 }
 
-/** Feeds the guía again from its receipts. What was typed by hand stays. */
+/** Feeds the AWB again from its receipts. What was typed by hand stays. */
 export async function refreshGuiaFromReceipts(formData: FormData) {
   const user = await requireTeam();
   const guiaId = text(formData.get("guiaId"));
   const result = await syncGuiaFromReceipts(guiaId, user.email);
   revalidatePath(`/guias/${guiaId}`);
-  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent(result.skipped ? "The guía is already issued: it is not changed." : result.changed.length ? "Guía updated from its warehouse receipts." : "The guía already had the data of its warehouse receipts.")}`);
+  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent(result.skipped ? "The AWB is already issued: it is not changed." : result.changed.length ? "AWB updated from its warehouse receipts." : "The AWB already had the data of its warehouse receipts.")}`);
 }
 
 /**
  * "Restablecer desde WR": clears the manual mark of one field, or of all of them, and takes the receipt values again.
- * A guía that is already issued is never changed.
+ * An AWB that is already issued is never changed.
  */
 export async function resetGuiaFromReceipts(formData: FormData) {
   const user = await requireTeam();
@@ -221,10 +221,10 @@ export async function resetGuiaFromReceipts(formData: FormData) {
   if (!keys) redirect(`/guias/${guiaId}?error=${encodeURIComponent("That field is not taken from the warehouse receipts.")}`);
   const result = await syncGuiaFromReceipts(guiaId, user.email, { source: "reset", reset: keys });
   revalidatePath(`/guias/${guiaId}`);
-  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent(result.skipped ? "The guía is already issued: it is not changed." : "The warehouse receipt values were taken again.")}`);
+  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent(result.skipped ? "The AWB is already issued: it is not changed." : "The warehouse receipt values were taken again.")}`);
 }
 
-/** Keeps the guía's own number over the receipt's. The notice returns only if the receipt changes. */
+/** Keeps the AWB's own number over the receipt's. The notice returns only if the receipt changes. */
 export async function keepGuiaValueOverReceipt(formData: FormData) {
   await requireTeam();
   const guiaId = text(formData.get("guiaId"));
@@ -232,5 +232,5 @@ export async function keepGuiaValueOverReceipt(formData: FormData) {
   const receiptValue = text(formData.get("receiptValue"));
   if (isManualKey(field) && receiptValue) await keepGuiaValue(guiaId, field, receiptValue);
   revalidatePath(`/guias/${guiaId}`);
-  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent("The guía value is kept.")}`);
+  redirect(`/guias/${guiaId}?receipts=${encodeURIComponent("The AWB value is kept.")}`);
 }

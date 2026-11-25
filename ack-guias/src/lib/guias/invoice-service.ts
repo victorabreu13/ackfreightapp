@@ -6,7 +6,7 @@ import { renderGuiaPdf } from "@/lib/guias/files";
 import { renderInvoicePdf } from "@/lib/guias/invoice-pdf";
 import { dayFrom, dueDateFor, emailsFrom, invoiceLinesFor, totalOf, type InvoiceLineDraft } from "@/lib/guias/invoice-lines";
 
-/** The invoice to the client of a guía: a draft made when the guía is issued, reviewed and sent by accounting. */
+/** The invoice to the client of an AWB: a draft made when the AWB is issued, reviewed and sent by accounting. */
 
 const COUNTER = "invoice";
 /** The first invoice of ACK Guías is number 3000. */
@@ -44,12 +44,12 @@ export const linesData = (lines: InvoiceLineDraft[]) =>
   }));
 
 /**
- * Makes the draft invoice of a guía from its accounting row, once. It holds only the charges that are not zero. What
+ * Makes the draft invoice of an AWB from its accounting row, once. It holds only the charges that are not zero. What
  * could not be filled in (the address, the emails) is left for accounting to complete before sending.
  */
 export async function createInvoiceForGuia(guiaId: string): Promise<{ created: boolean; number?: number; note?: string }> {
   const shipment = await prisma.acctShipment.findUnique({ where: { guiaId } });
-  if (!shipment) return { created: false, note: "The guía has no accounting row yet." };
+  if (!shipment) return { created: false, note: "The AWB has no accounting row yet." };
   const already = await prisma.invoice.findUnique({ where: { shipmentId: shipment.id }, select: { number: true } });
   if (already) return { created: false, number: already.number };
 
@@ -115,7 +115,7 @@ export async function invoicePdf(invoice: InvoiceWithLines): Promise<Buffer> {
   );
 }
 
-/** The customer copy of the AWB of the guía of an invoice, the one that goes with the invoice. Null when the guía is not issued. */
+/** The customer copy of the AWB of an invoice, the one that goes with the invoice. Null when the AWB is not issued. */
 export async function guiaCopyPdf(guiaId: string, viewer: { email: string; name?: string | null }): Promise<{ pdf: Buffer; awb: string } | null> {
   const document = await prisma.airWaybillDocument.findFirst({
     where: { id: guiaId, product: "guia", agentKey: "ack", status: "issued" },

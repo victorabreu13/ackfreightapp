@@ -56,7 +56,7 @@ export function documentData(values: GuiaValues, review: ReviewField[], snippets
 }
 
 
-/** The form values of a saved guía. */
+/** The form values of a saved AWB. */
 export function guiaValuesOf(document: {
   clientLabel: string | null;
   guiaClient?: { name: string } | null;

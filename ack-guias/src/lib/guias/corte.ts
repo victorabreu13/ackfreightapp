@@ -13,7 +13,7 @@ import { MAX_OTHER_CHARGES, otherChargesTotal, parseOtherCharges } from "@/lib/g
 import { KOPE_LOGO_PNG } from "@/lib/sheets/kope-logo";
 
 /**
- * Guías corte layouts, ported from the handmade reportlab set for AWB 729-95048310
+ * AWBs corte layouts, ported from the handmade reportlab set for AWB 729-95048310
  * (make.py, make_full.py, make_do.py, make_form.py). Coordinates are that file's
  * top-of-page measurements. Text uses the standard Helvetica fonts so the company
  * name and address stay selectable. The sheet renderer in documents.ts is not used here.
@@ -157,7 +157,7 @@ function drawSignature(doc: Doc, image: Buffer | null, x: number, y: number, wid
   try {
     doc.image(image, x, y, { fit: [width, height], align: "center", valign: "bottom" });
   } catch (error) {
-    // A signature file PDFKit cannot read must not stop the guía from printing.
+    // A signature file PDFKit cannot read must not stop the AWB from printing.
     console.error("signature", error);
   }
 }
@@ -196,7 +196,7 @@ function wrap(text: string, size: number, width: number): string[] {
   return rows;
 }
 
-/** Exemption added to the Nature of Goods, never to Handling Information, when the guía has no AES ITN. */
+/** Exemption added to the Nature of Goods, never to Handling Information, when the AWB has no AES ITN. */
 export const NO_EEI_GOODS = "NO EEI REQ 30.37A";
 /** The first line of the Nature of Goods of a master that has houses. */
 export const CONSOLIDATION_GOODS = "CONSOLIDATION AS PER ATTACHED MANIFEST";
@@ -226,7 +226,7 @@ export function unRequiresCargoAircraftOnly(unNumbers: string | null | undefined
 }
 
 /**
- * User handling, plus the DGD line when the guía carries dangerous goods and Cargo Aircraft Only when a UN number
+ * User handling, plus the DGD line when the AWB carries dangerous goods and Cargo Aircraft Only when a UN number
  * requires it. The two statements are written here and only once: a typed "Dangerous Goods as per attached
  * Shipper's Declaration" or "Cargo Aircraft Only" line is replaced by them. The AES ITN is not here: it prints in
  * the Nature of Goods.
@@ -264,7 +264,7 @@ export function bupItemList(value: string | null | undefined): string[] {
 
 /**
  * The Nature of Goods, top to bottom: the description as entered; a line for each Section II lithium battery type
- * checked on the guía, unless the description already says it; "ITN: …" once with every AES ITN number on its own
+ * checked on the AWB, unless the description already says it; "ITN: …" once with every AES ITN number on its own
  * line, or with no ITN the NO EEI exemption on a line of its own, never inside the description; and last the elements and pieces of a BUP, each on its own line. Goods that already carry
  * the ITN, or say NO EEI, are left alone.
  */
@@ -979,7 +979,7 @@ export async function renderLithiumLetter(document: GuiaRecord, company: Company
     drawSignature(doc, signatureOf(company), 110, 729, 200, 38);
     t(doc, 404, 750, date, 11);
     tc(doc, 294, 770, name, 8);
-    // An X in the box of every battery type checked on the guía. With none checked the boxes stay empty.
+    // An X in the box of every battery type checked on the AWB. With none checked the boxes stay empty.
     for (const code of parseLithiumTypes(document.lithiumPi)) {
       const box = LITHIUM_BOX_CENTER[code];
       // Two strokes rather than a letter, so the mark looks the same in every viewer.

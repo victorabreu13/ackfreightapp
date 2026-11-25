@@ -44,7 +44,7 @@ export default async function RegisterPage({
             <div>
               <h2 className="font-display text-2xl">Cree su acceso</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Para ver las guías aéreas y el estatus de los vuelos de {invite.guiaClient.name}.
+                Para ver sus AWB y el estatus de los vuelos de {invite.guiaClient.name}.
               </p>
             </div>
             {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}

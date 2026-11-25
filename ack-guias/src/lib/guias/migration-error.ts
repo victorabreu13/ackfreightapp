@@ -17,5 +17,5 @@ export function isPendingMigration(error: unknown): boolean {
 export const MIGRATION_PENDING_MESSAGE = "Database migration pending, run migrate";
 
 export function logMigrationError(page: string, error: unknown) {
-  console.error(`Guías ${page}: ${MIGRATION_PENDING_MESSAGE}`, error);
+  console.error(`AWBs ${page}: ${MIGRATION_PENDING_MESSAGE}`, error);
 }

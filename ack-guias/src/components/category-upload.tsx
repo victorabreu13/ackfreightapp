@@ -7,7 +7,7 @@ import { MAX_UPLOAD_BYTES } from "@/lib/guias/upload-rules";
 import { uploadGuiaFiles } from "@/server/guia-upload-actions";
 
 /**
- * A field of the guía's Documents for files that come from outside, such as the signed DGD or the invoices and
+ * A field of the AWB's Documents for files that come from outside, such as the signed DGD or the invoices and
  * manifests. The files are saved with the field's name in front of them, so they are told apart wherever they are
  * listed, and they show here under the field.
  */
