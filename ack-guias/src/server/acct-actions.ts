@@ -6,6 +6,7 @@ import { canViewFinance } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { shipmentsFromCsv } from "@/lib/guias/acct-import";
+import { planShipmentEdit, type EditInput } from "@/lib/guias/commission-edit";
 
 function text(value: FormDataEntryValue | null): string {
   return String(value ?? "").trim();
@@ -76,6 +77,26 @@ export async function setClientPaid(formData: FormData) {
   revalidatePath("/guias/accounting");
   revalidatePath("/guias/commissions");
   redirect(returnTo.startsWith("/guias/") ? returnTo : "/guias/accounting");
+}
+
+/**
+ * Corrects the amounts of one shipment by hand: what each rubro cost and what it was sold for, the invoice total and number,
+ * the note and the percentage of each person. The totals, the profit and so the commissions follow. The columns changed are
+ * remembered as typed by hand, so a trip price shared out again never overwrites them.
+ */
+export async function saveShipmentAmounts(shipmentId: string, input: EditInput): Promise<{ ok: true; profit: number } | { ok: false; error: string }> {
+  await requireFinance();
+  const shipment = await prisma.acctShipment.findUnique({ where: { id: shipmentId }, include: { splits: true } });
+  if (!shipment) return { ok: false, error: "That shipment was not found." };
+  const plan = planShipmentEdit(shipment, shipment.splits.map((split) => ({ id: split.id, pct: split.pct })), input);
+  if ("error" in plan) return { ok: false, error: plan.error };
+  await prisma.$transaction([
+    prisma.acctShipment.update({ where: { id: shipmentId }, data: plan.data }),
+    ...plan.splitUpdates.map((split) => prisma.acctSplit.update({ where: { id: split.id }, data: { pct: split.pct } })),
+  ]);
+  revalidatePath("/guias/commissions");
+  revalidatePath("/guias/accounting");
+  return { ok: true, profit: plan.totals.profit };
 }
 
 /** Marks the chosen commissions as paid to the person, as of today, or back as unpaid. */

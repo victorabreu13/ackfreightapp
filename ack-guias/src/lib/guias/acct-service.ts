@@ -2,6 +2,7 @@ import { codeForPlace } from "@/lib/awb/airports";
 import { prisma } from "@/lib/db";
 import { ruleCost, ruleOf, tableFor, type CostRule } from "@/lib/guias/acct-costs";
 import { airlineOfAwb, linesFor, matchProvider, NO_RULES, totalsOf, tripShares, uldsFromBup, uldText, type ClientRules, type Lines } from "@/lib/guias/acct-engine";
+import { isManual } from "@/lib/guias/commission-edit";
 import { pickupTruckerOf } from "@/lib/guias/files";
 import { normalizeBillToName } from "@/lib/guias/guia-client";
 
@@ -69,6 +70,8 @@ export async function settleTrips(date: Date, provider: string, kind: "pickup" |
   if (shipments.length === 0) return;
   const shares = tripShares(shipments.map((shipment) => ({ id: shipment.id, chw: shipment.chw })), rule.tripCost);
   for (const shipment of shipments) {
+    // A cost corrected by hand stays as it was typed.
+    if (isManual(shipment.manualFields, kind === "pickup" ? "pickupCost" : "transferCost")) continue;
     const cost = shares.get(shipment.id) ?? 0;
     const changed = { ...shipment, ...(kind === "pickup" ? { pickupCost: cost } : { transferCost: cost }) };
     const totals = totalsFromShipment(changed);

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { CommissionRow } from "@/components/commission-row";
 import { GuiaEyebrow } from "@/components/guia-eyebrow";
 import { SelectAll } from "@/components/select-all";
 import { Button } from "@/components/ui/button";
@@ -50,9 +51,11 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
         },
         orderBy: [{ shipment: { date: "desc" } }],
         take: 500,
-        include: { shipment: true },
+        include: { shipment: { include: { splits: { orderBy: { payee: "asc" } } } } },
       })
     : [];
+  const invoices = await prisma.invoice.findMany({ where: { shipmentId: { in: rows.map((split) => split.shipmentId) } }, select: { shipmentId: true, number: true, status: true } });
+  const invoiceOf = new Map(invoices.map((invoice) => [invoice.shipmentId, { number: invoice.number, status: invoice.status }]));
   const shown = rows.reduce((sum, split) => sum + commissionOf(split.shipment.profit, split.pct), 0);
   const base = (over: Record<string, string>) => `/guias/commissions?${new URLSearchParams({ person: person?.name ?? "", status, ...(clientPaidOnly ? { clientPaid: "1" } : {}), ...over }).toString()}`;
 
@@ -117,6 +120,9 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
               <table className="w-full min-w-[860px] text-left text-sm">
                 <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
                   <tr>
+                    <th className="w-8 px-1 py-2">
+                      <span className="sr-only">Detail</span>
+                    </th>
                     <th className="px-3 py-2">
                       <SelectAll formId="commission-form" name="splitId" />
                     </th>
@@ -134,13 +140,25 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
                 <tbody>
                   {rows.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-3 py-6 text-muted-foreground">
+                      <td colSpan={11} className="px-3 py-6 text-muted-foreground">
                         Nothing here for this filter.
                       </td>
                     </tr>
                   ) : (
                     rows.map((split) => (
-                      <tr key={split.id} className="border-b border-border last:border-0">
+                      <CommissionRow
+                        key={split.id}
+                        columns={11}
+                        invoice={invoiceOf.get(split.shipmentId) ?? null}
+                        shipment={{
+                          id: split.shipment.id, awb: split.shipment.awb, kopeInCost: split.shipment.kopeInCost, invoicedOverride: split.shipment.invoicedOverride,
+                          invoiceNo: split.shipment.invoiceNo, note: split.shipment.note, manualFields: split.shipment.manualFields,
+                          airCost: split.shipment.airCost, airSold: split.shipment.airSold, pickupCost: split.shipment.pickupCost, pickupSold: split.shipment.pickupSold,
+                          handlingCost: split.shipment.handlingCost, handlingSold: split.shipment.handlingSold, transferCost: split.shipment.transferCost, transferSold: split.shipment.transferSold,
+                          kopeHandling: split.shipment.kopeHandling, insuranceCost: split.shipment.insuranceCost, insuranceSold: split.shipment.insuranceSold, aes: split.shipment.aes, awbFee: split.shipment.awbFee,
+                        }}
+                        splits={split.shipment.splits.map((item) => ({ id: item.id, payee: item.payee, pct: item.pct, paid: item.paid, house: houses.includes(item.payee) }))}
+                      >
                         <td className="px-3 py-2">
                           <input type="checkbox" name="splitId" value={split.id} aria-label={`Select ${split.shipment.awb}`} />
                         </td>
@@ -165,7 +183,7 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
                         <td className="px-3 py-2 text-right">{split.pct}%</td>
                         <td className="px-3 py-2 text-right font-medium">{usd(commissionOf(split.shipment.profit, split.pct))}</td>
                         <td className="px-3 py-2">{split.paid ? "Paid" : "Owed"}</td>
-                      </tr>
+                      </CommissionRow>
                     ))
                   )}
                 </tbody>
