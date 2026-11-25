@@ -31,7 +31,7 @@ import { FLIGHT_STATUS_LABEL, isFlightStatus } from "@/lib/guias/flight-status";
 import { SubmitButton } from "@/components/submit-button";
 import { truckerNames } from "@/lib/guias/trucker-names";
 import { LABEL_KINDS, OPTIONAL_KINDS, packKinds } from "@/lib/guias/guia-pack";
-import { assignGuiaAwb, checkGuiaFlight, issueGuia, releaseGuiaAwb, saveGuiaToDrive } from "@/server/guia-actions";
+import { assignGuiaAwb, checkGuiaFlight, issueGuia, refreshGuiaDate, releaseGuiaAwb, saveGuiaToDrive } from "@/server/guia-actions";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
   const value = params[key];
@@ -262,6 +262,7 @@ export default async function GuiaDetailPage({
       {one(query, "assigned") ? <p className="text-sm text-muted-foreground">AWB assigned. The draft and the labels already print with that number.</p> : null}
       {one(query, "released") ? <p className="text-sm text-muted-foreground">AWB returned to stock.</p> : null}
       {one(query, "issued") ? <p className="text-sm text-muted-foreground">Issued. The PDF download does not depend on Drive.</p> : null}
+      {one(query, "dateUpdated") ? <p className="text-sm text-muted-foreground">Date updated to {one(query, "dateUpdated")}. The documents you download now carry it.</p> : null}
       {drive && drive !== "ok" ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">Drive: {drive}</p> : null}
       {drive === "ok" ? <p className="text-sm text-muted-foreground">Saved to Drive.</p> : null}
       {one(query, "invoiced") ? <p className="text-sm text-muted-foreground">Invoice saved.</p> : null}
@@ -337,7 +338,18 @@ export default async function GuiaDetailPage({
       <section className="space-y-3 rounded-lg border-2 border-primary bg-card p-4">
         <h2 className="font-display text-2xl">Issue</h2>
         {document.status === "issued" ? (
-          <p className="text-sm text-muted-foreground">This guía is already issued as {document.awb}.</p>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">This guía is already issued as {document.awb}. Its documents show the date it was issued{document.executedOn ? <>: <span className="font-medium text-foreground">{document.executedOn}</span></> : null}.</p>
+            {canManageGuias(user) ? (
+              <form action={refreshGuiaDate} className="flex flex-wrap items-center gap-3">
+                <input type="hidden" name="id" value={document.id} />
+                <SubmitButton variant="outline" pendingLabel="Actualizando…">
+                  Update date to today
+                </SubmitButton>
+                <span className="text-xs text-muted-foreground">Then download the documents again to get them with today&apos;s date. The old date stays in the change history.</span>
+              </form>
+            ) : null}
+          </div>
         ) : (
           <>
             {review.length ? (

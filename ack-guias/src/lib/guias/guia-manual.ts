@@ -103,6 +103,7 @@ export function guiaFieldLabel(field: string): string {
     bup: "BUP",
     bupItems: "BUP items",
     lithiumPi: "Lithium batteries",
+    executedOn: "Executed on (date)",
     trucker: "Trucker",
     pickupTrucker: "Pickup trucker",
     truckerPhone: "Trucker phone",

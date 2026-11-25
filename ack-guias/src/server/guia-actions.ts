@@ -514,3 +514,24 @@ export async function saveCompanyProfile(formData: FormData) {
   revalidatePath("/guias/settings");
   redirect("/guias/settings?saved=1");
 }
+
+/**
+ * "Update date": an issued guía keeps the date it was issued on (Executed on), and the documents that print it show that
+ * day. This sets it to today, so the documents downloaded from now on carry today. The pickup and delivery orders already
+ * print the day they are downloaded. The old date stays in the change history.
+ */
+export async function refreshGuiaDate(formData: FormData) {
+  const user = await requireGuiaTeam();
+  const id = text(formData.get("id"));
+  const guia = await prisma.airWaybillDocument.findFirst({ where: { id, product: "guia", agentKey: "ack" }, select: { id: true, status: true, executedOn: true } });
+  if (!guia) redirect("/guias?error=Gu%C3%ADa%20not%20found");
+  if (guia.status !== "issued") redirect(`/guias/${id}?error=${encodeURIComponent("Only an issued guía has a date to update.")}`);
+  const today = miamiDate();
+  if ((guia.executedOn ?? "").trim() !== today) {
+    await prisma.airWaybillDocument.update({ where: { id }, data: { executedOn: today } });
+    await prisma.guiaChangeLog.create({ data: { guiaId: id, field: "executedOn", oldValue: guia.executedOn || null, newValue: today, source: "manual", changedBy: user.email } });
+  }
+  revalidatePath(`/guias/${id}`);
+  revalidatePath("/guias/documents");
+  redirect(`/guias/${id}?dateUpdated=${encodeURIComponent(today)}`);
+}
