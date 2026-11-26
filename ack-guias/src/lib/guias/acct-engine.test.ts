@@ -83,6 +83,7 @@ test("the airline comes from the AWB prefix and the provider from the name of th
   assert.equal(airlineOfAwb("045-56632074"), "LATAM");
   assert.equal(airlineOfAwb("729-95967351"), "AVI");
   assert.equal(airlineOfAwb("810-51955024"), "AJT");
+  assert.equal(airlineOfAwb("592-12345675"), "SUNR");
   assert.equal(airlineOfAwb("999-12345675"), null);
   const providers = [{ name: "ACK Team LLC", aliases: "ACK TEAM, ACK LOGISTICS" }, { name: "RL Services", aliases: "RL SERVICES, RL SERVICE" }];
   assert.equal(matchProvider("ACK TEAM LLC", providers), "ACK Team LLC");

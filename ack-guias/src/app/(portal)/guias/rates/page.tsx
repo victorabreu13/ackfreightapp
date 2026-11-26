@@ -35,7 +35,7 @@ export default async function RatesPage({ searchParams }: { searchParams: Promis
         <GuiaEyebrow />
         <h1 className="font-display text-4xl">Rates</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          What the airline charges ACK (cost) and what ACK charges (sell) per kilo, by airline and destination. A shipment uses the newest table that starts on or before its date. The airline goes by its short code: LATAM, AVI, AJT.
+          What the airline charges ACK (cost) and what ACK charges (sell) per kilo, by airline and destination. A shipment uses the newest table that starts on or before its date. The airline goes by its short code: LATAM, AVI, AJT, SUNR (Sunrise Air Cargo).
         </p>
       </div>
       {notice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{notice}</p> : null}

@@ -8,7 +8,7 @@ export function cents(value: number): number {
 }
 
 /** The airline of an AWB, by the first three digits of its number. */
-const PREFIX_AIRLINE: Record<string, string> = { "001": "AA", "045": "LATAM", "729": "AVI", "810": "AJT" };
+const PREFIX_AIRLINE: Record<string, string> = { "001": "AA", "045": "LATAM", "592": "SUNR", "729": "AVI", "810": "AJT" };
 
 export function airlineOfAwb(awb: string): string | null {
   const prefix = awb.replace(/\D/g, "").slice(0, 3);
