@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { totalsOf, type Lines } from "@/lib/guias/acct-engine";
 import { commissionOf } from "@/lib/guias/acct-import";
 import { parseAmount, RUBROS, type AmountKey } from "@/lib/guias/commission-edit";
-import { saveShipmentAmounts } from "@/server/acct-actions";
+import { createInvoiceForShipment, recalcShipmentAction, saveShipmentAmounts } from "@/server/acct-actions";
 
 export type DetailShipment = Lines & {
   id: string;
@@ -114,6 +114,33 @@ function ShipmentEditor({ shipment, splits, invoice, onDone }: { shipment: Detai
       setMessage({ kind: "ok", text: `Saved. The profit is ${money(result.profit)}.` });
       router.refresh();
       onDone();
+    });
+  }
+
+  function recalc() {
+    setMessage(null);
+    start(async () => {
+      const result = await recalcShipmentAction(shipment.id);
+      if (!result.ok) {
+        setMessage({ kind: "error", text: result.error });
+        return;
+      }
+      setMessage({ kind: "ok", text: "Worked out again with the rules of the client." });
+      router.refresh();
+      onDone();
+    });
+  }
+
+  function makeInvoice() {
+    setMessage(null);
+    start(async () => {
+      const result = await createInvoiceForShipment(shipment.id);
+      if (!result.ok) {
+        setMessage({ kind: "error", text: result.error });
+        return;
+      }
+      setMessage({ kind: "ok", text: `Draft invoice #${result.number} made. Review it in Invoices.` });
+      router.refresh();
     });
   }
 
@@ -248,6 +275,16 @@ function ShipmentEditor({ shipment, splits, invoice, onDone }: { shipment: Detai
         <Button type="button" size="sm" variant="outline" onClick={onDone} disabled={pending}>
           Cancel
         </Button>
+        {!invoice ? (
+          <>
+            <Button type="button" size="sm" variant="outline" onClick={recalc} disabled={pending} title="Works the shipment out again with the rates, charges and split the client has now. What was typed by hand stays.">
+              Recalculate with the client rules
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={makeInvoice} disabled={pending} title="Makes the draft invoice from the numbers of this shipment as they are now.">
+              Create invoice
+            </Button>
+          </>
+        ) : null}
         {message ? <span className={`text-sm ${message.kind === "error" ? "text-stuck" : "text-muted-foreground"}`}>{message.text}</span> : null}
       </div>
     </div>

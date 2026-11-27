@@ -2,7 +2,7 @@ import { codeForPlace } from "@/lib/awb/airports";
 import { prisma } from "@/lib/db";
 import { ruleCost, ruleOf, tableFor, type CostRule } from "@/lib/guias/acct-costs";
 import { airlineOfAwb, linesFor, matchProvider, NO_RULES, totalsOf, tripShares, uldsFromBup, uldText, type ClientRules, type Lines } from "@/lib/guias/acct-engine";
-import { isManual, overrideFromInvoice } from "@/lib/guias/commission-edit";
+import { AMOUNT_KEYS, isManual, overrideFromInvoice } from "@/lib/guias/commission-edit";
 import { pickupTruckerOf } from "@/lib/guias/files";
 import { ensureAcctClientByName, ensureAcctClientFor } from "@/lib/guias/acct-link";
 import { normalizeBillToName } from "@/lib/guias/bill-to-name";
@@ -105,15 +105,13 @@ export async function settleTrips(date: Date, provider: string, kind: "pickup" |
 }
 
 /**
- * Makes the accounting row of an issued AWB, once. The client rules, the rate table of its date, the ULDs of its BUP and
- * the providers of its pickup order and its delivery order give its costs and its sell. What could not be worked out
- * is written in the note of the row, to be filled in by hand.
+ * Works out the accounting numbers of an issued AWB: the client rules, the rate table of the date, the ULDs of its BUP and
+ * the providers of its pickup order and its delivery order give its costs and its sell. What could not be worked out is in
+ * the notes, to be filled in by hand. Null when the AWB is not issued.
  */
-export async function createAcctForGuia(guiaId: string): Promise<{ created: boolean; notes: string[] }> {
-  const existing = await prisma.acctShipment.findUnique({ where: { guiaId }, select: { id: true } });
-  if (existing) return { created: false, notes: [] };
+async function buildAcct(guiaId: string, date: Date) {
   const guia = await prisma.airWaybillDocument.findFirst({ where: { id: guiaId, product: "guia", status: "issued" }, include: { lines: { orderBy: { sortOrder: "asc" } }, guiaClient: { select: { name: true } } } });
-  if (!guia) return { created: false, notes: [] };
+  if (!guia) return null;
   const notes: string[] = [];
   const clientLabel = guia.guiaClient?.name || guia.clientLabel || "";
   const client = await clientFor(clientLabel, guia.guiaClientId);
@@ -124,7 +122,6 @@ export async function createAcctForGuia(guiaId: string): Promise<{ created: bool
   const awb = guia.awb.trim();
   const airline = airlineOfAwb(awb) ?? (guia.carrierName ?? "").toUpperCase();
   const dest = destinationCode(guia.destination);
-  const date = day(today());
   const line = guia.lines[0];
   const pcs = line?.pieces ?? 0;
   const gross = line?.grossWeight ?? 0;
@@ -168,12 +165,27 @@ export async function createAcctForGuia(guiaId: string): Promise<{ created: bool
     minimums: { pickup: settings.minPickupSold ?? 75, handling: settings.minHandlingSold ?? 75, transfer: settings.minTransferSold ?? 75 },
     pickupCost: tiered(pickupRule, pcs), transferCost: tiered(transferRule, pcs), aes: 0,
   });
+  return {
+    client, rules, lines, notes, pickupProvider, transferProvider,
+    fields: {
+      client: client?.name ?? (clientLabel.toUpperCase() || "NO CLIENT"), awb, airline, dest, uldText: uldText(ulds), pcs, gross, chw,
+      costRate: lane?.buyRate ?? null, sellRate: rules.flatSellPerKg ?? lane?.sellRate ?? null,
+    },
+  };
+}
+
+/** Makes the accounting row of an issued AWB, once. */
+export async function createAcctForGuia(guiaId: string): Promise<{ created: boolean; notes: string[] }> {
+  const existing = await prisma.acctShipment.findUnique({ where: { guiaId }, select: { id: true } });
+  if (existing) return { created: false, notes: [] };
+  const date = day(today());
+  const built = await buildAcct(guiaId, date);
+  if (!built) return { created: false, notes: [] };
+  const { client, rules, lines, notes, pickupProvider, transferProvider } = built;
   const totals = totalsOf(lines, rules.kopeInCost);
   const created = await prisma.acctShipment.create({
     data: {
-      guiaId, date, client: client?.name ?? (clientLabel.toUpperCase() || "NO CLIENT"), awb, airline, dest, uldText: uldText(ulds), pcs, gross, chw,
-      costRate: lane?.buyRate ?? null, sellRate: rules.flatSellPerKg ?? lane?.sellRate ?? null,
-      pickupProvider, transferProvider, kopeInCost: rules.kopeInCost,
+      guiaId, date, ...built.fields, pickupProvider, transferProvider, kopeInCost: rules.kopeInCost,
       ...lines, ...totals,
       note: notes.length ? notes.join(" ") : null, source: "guia",
     },
@@ -184,4 +196,40 @@ export async function createAcctForGuia(guiaId: string): Promise<{ created: bool
   if (pickupProvider) await settleTrips(date, pickupProvider, "pickup");
   if (transferProvider) await settleTrips(date, transferProvider, "transfer");
   return { created: true, notes };
+}
+
+/**
+ * Works a shipment out again with the rules the client has now: for an AWB that was issued before its client was
+ * configured. The amounts typed by hand are kept, and so are the splits once somebody was paid. A shipment that already has
+ * an invoice is left alone, because the invoice was made from its numbers.
+ */
+export async function recalcShipment(shipmentId: string): Promise<{ ok: true; notes: string[] } | { ok: false; error: string }> {
+  const shipment = await prisma.acctShipment.findUnique({ where: { id: shipmentId }, include: { splits: true } });
+  if (!shipment) return { ok: false, error: "That shipment was not found." };
+  if (!shipment.guiaId) return { ok: false, error: "This shipment did not come from an AWB of the system, so it cannot be worked out again." };
+  const invoice = await prisma.invoice.findUnique({ where: { shipmentId }, select: { number: true } });
+  if (invoice) return { ok: false, error: `Invoice #${invoice.number} was already made from this shipment. Correct its amounts by hand instead.` };
+  const built = await buildAcct(shipment.guiaId, shipment.date);
+  if (!built) return { ok: false, error: "The AWB of this shipment is not issued." };
+  const lines = { ...built.lines };
+  for (const key of AMOUNT_KEYS) if (isManual(shipment.manualFields, key)) lines[key] = shipment[key];
+  const kopeInCost = isManual(shipment.manualFields, "kopeInCost") ? shipment.kopeInCost : built.rules.kopeInCost;
+  const totals = totalsOf(lines, kopeInCost, shipment.invoicedOverride);
+  const clientSplits = built.client?.splits ?? [];
+  const anyPaid = shipment.splits.some((split) => split.paid);
+  await prisma.$transaction([
+    prisma.acctShipment.update({
+      where: { id: shipmentId },
+      data: { ...built.fields, pickupProvider: built.pickupProvider, transferProvider: built.transferProvider, kopeInCost, ...lines, ...totals, note: built.notes.length ? built.notes.join(" ") : null },
+    }),
+    ...(!anyPaid && clientSplits.length
+      ? [
+          prisma.acctSplit.deleteMany({ where: { shipmentId } }),
+          prisma.acctSplit.createMany({ data: clientSplits.map((split) => ({ shipmentId, payee: split.payee, pct: split.pct })) }),
+        ]
+      : []),
+  ]);
+  if (built.pickupProvider) await settleTrips(shipment.date, built.pickupProvider, "pickup");
+  if (built.transferProvider) await settleTrips(shipment.date, built.transferProvider, "transfer");
+  return { ok: true, notes: built.notes };
 }

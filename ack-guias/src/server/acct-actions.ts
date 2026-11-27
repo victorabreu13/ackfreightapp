@@ -6,7 +6,9 @@ import { canViewFinance } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { shipmentsFromCsv } from "@/lib/guias/acct-import";
+import { recalcShipment } from "@/lib/guias/acct-service";
 import { planShipmentEdit, type EditInput } from "@/lib/guias/commission-edit";
+import { createInvoiceForGuia } from "@/lib/guias/invoice-service";
 
 function text(value: FormDataEntryValue | null): string {
   return String(value ?? "").trim();
@@ -97,6 +99,71 @@ export async function saveShipmentAmounts(shipmentId: string, input: EditInput):
   revalidatePath("/guias/commissions");
   revalidatePath("/guias/accounting");
   return { ok: true, profit: plan.totals.profit };
+}
+
+/** Works one shipment out again with the rules its client has now (for an AWB issued before the client was configured). */
+export async function recalcShipmentAction(shipmentId: string): Promise<{ ok: true; notes: string[] } | { ok: false; error: string }> {
+  await requireFinance();
+  const result = await recalcShipment(shipmentId);
+  revalidatePath("/guias/commissions");
+  revalidatePath("/guias/accounting");
+  return result;
+}
+
+/** Makes the draft invoice of a shipment that has none, from its numbers as they are now. */
+export async function createInvoiceForShipment(shipmentId: string): Promise<{ ok: true; number: number } | { ok: false; error: string }> {
+  await requireFinance();
+  const shipment = await prisma.acctShipment.findUnique({ where: { id: shipmentId }, select: { guiaId: true } });
+  if (!shipment?.guiaId) return { ok: false, error: "This shipment did not come from an AWB of the system, so it has no invoice to make." };
+  const result = await createInvoiceForGuia(shipment.guiaId);
+  revalidatePath("/guias/invoices");
+  revalidatePath("/guias/commissions");
+  revalidatePath("/guias/accounting");
+  if (result.number != null) return { ok: true, number: result.number };
+  return { ok: false, error: result.note ?? "The invoice was not made." };
+}
+
+/**
+ * Catches up the AWBs that were issued without an invoice: for each shipment chosen, its client is worked out again with
+ * the rules it has now (unless that is turned off) and its draft invoice is made. A client that is still to configure is
+ * skipped, since its rules are not set yet.
+ */
+export async function createPendingInvoices(formData: FormData) {
+  await requireFinance();
+  const ids = formData.getAll("shipmentId").map(String);
+  const recalc = text(formData.get("recalc")) === "1";
+  const back = (message: string, kind: "notice" | "error" = "notice"): never => redirect(`/guias/accounting?${kind}=${encodeURIComponent(message)}`);
+  if (ids.length === 0) back("Choose at least one shipment.", "error");
+  const shipments = await prisma.acctShipment.findMany({ where: { id: { in: ids }, guiaId: { not: null } }, orderBy: { date: "asc" } });
+  const pending = await prisma.acctClient.findMany({ where: { needsSetup: true }, select: { name: true } });
+  const toConfigure = new Set(pending.map((client) => client.name));
+  let made = 0;
+  const skipped: string[] = [];
+  for (const shipment of shipments) {
+    if (toConfigure.has(shipment.client)) {
+      skipped.push(`${shipment.awb} (configure ${shipment.client} first)`);
+      continue;
+    }
+    try {
+      if (recalc) {
+        const worked = await recalcShipment(shipment.id);
+        if (!worked.ok) {
+          skipped.push(`${shipment.awb} (${worked.error})`);
+          continue;
+        }
+      }
+      const result = await createInvoiceForGuia(shipment.guiaId as string);
+      if (result.created) made += 1;
+      else skipped.push(`${shipment.awb} (${result.number != null ? `it already has invoice #${result.number}` : (result.note ?? "no invoice")})`);
+    } catch (error) {
+      console.error("pending invoice", shipment.awb, error);
+      skipped.push(`${shipment.awb} (error)`);
+    }
+  }
+  revalidatePath("/guias/invoices");
+  revalidatePath("/guias/commissions");
+  revalidatePath("/guias/accounting");
+  back(`${made} draft invoices made.${skipped.length ? ` Left out: ${skipped.join("; ")}.` : ""} Review them in Invoices before sending.`);
 }
 
 /** Marks the chosen commissions as paid to the person, as of today, or back as unpaid. */

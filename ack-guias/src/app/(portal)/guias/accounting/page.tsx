@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { GuiaEyebrow } from "@/components/guia-eyebrow";
+import { SelectAll } from "@/components/select-all";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { canViewFinance } from "@/lib/access";
@@ -8,7 +9,7 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { commissionStatus, monthRange, shortDate, usd } from "@/lib/guias/acct-format";
 import { commissionOf } from "@/lib/guias/acct-import";
-import { importShipments, setClientPaid } from "@/server/acct-actions";
+import { createPendingInvoices, importShipments, setClientPaid } from "@/server/acct-actions";
 import type { Prisma } from "@prisma/client";
 
 function one(params: Record<string, string | string[] | undefined>, key: string) {
@@ -46,6 +47,16 @@ export default async function AccountingShipmentsPage({ searchParams }: { search
     prisma.acctPerson.findMany({ select: { name: true, houseShare: true } }),
     prisma.acctShipment.findMany({ select: { date: true }, orderBy: { date: "desc" } }),
   ]);
+  // The shipments of AWBs of the system that have no invoice yet, to catch them up in one go.
+  const invoiced = await prisma.invoice.findMany({ where: { shipmentId: { not: null } }, select: { shipmentId: true } });
+  const invoicedIds = invoiced.map((invoice) => invoice.shipmentId as string);
+  const pendingWhere: Prisma.AcctShipmentWhereInput = { guiaId: { not: null }, id: { notIn: invoicedIds } };
+  const [pendingCount, pendingRows, toConfigure] = await Promise.all([
+    prisma.acctShipment.count({ where: pendingWhere }),
+    prisma.acctShipment.findMany({ where: pendingWhere, orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 100, select: { id: true, date: true, awb: true, client: true, invoiced: true } }),
+    prisma.acctClient.findMany({ where: { needsSetup: true }, select: { name: true } }),
+  ]);
+  const unconfigured = new Set(toConfigure.map((row) => row.name));
   const houses = new Set(persons.filter((person) => person.houseShare).map((person) => person.name));
   const monthOptions = [...new Set(months.map((row) => row.date.toISOString().slice(0, 7)))];
   const owed = shipments.reduce((sum, shipment) => sum + shipment.splits.filter((split) => !houses.has(split.payee) && !split.paid).reduce((inner, split) => inner + commissionOf(shipment.profit, split.pct), 0), 0);
@@ -71,6 +82,58 @@ export default async function AccountingShipmentsPage({ searchParams }: { search
       </div>
       {notice ? <p className="rounded-md bg-secondary px-3 py-2 text-sm">{notice}</p> : null}
       {error ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">{error}</p> : null}
+
+      {pendingCount > 0 ? (
+        <details className="rounded-lg border border-border bg-card p-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            {pendingCount} shipments have no invoice. Choose which to catch up.
+          </summary>
+          <form id="pending-form" action={createPendingInvoices} className="mt-4 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Each chosen shipment is worked out again with the rules its client has now (rates, charges and split), and its draft invoice is made. You review the drafts in Invoices before sending. A client still to configure is left out.
+            </p>
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead className="border-b border-border text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2">
+                      <SelectAll formId="pending-form" name="shipmentId" />
+                    </th>
+                    <th className="px-3 py-2">Date</th>
+                    <th className="px-3 py-2">AWB</th>
+                    <th className="px-3 py-2">Client</th>
+                    <th className="px-3 py-2 text-right">Invoiced now</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingRows.map((row) => (
+                    <tr key={row.id} className="border-b border-border last:border-0">
+                      <td className="px-3 py-2">
+                        <input type="checkbox" name="shipmentId" value={row.id} aria-label={`Select ${row.awb}`} />
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2">{shortDate(row.date)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{row.awb}</td>
+                      <td className="px-3 py-2">
+                        {row.client}
+                        {unconfigured.has(row.client) ? <span className="ml-2 rounded-full bg-[#fff1e4] px-2 py-0.5 text-xs text-stuck">to configure</span> : null}
+                      </td>
+                      <td className="px-3 py-2 text-right">{usd(row.invoiced)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {pendingCount > pendingRows.length ? <p className="text-xs text-muted-foreground">Showing the latest {pendingRows.length} of {pendingCount}.</p> : null}
+            <div className="flex flex-wrap items-center gap-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="recalc" value="1" defaultChecked />
+                Work the shipment out again with the client rules first
+              </label>
+              <Button type="submit">Make the invoices of the chosen shipments</Button>
+            </div>
+          </form>
+        </details>
+      ) : null}
 
       <section className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 lg:grid-cols-5">
         {[
