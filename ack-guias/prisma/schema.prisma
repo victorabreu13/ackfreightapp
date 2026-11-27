@@ -1,0 +1,816 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OPERATIONS
+  ACCOUNTING
+  VIEWER
+  /// A client of ACK who signs in with a password to see only the AWBs and flight status of its own guías.
+  CUSTOMER
+}
+
+/// Google Workspace user. There is no password and no link to any other company's book.
+model User {
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  name               String?
+  role               Role
+  image              String?
+  authProvider       String   @default("google")
+  /// Set only when role is ACCOUNTING. Always the ACK issuer.
+  accountingAgentKey String?
+  active             Boolean  @default(true)
+  /// Customers only. Scrypt hash of the password they chose when they registered.
+  passwordHash       String?
+  /// Customers only. The client in the book that this login belongs to.
+  guiaClientId       String?
+  guiaClient         GuiaClient? @relation(fields: [guiaClientId], references: [id], onDelete: SetNull)
+  lastLoginAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([guiaClientId])
+}
+
+/// A one-time link that lets a client's contact choose a password. Only the hash of the token is stored.
+model CustomerInvite {
+  id           String     @id @default(cuid())
+  tokenHash    String     @unique
+  /// The token encrypted with AUTH_SECRET, so staff can copy a pending link again. It never appears in a URL.
+  tokenEnc     String?
+  email        String
+  guiaClientId String
+  guiaClient   GuiaClient @relation(fields: [guiaClientId], references: [id], onDelete: Cascade)
+  createdBy    String
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime   @default(now())
+
+  @@index([guiaClientId])
+  @@index([email])
+}
+
+/// First carriers: the name that prints in By First Carrier and under Issued By, with its address.
+model Carrier {
+  id        String   @id @default(cuid())
+  name      String
+  address   String   @db.Text
+  /// AWB prefix of the airline, used when a guía does not pick a carrier.
+  prefix    String?
+  iata      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([prefix])
+}
+
+model AirlinePrefix {
+  prefix              String   @id
+  airline             String
+  iata                String?
+  trackingUrlTemplate String?
+  parserType          String   @default("none")
+  notes               String?
+  updatedAt           DateTime @updatedAt
+}
+
+/// The only issuing carrier agent. ACK TEAM LLC.
+model IssuingAgent {
+  key           String   @id
+  legalName     String
+  address       String   @db.Text
+  phone         String?
+  city          String
+  iataCode      String
+  accountNo     String?
+  signatureLine String
+  conditions    String   @default("bilingual")
+  copyLabel     String?
+  updatedAt     DateTime @updatedAt
+  documents     AirWaybillDocument[]
+  stock         AwbStockNumber[]
+  profile       CompanyProfile?
+  guiaClients   GuiaClient[]
+  parties       GuiaParty[]
+  agreedRates   ClientAgreedRate[]
+  quickBooks    QuickBooksConnection?
+}
+
+model AirWaybillDocument {
+  id               String       @id @default(cuid())
+  agentKey         String
+  agent            IssuingAgent @relation(fields: [agentKey], references: [key])
+  awb              String
+  prefix           String
+  serial           String
+  shipperName      String?
+  shipperAddress   String?      @db.Text
+  shipperAccount   String?
+  consigneeName    String?
+  consigneeAddress String?      @db.Text
+  consigneeAccount String?
+  carrierId        String?
+  carrierName      String?
+  carrierAddress   String?      @db.Text
+  accountNo        String?
+  referenceNumber  String?
+  departure        String?
+  to1              String?
+  by1              String?
+  to2              String?
+  by2              String?
+  to3              String?
+  by3              String?
+  currency         String       @default("USD")
+  chgsCode         String       @default("PP")
+  wtVal            String       @default("PPD")
+  otherPpc         String       @default("PPD")
+  declaredCarriage String       @default("NVC")
+  declaredCustoms  String       @default("NVD")
+  destination      String?
+  flightDate       String?
+  insurance        String?
+  handling         String?      @db.Text
+  /// AES Internal Transaction Number. Printed as "AES ITN: …". Blank prints the NO EEI exemption instead.
+  aesItn           String?
+  sci              String?
+  destCountry      String?
+  hawb             String?
+  /// Carries declarable dangerous goods. Adds the DGD line to Handling Information.
+  dgDeclarable     Boolean      @default(false)
+  /// Cargo Aircraft Only. With dangerous goods it prints after "Dangerous Goods as per associated DGD" as "- CAO".
+  cargoAircraftOnly Boolean    @default(false)
+  /// Extra charges of the guía as JSON [{description, amount}]. They print in Other Charges and add to Total Prepaid.
+  otherChargesJson String?     @db.Text
+  /// Notes of the pickup order, from the pickup request. They print in the Notes box of the pickup order.
+  pickupNotes      String?     @db.Text
+  /// UN numbers of the dangerous goods, like "UN3481, UN1950".
+  unNumbers        String?
+  /// Moves as a BUP (unit load device). The shipment checklist then lists the CCSF and the CCSP.
+  bup              Boolean      @default(false)
+  /// For a BUP: the elements and pieces, one per line, printed in the Nature of Goods under the AES ITN.
+  bupItems         String?      @db.Text
+  /// Packing instruction (965 to 970) of lithium batteries shipped under Section II. No DGD, and the AWB names the PI.
+  lithiumPi        String?
+  /// Last flight status seen by the checker, like DEPARTED or DELAYED. Null until the first check.
+  flightStatus     String?
+  /// What the status source said about the flight: times, airports. JSON.
+  flightStatusDetail String?     @db.Text
+  flightCheckedAt  DateTime?
+  /** Marked completed by the team: the guía leaves the Guías screen. */
+  completedAt      DateTime?
+  completedBy      String?
+  flightEvents     GuiaFlightEvent[]
+  otherChargesText String?      @db.Text
+  accountingInfo   String?      @db.Text
+  weightCharge     Float?
+  valuationCharge  Float?       @default(0)
+  taxCharge        Float?       @default(0)
+  otherDueAgent    Float?       @default(0)
+  otherDueCarrier  Float?       @default(0)
+  shipperSignature String?
+  executedOn       String?
+  executedAt       String?
+  carrierSignature String?
+  status           String       @default("issued")
+  threadId         String?
+  createdBy        String?
+  product          String       @default("guia")
+  guiaClientId     String?
+  guiaClient       GuiaClient?  @relation(fields: [guiaClientId], references: [id], onDelete: SetNull)
+  clientLabel      String?
+  notifyName       String?
+  notifyAddress    String?      @db.Text
+  flightNumber     String?
+  truckerName      String?
+  /// Who did the pickup, when it is not who delivers. The pickup order prints it. Empty means the trucker.
+  pickupTruckerName String?
+  truckerPhone     String?
+  driverName       String?
+  /// Pallet, Box, Pieces or Crates. Prints in the Package column of the pickup order.
+  packageType      String?
+  /// The pieces, the gross weight or the chargeable weight was typed by hand, so a warehouse receipt never overwrites it.
+  piecesManual     Boolean      @default(false)
+  grossManual      Boolean      @default(false)
+  chargeableManual Boolean      @default(false)
+  /// Receipt values the user chose to ignore, as JSON like {"chargeableKg":"536.2"}. The notice returns if the receipt changes.
+  wrDismissed      String?      @db.Text
+  /// "pax" or "cargo": decides which TSA letter the guía carries. Empty until the team picks one.
+  aircraft         String?
+  /// Whether the cargo goes screened: only then the guía carries the CCSF and the CCSP.
+  screened         Boolean      @default(false)
+  changeLog        GuiaChangeLog[]
+  seal             String?
+  reviewJson      String?      @db.Text
+  snippetJson      String?      @db.Text
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  invoiceNumber    String?
+  invoiceDate      DateTime?
+  invoiceAmount    Float?
+  invoicedAt       DateTime?
+  invoicedBy       String?
+  qboInvoiceId     String?
+  qboDocNumber     String?
+  qboRealmId       String?
+  qboClaimedAt     DateTime?
+  lines            AwbGoodsLine[]
+  warehouseReceipts WarehouseReceipt[]
+  pickupRequests   PickupRequest[]
+  stock            AwbStockNumber?
+  driveFiles       GuiaDriveFile[]
+  loggedDocuments  GuiaDocument[]
+  /// A house air waybill (product "house") points to the master guía it travels under. Its number is in hawb.
+  masterId         String?
+  master           AirWaybillDocument?  @relation("MasterHouses", fields: [masterId], references: [id], onDelete: SetNull)
+  houses           AirWaybillDocument[] @relation("MasterHouses")
+
+  @@index([awb])
+  @@index([agentKey])
+  @@index([status])
+  @@index([product])
+  @@index([guiaClientId])
+  @@index([masterId])
+}
+
+/// The next house number to hand out, one counter per company.
+model HouseCounter {
+  key  String @id
+  next Int    @default(1)
+}
+
+/// What an airline charges ACK (cost, in buyRate) and what ACK charges for it (sell), in dollars per kilo, to one
+/// destination. The rates come in tables: a table is every row with the same effectiveFrom, and a shipment uses the
+/// newest table that starts on or before its date. The airline is its short code: LATAM, AVI, AJT.
+model AirlineRate {
+  id            String   @id @default(cuid())
+  airline       String
+  destination   String
+  effectiveFrom DateTime @default("2026-11-01T00:00:00.000Z") @db.Date
+  sellRate      Float?
+  buyRate       Float?
+  sortOrder     Int      @default(0)
+  updatedAt     DateTime @updatedAt
+  updatedBy     String?
+
+  @@unique([airline, destination, effectiveFrom])
+  @@index([airline])
+  @@index([effectiveFrom])
+}
+
+/// The people who share in the profit of a shipment. The house share (ACK) is not paid out.
+model AcctPerson {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  houseShare Boolean  @default(false)
+  email      String?
+  sortOrder  Int      @default(0)
+  updatedAt  DateTime @updatedAt
+}
+
+/// What handling costs ACK for each kind of ULD.
+model AcctUldCost {
+  uld             String   @id
+  handlingCost    Float    @default(0)
+  updatedAt       DateTime @updatedAt
+}
+
+/// Numbers of the accounting that are not tied to a client: the minimums charged on the sell side.
+model AcctSetting {
+  key       String   @id
+  value     Float
+  updatedAt DateTime @updatedAt
+}
+
+/// Who does a pickup or a transfer, and what it costs ACK. Each of the two has a way of charging:
+///   per_trip: one price for the trip, which carries several guías and is charged to the biggest one
+///   tiered:   a base price for the first pallets, then a step price for each further group of pallets or pieces
+///   manual:   the cost is typed on the shipment
+model AcctProvider {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  /// Names a trucker can go by on the pickup order and on the delivery order, separated by commas, to know it is this provider.
+  aliases            String?
+  pickupMode         String   @default("manual")
+  pickupTripCost     Float?
+  pickupBaseCost     Float?
+  pickupBasePallets  Int?
+  pickupStepCost     Float?
+  pickupStepPallets  Int?
+  /// The most a tiered pickup can cost, however many pallets.
+  pickupCap          Float?
+  transferMode       String   @default("manual")
+  transferTripCost   Float?
+  transferBaseCost   Float?
+  transferBasePallets Int?
+  transferStepCost   Float?
+  transferStepPallets Int?
+  /// The most a tiered transfer can cost, however many pallets.
+  transferCap        Float?
+  sortOrder          Int      @default(0)
+  updatedAt          DateTime @updatedAt
+}
+
+/// How a client is charged and how its profit is shared. The pickup, the handling and the transfer are charged per kilo
+/// of the gross weight or of the chargeable weight, with the minimums of the accounting. A flat sell rate takes the
+/// place of the rate table.
+model AcctClient {
+  id               String            @id @default(cuid())
+  name             String            @unique
+  guiaClientId     String?           @unique
+  kopeHandlingPct  Float             @default(10)
+  kopeInCost       Boolean           @default(true)
+  pickupPerKg      Float             @default(0.15)
+  handlingPerKg    Float             @default(0.2)
+  transferPerKg    Float             @default(0.15)
+  /// "gross" or "chw": the weight the pickup, the handling and the transfer are charged on.
+  chargeBasis      String            @default("chw")
+  insuranceCostPct Float             @default(0.35)
+  insuranceSoldPct Float             @default(0.5)
+  awbFee           Float             @default(0)
+  flatSellPerKg    Float?
+  pickupProvider   String?
+  transferProvider String?
+  /// Who the invoice is billed to: the name and address printed on it, and the emails it is sent to (one per line or comma).
+  billToName       String?
+  billToAddress    String?           @db.Text
+  billingEmails    String?           @db.Text
+  /// Made by the system when a client was created, and not configured yet by accounting.
+  needsSetup       Boolean           @default(false)
+  updatedAt        DateTime          @updatedAt
+  splits           AcctClientSplit[]
+}
+
+/// The share of the profit each person takes from the shipments of a client, unless a shipment says otherwise.
+model AcctClientSplit {
+  id       String     @id @default(cuid())
+  clientId String
+  client   AcctClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  payee    String
+  pct      Float
+
+  @@index([clientId])
+}
+
+/// One shipment of the accounting: what it cost ACK, what ACK invoiced and the profit that is shared. Those that came
+/// from the Google Sheet have a legacyId. Those made here when a guía is issued have a guiaId.
+model AcctShipment {
+  id              String      @id @default(cuid())
+  legacyId        String?     @unique
+  guiaId          String?     @unique
+  date            DateTime    @db.Date
+  client          String
+  awb             String
+  awb2            String?
+  airline         String
+  dest            String
+  uldText         String?
+  pcs             Int         @default(0)
+  gross           Float       @default(0)
+  chw             Float       @default(0)
+  cargoValue      Float       @default(0)
+  invoiceNo       String?
+  /// The providers that did the pickup and the transfer, which decide their cost.
+  pickupProvider  String?
+  transferProvider String?
+  clientPaid      Boolean     @default(false)
+  clientPaidDate  DateTime?   @db.Date
+  costRate        Float?
+  sellRate        Float?
+  airCost         Float       @default(0)
+  airSold         Float       @default(0)
+  pickupCost      Float       @default(0)
+  pickupSold      Float       @default(0)
+  handlingCost    Float       @default(0)
+  handlingSold    Float       @default(0)
+  transferCost    Float       @default(0)
+  transferSold    Float       @default(0)
+  kopeHandling    Float       @default(0)
+  kopeInCost      Boolean     @default(false)
+  insuranceCost   Float       @default(0)
+  insuranceSold   Float       @default(0)
+  aes             Float       @default(0)
+  awbFee          Float       @default(0)
+  /// Charges that have no rubro of their own (a DGD, an inspection): what they cost ACK and what the client pays.
+  otherCost       Float       @default(0)
+  otherSold       Float       @default(0)
+  invoicedOverride Float?
+  costTotal       Float       @default(0)
+  invoiced        Float       @default(0)
+  profit          Float       @default(0)
+  note            String?     @db.Text
+  source          String?
+  manualFields    String?     @db.Text
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  splits          AcctSplit[]
+
+  @@index([date])
+  @@index([client])
+  @@index([awb])
+}
+
+/// A share of the profit of a shipment. The payee is a person of the team, or ACK, whose share is the house's.
+model AcctSplit {
+  id         String       @id @default(cuid())
+  shipmentId String
+  shipment   AcctShipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  payee      String
+  pct        Float
+  paid       Boolean      @default(false)
+  paidDate   DateTime?    @db.Date
+
+  @@index([shipmentId])
+  @@index([payee])
+}
+
+/// Who changed a field of a guía, when, from what to what: by hand, by a warehouse receipt, or by a reset to the receipt.
+model GuiaChangeLog {
+  id        String             @id @default(cuid())
+  guiaId    String
+  guia      AirWaybillDocument @relation(fields: [guiaId], references: [id], onDelete: Cascade)
+  field     String
+  oldValue  String?            @db.Text
+  newValue  String?            @db.Text
+  /// manual, receipt or reset.
+  source    String
+  changedBy String
+  createdAt DateTime           @default(now())
+
+  @@index([guiaId, createdAt])
+}
+
+model CompanyProfile {
+  agentKey         String       @id
+  agent            IssuingAgent @relation(fields: [agentKey], references: [key], onDelete: Cascade)
+  brandName        String
+  letterheadName   String
+  address          String       @db.Text
+  phone            String?
+  fax              String?
+  opsEmail         String?
+  contactName      String?
+  contactTitle     String?
+  termsUrl         String?
+  tsaIacId         String?
+  ccsfId           String?
+  warehouseName    String?
+  warehouseAddress String?      @db.Text
+  signerName       String
+  signerTitle      String?
+  logo             Bytes?
+  logoMime         String?
+  /// The signer's handwritten signature, printed on the issued air waybill and the lithium battery letter.
+  signature        Bytes?
+  signatureMime    String?
+  updatedAt        DateTime     @updatedAt
+}
+
+model GuiaDriveFile {
+  id          String             @id @default(cuid())
+  documentId  String
+  document    AirWaybillDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  kind        String
+  fileName    String
+  driveFileId String?
+  driveUrl    String?
+  error       String?            @db.Text
+  updatedAt   DateTime           @updatedAt
+
+  @@unique([documentId, kind])
+  @@index([documentId])
+}
+
+model GuiaDocument {
+  id          String              @id @default(cuid())
+  guiaId      String?
+  guia        AirWaybillDocument? @relation(fields: [guiaId], references: [id], onDelete: SetNull)
+  client      String
+  awb         String
+  company     String
+  kind        String
+  fileName    String
+  driveFileId String?
+  driveUrl    String?
+  status      String
+  error       String?             @db.Text
+  generatedAt DateTime            @default(now())
+  generatedBy String
+  source      String              @default("generated")
+  mime        String?
+  size        Int?
+  file        GuiaDocumentFile?
+
+  @@index([client])
+  @@index([awb])
+  @@index([kind])
+  @@index([company])
+  @@index([generatedAt])
+  @@index([guiaId, kind])
+  @@index([status])
+}
+
+/// The PDF or upload itself. Kept apart from GuiaDocument so listing documents never loads the bytes.
+model GuiaDocumentFile {
+  documentId String       @id
+  document   GuiaDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  bytes      Bytes
+  updatedAt  DateTime     @updatedAt
+}
+
+model AwbGoodsLine {
+  id               String             @id @default(cuid())
+  documentId       String
+  document         AirWaybillDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  pieces           Int?
+  grossWeight      Float?
+  kgLb             String             @default("K")
+  rateClass        String?
+  commodity        String?
+  chargeableWeight Float?
+  rate             Float?
+  total            Float?
+  nature           String?            @db.Text
+  length           Float?
+  width            Float?
+  height           Float?
+  dimUnit          String?
+  sortOrder        Int                @default(0)
+
+  @@index([documentId])
+}
+
+model AwbStockNumber {
+  id         String              @id @default(cuid())
+  prefix     String
+  serial     String
+  awb        String              @unique
+  agentKey   String
+  agent      IssuingAgent        @relation(fields: [agentKey], references: [key])
+  status     String              @default("available")
+  documentId String?             @unique
+  document   AirWaybillDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  createdAt  DateTime            @default(now())
+
+  @@index([prefix, agentKey, status])
+}
+
+model GuiaClient {
+  id             String           @id @default(cuid())
+  agentKey       String
+  agent          IssuingAgent     @relation(fields: [agentKey], references: [key], onDelete: Cascade)
+  name           String
+  normalizedName String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  guias          AirWaybillDocument[]
+  agreedRates    ClientAgreedRate[]
+  parties        GuiaParty[]
+  customers      User[]
+  invites        CustomerInvite[]
+
+  @@unique([agentKey, normalizedName])
+  @@index([agentKey])
+}
+
+/// Address book: the shippers, consignees and notify parties a client ships with.
+/// Typing a name on a new guía searches this table, and every saved guía adds to it.
+model GuiaParty {
+  id             String        @id @default(cuid())
+  agentKey       String
+  agent          IssuingAgent  @relation(fields: [agentKey], references: [key], onDelete: Cascade)
+  guiaClientId   String?
+  guiaClient     GuiaClient?   @relation(fields: [guiaClientId], references: [id], onDelete: SetNull)
+  /// SHIPPER, CONSIGNEE or NOTIFY
+  role           String
+  name           String
+  normalizedName String
+  address        String?       @db.Text
+  phone          String?
+  email          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([agentKey, guiaClientId, role, normalizedName])
+  @@index([agentKey, role, normalizedName])
+  @@index([guiaClientId])
+}
+
+/// Each change of flight status seen for a guía, and whether the client was emailed about it.
+model GuiaFlightEvent {
+  id         String             @id @default(cuid())
+  documentId String
+  document   AirWaybillDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  status     String
+  detail     String?            @db.Text
+  emailedTo  String?            @db.Text
+  emailError String?            @db.Text
+  createdAt  DateTime           @default(now())
+
+  @@index([documentId, createdAt])
+}
+
+/// USD per chargeable kg. This is not the rate printed on the AWB face.
+model ClientAgreedRate {
+  id           String     @id @default(cuid())
+  agentKey     String
+  agent        IssuingAgent @relation(fields: [agentKey], references: [key], onDelete: Cascade)
+  guiaClientId String
+  guiaClient   GuiaClient @relation(fields: [guiaClientId], references: [id], onDelete: Cascade)
+  ratePerKg    Float
+  currency     String     @default("USD")
+  updatedBy    String?
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([agentKey, guiaClientId])
+  @@index([agentKey])
+  @@index([guiaClientId])
+}
+
+model QuickBooksConnection {
+  agentKey         String       @id
+  agent            IssuingAgent @relation(fields: [agentKey], references: [key], onDelete: Cascade)
+  realmId          String
+  accessTokenEnc   String       @db.Text
+  refreshTokenEnc  String       @db.Text
+  accessExpiresAt  DateTime
+  refreshExpiresAt DateTime?
+  connectedBy      String
+  connectedAt      DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([realmId])
+}
+
+/// A request to pick up cargo at the shipper. Generating it creates the draft guía and the pickup order.
+model PickupRequest {
+  id             String              @id @default(cuid())
+  /// Shown as PU-0001.
+  seq            Int                 @unique @default(autoincrement())
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  createdBy      String
+  clientLabel    String
+  shipperName    String
+  shipperAddress String              @db.Text
+  contactName    String?
+  contactPhone   String?
+  contactEmail   String?
+  consigneeName  String?
+  consigneeAddress String?           @db.Text
+  destination    String?
+  pieces         Int?
+  /// Pallet, Box, Pieces or Crates.
+  packageType    String?
+  weightKg       Float?
+  description    String?             @db.Text
+  /// The day and the time the cargo is ready, as typed.
+  pickupDate     String?
+  readyTime      String?
+  truckerName    String?
+  truckerPhone   String?
+  driverName     String?
+  notes          String?             @db.Text
+  guiaId         String?
+  guia           AirWaybillDocument? @relation(fields: [guiaId], references: [id], onDelete: SetNull)
+  receipts       WarehouseReceipt[]
+
+  @@index([guiaId])
+}
+
+/// Cargo received in the warehouse. Several receipts can feed one guía.
+model WarehouseReceipt {
+  id               String              @id @default(cuid())
+  /// Shown as K5500.
+  seq              Int                 @unique @default(autoincrement())
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  createdBy        String
+  receivedAt       DateTime            @default(now())
+  warehouse        String              @default("Warehouse 2 - Site 1")
+  receivedBy       String?
+  clientLabel      String?
+  shipperName      String?
+  shipperAddress   String?             @db.Text
+  consigneeName    String?
+  consigneeAddress String?             @db.Text
+  carrier          String?
+  driver           String?
+  driverLicense    String?
+  supplier         String?
+  invoiceNumber    String?
+  poNumber         String?
+  pickupNumber     String?
+  /// Tracking number or AWB number.
+  trackingNumber   String?
+  proNumber        String?
+  htPallet         Boolean             @default(false)
+  palletType       String?
+  /// Such as "HAZMAT - UN 3481". Empty when the cargo is not dangerous.
+  dangerousGood    String?
+  sealedDrum       String?
+  notes            String?             @db.Text
+  guiaId           String?
+  guia             AirWaybillDocument? @relation(fields: [guiaId], references: [id], onDelete: SetNull)
+  pickupRequestId  String?
+  pickupRequest    PickupRequest?      @relation(fields: [pickupRequestId], references: [id], onDelete: SetNull)
+  lines            WarehouseReceiptLine[]
+
+  @@index([guiaId])
+  @@index([pickupRequestId])
+}
+
+/// One handling unit of a receipt: the pieces on it, its measures in inches and its weight in kg.
+model WarehouseReceiptLine {
+  id          String           @id @default(cuid())
+  receiptId   String
+  receipt     WarehouseReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  sortOrder   Int              @default(0)
+  pieces      Int              @default(1)
+  packageType String?
+  length      Float?
+  width       Float?
+  height      Float?
+  weightKg    Float?
+  location    String?
+  description String?          @db.Text
+  notes       String?          @db.Text
+  pcTracking  String?
+
+  @@index([receiptId])
+}
+
+/// The drivers who deliver cargo to the warehouse, with their trucking company and license. A receipt remembers them.
+model TruckDriver {
+  id         String   @id @default(cuid())
+  carrier    String
+  name       String
+  license    String?
+  phone      String?
+  carrierKey String
+  nameKey    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([carrierKey, nameKey])
+}
+
+/// The last invoice number used. The next invoice takes the number after it.
+model InvoiceCounter {
+  id         String @id
+  lastNumber Int
+}
+
+/// An invoice to a client, made by ACK Guías from the accounting row of a guía. It is a draft until accounting sends it; once
+/// sent it is also shown to the client in its portal.
+model Invoice {
+  id            String        @id @default(cuid())
+  number        Int           @unique
+  shipmentId    String?       @unique
+  guiaId        String?
+  /// The client of the book whose portal shows the invoice once it is sent.
+  guiaClientId  String?
+  client        String
+  billToName    String
+  billToAddress String?       @db.Text
+  /// The emails it is sent to, one per line or separated by commas.
+  emails        String?       @db.Text
+  awb           String?
+  invoiceDate   DateTime      @db.Date
+  dueDate       DateTime      @db.Date
+  terms         String        @default("Due on receipt")
+  /// draft or sent
+  status        String        @default("draft")
+  sentAt        DateTime?
+  sentTo        String?       @db.Text
+  total         Float         @default(0)
+  note          String?       @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  lines         InvoiceLine[]
+
+  @@index([guiaClientId, status])
+  @@index([status, invoiceDate])
+}
+
+model InvoiceLine {
+  id          String    @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sortOrder   Int       @default(0)
+  serviceDate DateTime? @db.Date
+  product     String
+  description String    @default("") @db.Text
+  qty         Float     @default(1)
+  rate        Float     @default(0)
+  amount      Float     @default(0)
+
+  @@index([invoiceId])
+}

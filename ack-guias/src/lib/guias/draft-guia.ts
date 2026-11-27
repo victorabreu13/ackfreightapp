@@ -1,0 +1,74 @@
+import { prisma } from "@/lib/db";
+import { blank, documentData, lineData } from "@/lib/guias/guia-data";
+import { ensureGuiaClient } from "@/lib/guias/guia-client";
+import { packageTypeFrom } from "@/lib/guias/package-types";
+import type { GuiaValues } from "@/lib/guias/extract";
+import { rememberGuiaParties } from "@/lib/guias/parties";
+
+export const EMPTY_GUIA_VALUES: GuiaValues = {
+  client: "",
+  shipper: "",
+  shipperAddress: "",
+  consignee: "",
+  consigneeAddress: "",
+  notify: "",
+  notifyAddress: "",
+  origin: "",
+  destination: "",
+  flightNumber: "",
+  flightDate: "",
+  pieces: "",
+  chargeableKg: "",
+  rate: "",
+  grossKg: "",
+  goods: "",
+  handling: "",
+  aesItn: "",
+  hawb: "",
+  dg: "",
+  cao: "",
+  otherCharges: "",
+  unNumbers: "",
+  bup: "",
+  bupItems: "",
+  lithiumPi: "",
+  issuingCompany: "ack",
+};
+
+/**
+ * A draft AWB for ACK TEAM LLC made from the values of a pickup request or a receipt. It has no AWB number yet, the
+ * way an AWB saved from the new AWB form does not.
+ */
+export async function createDraftGuia(
+  values: GuiaValues,
+  extra: { createdBy: string; truckerName?: string; pickupTruckerName?: string; pickupNotes?: string; truckerPhone?: string; driverName?: string; packageType?: string },
+): Promise<{ id: string }> {
+  const billTo = await ensureGuiaClient("ack", values.client);
+  const created = await prisma.airWaybillDocument.create({
+    data: {
+      ...documentData(values, [], {}, billTo?.id ?? null),
+      product: "guia",
+      status: "draft",
+      awb: "",
+      prefix: "",
+      serial: "",
+      agentKey: "ack",
+      createdBy: extra.createdBy,
+      truckerName: blank(extra.truckerName ?? ""),
+      pickupTruckerName: blank(extra.pickupTruckerName ?? extra.truckerName ?? ""),
+      pickupNotes: blank(extra.pickupNotes ?? ""),
+      truckerPhone: blank(extra.truckerPhone ?? ""),
+      driverName: blank(extra.driverName ?? ""),
+      packageType: blank(packageTypeFrom(extra.packageType)),
+      // A draft starts as cargo, like the new AWB form. The team changes it in the form.
+      aircraft: "cargo",
+      lines: { create: [lineData(values)] },
+    },
+  });
+  try {
+    await rememberGuiaParties("ack", billTo?.id ?? null, values);
+  } catch (error) {
+    console.error("AWB directory", error);
+  }
+  return { id: created.id };
+}

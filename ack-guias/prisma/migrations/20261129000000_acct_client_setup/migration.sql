@@ -1,0 +1,1 @@
+ALTER TABLE "AcctClient" ADD COLUMN "needsSetup" BOOLEAN NOT NULL DEFAULT false;
