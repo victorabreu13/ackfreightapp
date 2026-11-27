@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isManual, parseAmount, planShipmentEdit, type EditInput, type ShipmentAmounts } from "@/lib/guias/commission-edit";
+import { isManual, overrideFromInvoice, parseAmount, planShipmentEdit, type EditInput, type ShipmentAmounts } from "@/lib/guias/commission-edit";
 
 const current: ShipmentAmounts = {
   airCost: 672.19, airSold: 948.27, pickupCost: 50, pickupSold: 75.68, handlingCost: 45, handlingSold: 100.9, transferCost: 50, transferSold: 75.68,
@@ -77,4 +77,15 @@ test("a typed amount that is not a number is refused, and the fields not sent ke
   if ("error" in kept) return;
   assert.equal(kept.data.airCost, 672.19);
   assert.equal(kept.data.airSold, 1000);
+});
+
+test("charges added to the invoice become the invoiced total, and an invoice that is just the sum holds nothing by hand", () => {
+  assert.equal(overrideFromInvoice(614.7, 864.7), 864.7);
+  assert.equal(overrideFromInvoice(614.7, 614.7), null);
+  assert.equal(overrideFromInvoice(614.7, 614.700001), null);
+  // The profit follows: the invoiced total minus the cost.
+  const plan = planShipmentEdit(current, splits, same({ invoicedOverride: "1500" }));
+  assert.ok(!("error" in plan));
+  if ("error" in plan) return;
+  assert.equal(plan.totals.profit, Math.round((1500 - plan.totals.costTotal) * 100) / 100);
 });

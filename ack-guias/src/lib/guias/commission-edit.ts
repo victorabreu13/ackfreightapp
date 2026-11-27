@@ -110,6 +110,16 @@ export function planShipmentEdit(current: ShipmentAmounts, currentSplits: Array<
   };
 }
 
+/**
+ * The invoice total a shipment holds after its invoice was saved. What the client is billed is what was invoiced, so charges
+ * added to the invoice (a DGD, an inspection) count in the profit and the commissions. When the invoice is just the sum of
+ * what was sold there is nothing typed by hand: null.
+ */
+export function overrideFromInvoice(soldSum: number, invoiceTotal: number): number | null {
+  const total = cents(invoiceTotal);
+  return total === cents(soldSum) ? null : total;
+}
+
 /** Whether a column was typed by hand, so that a shared-out trip price leaves it alone. */
 export function isManual(manualFields: string | null | undefined, key: string): boolean {
   return (manualFields ?? "").split(",").map((item) => item.trim()).includes(key);

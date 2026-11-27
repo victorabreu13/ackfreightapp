@@ -2,7 +2,7 @@ import { codeForPlace } from "@/lib/awb/airports";
 import { prisma } from "@/lib/db";
 import { ruleCost, ruleOf, tableFor, type CostRule } from "@/lib/guias/acct-costs";
 import { airlineOfAwb, linesFor, matchProvider, NO_RULES, totalsOf, tripShares, uldsFromBup, uldText, type ClientRules, type Lines } from "@/lib/guias/acct-engine";
-import { isManual } from "@/lib/guias/commission-edit";
+import { isManual, overrideFromInvoice } from "@/lib/guias/commission-edit";
 import { pickupTruckerOf } from "@/lib/guias/files";
 import { normalizeBillToName } from "@/lib/guias/guia-client";
 
@@ -39,6 +39,20 @@ export function totalsFromShipment(shipment: ShipmentLines) {
     kopeHandling: shipment.kopeHandling, insuranceCost: shipment.insuranceCost, insuranceSold: shipment.insuranceSold, aes: shipment.aes, awbFee: shipment.awbFee,
   };
   return totalsOf(lines, shipment.kopeInCost, shipment.invoicedOverride);
+}
+
+/**
+ * Makes the shipment follow its invoice: the total of the invoice is what was invoiced, so the profit and the commissions
+ * include the charges added to the invoice. Called each time the draft of the invoice is saved.
+ */
+export async function syncShipmentWithInvoice(shipmentId: string, invoiceTotal: number): Promise<void> {
+  const shipment = await prisma.acctShipment.findUnique({ where: { id: shipmentId } });
+  if (!shipment) return;
+  const soldSum = totalsFromShipment({ ...shipment, invoicedOverride: null }).invoiced;
+  const invoicedOverride = overrideFromInvoice(soldSum, invoiceTotal);
+  const totals = totalsFromShipment({ ...shipment, invoicedOverride });
+  if (invoicedOverride === shipment.invoicedOverride && totals.invoiced === shipment.invoiced && totals.profit === shipment.profit) return;
+  await prisma.acctShipment.update({ where: { id: shipmentId }, data: { invoicedOverride, ...totals } });
 }
 
 /** The accounting client of an AWB, by its name. */

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { canViewFinance } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { syncShipmentWithInvoice } from "@/lib/guias/acct-service";
 import { amountOf, dayFrom, dueDateFor, emailsFrom, totalOf, type InvoiceLineDraft } from "@/lib/guias/invoice-lines";
 import { DUE_DAYS, guiaCopyPdf, invoicePdf, linesData, TERMS } from "@/lib/guias/invoice-service";
 import { sendMail } from "@/lib/guias/mailer";
@@ -61,7 +62,7 @@ function linesFromForm(formData: FormData): { lines: InvoiceLineDraft[]; error: 
 
 /** Saves what the form holds into a draft. Returns where to go with an error, or null when it was saved. */
 async function saveDraft(id: string, formData: FormData): Promise<string | null> {
-  const invoice = await prisma.invoice.findUnique({ where: { id }, select: { status: true } });
+  const invoice = await prisma.invoice.findUnique({ where: { id }, select: { status: true, shipmentId: true } });
   if (!invoice) return "That invoice was not found.";
   if (invoice.status !== "draft") return "That invoice was already sent, so it can no longer be edited.";
   const billToName = text(formData.get("billToName"));
@@ -92,6 +93,12 @@ async function saveDraft(id: string, formData: FormData): Promise<string | null>
       },
     }),
   ]);
+  // The charges added to the invoice count in the profit and the commissions of its shipment.
+  if (invoice.shipmentId) {
+    await syncShipmentWithInvoice(invoice.shipmentId, totalOf(lines));
+    revalidatePath("/guias/commissions");
+    revalidatePath("/guias/accounting");
+  }
   return null;
 }
 
