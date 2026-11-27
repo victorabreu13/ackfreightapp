@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { GuiaEyebrow } from "@/components/guia-eyebrow";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,11 @@ export default async function AcctClientsPage({ searchParams }: { searchParams: 
   const linkedIds = new Set(clients.map((client) => client.guiaClientId).filter(Boolean));
   const freeBooks = books.filter((book) => !linkedIds.has(book.id));
   const toSetUp = clients.filter((client) => client.needsSetup);
+  // The search looks in the name of the accounting client and in the name typed on the AWBs.
+  const q = (one(params, "q") ?? "").trim().toLowerCase();
+  const shown = q
+    ? clients.filter((client) => client.name.toLowerCase().includes(q) || (client.guiaClientId ? (bookOf.get(client.guiaClientId)?.name.toLowerCase().includes(q) ?? false) : false))
+    : clients;
 
   return (
     <div className="space-y-6">
@@ -69,11 +75,28 @@ export default async function AcctClientsPage({ searchParams }: { searchParams: 
 
       <section className="space-y-3">
         <h2 className="font-display text-2xl">Clients</h2>
-        {clients.map((client) => {
+        <form className="flex flex-wrap items-center gap-2">
+          <Input name="q" defaultValue={one(params, "q") ?? ""} placeholder="Search a client…" aria-label="Search clients" className="h-10 w-72" />
+          <Button type="submit" variant="outline">
+            Search
+          </Button>
+          {q ? (
+            <>
+              <Link href="/guias/acct-clients" className="text-sm underline-offset-2 hover:underline">
+                Clear
+              </Link>
+              <span className="text-sm text-muted-foreground">
+                {shown.length} of {clients.length}
+              </span>
+            </>
+          ) : null}
+        </form>
+        {q && shown.length === 0 ? <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">No client matches that search.</p> : null}
+        {shown.map((client) => {
           const stat = statsOf(client.name);
           const rows = [...client.splits.map((split) => ({ payee: split.payee, pct: String(split.pct) })), ...Array.from({ length: SPARE_ROWS }, () => ({ payee: "", pct: "" }))];
           return (
-            <details key={client.id} open={client.needsSetup || undefined} className={`rounded-lg border bg-card p-4 ${client.needsSetup ? "border-stuck" : "border-border"}`}>
+            <details key={client.id} className={`rounded-lg border bg-card p-4 ${client.needsSetup ? "border-stuck" : "border-border"}`}>
               <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-2">
                 <span className="font-display text-xl">{client.name}</span>
                 {client.needsSetup ? <span className="rounded-full bg-[#fff1e4] px-2 py-0.5 text-xs text-stuck">To configure</span> : null}
