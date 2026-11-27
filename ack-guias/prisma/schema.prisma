@@ -327,9 +327,9 @@ model AcctClient {
   guiaClientId     String?           @unique
   kopeHandlingPct  Float             @default(10)
   kopeInCost       Boolean           @default(true)
-  pickupPerKg      Float             @default(0)
-  handlingPerKg    Float             @default(0)
-  transferPerKg    Float             @default(0)
+  pickupPerKg      Float             @default(0.15)
+  handlingPerKg    Float             @default(0.2)
+  transferPerKg    Float             @default(0.15)
   /// "gross" or "chw": the weight the pickup, the handling and the transfer are charged on.
   chargeBasis      String            @default("chw")
   insuranceCostPct Float             @default(0.35)
