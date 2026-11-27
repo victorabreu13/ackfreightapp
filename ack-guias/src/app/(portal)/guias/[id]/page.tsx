@@ -122,6 +122,8 @@ export default async function GuiaDetailPage({
   const agreed = linked
     ? await prisma.clientAgreedRate.findUnique({ where: { agentKey_guiaClientId: { agentKey: document.agentKey, guiaClientId: linked.id } } })
     : null;
+  // A client made automatically in Clients & team has no charges or split until accounting configures it.
+  const clientSetup = linked ? await prisma.acctClient.findFirst({ where: { guiaClientId: linked.id, needsSetup: true }, select: { name: true } }) : null;
   const canEditRate = canEditAgreedRate(user);
   const companyClients = canEditRate
     ? (
@@ -263,6 +265,11 @@ export default async function GuiaDetailPage({
       {one(query, "assigned") ? <p className="text-sm text-muted-foreground">AWB assigned. The draft and the labels already print with that number.</p> : null}
       {one(query, "released") ? <p className="text-sm text-muted-foreground">AWB returned to stock.</p> : null}
       {one(query, "issued") ? <p className="text-sm text-muted-foreground">Issued. The PDF download does not depend on Drive.</p> : null}
+      {clientSetup ? (
+        <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">
+          The client {clientSetup.name} is new: it was added to Clients &amp; team and has to be configured there (how it is charged, its split of the profit and its invoice data) before its invoices and commissions are right.
+        </p>
+      ) : null}
       {one(query, "dateUpdated") ? <p className="text-sm text-muted-foreground">Date updated to {one(query, "dateUpdated")}. The documents you download now carry it.</p> : null}
       {drive && drive !== "ok" ? <p className="rounded-md bg-[#fff1e4] px-3 py-2 text-sm text-stuck">Drive: {drive}</p> : null}
       {drive === "ok" ? <p className="text-sm text-muted-foreground">Saved to Drive.</p> : null}

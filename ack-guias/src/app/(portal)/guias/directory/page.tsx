@@ -24,7 +24,7 @@ const SAVED_TEXT: Record<string, string> = {
   saved: "Saved.",
   deleted: "Deleted.",
   renamed: "Client renamed.",
-  client: "Client created.",
+  client: "Client created. It was also added to Clients & team: configure how it is charged, its split and its invoice data there.",
   exists: "That client already exists.",
   invited: "Invitation created and sent by email.",
   "invited-nomail": "Invitation created. Email is not configured: copy the link below and send it to the client.",

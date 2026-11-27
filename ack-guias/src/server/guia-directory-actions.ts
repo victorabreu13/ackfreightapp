@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { ACK_AGENT_KEY, canManageGuias } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { ensureAcctClientFor } from "@/lib/guias/acct-link";
 import { normalizeBillToName } from "@/lib/guias/guia-client";
 import { isPartyRole, normalizePartyName } from "@/lib/guias/parties";
 
@@ -134,6 +135,13 @@ export async function createDirectoryClient(formData: FormData) {
   const existing = await prisma.guiaClient.findUnique({ where: { agentKey_normalizedName: { agentKey: ACK_AGENT_KEY, normalizedName } } });
   if (existing) back(existing.id, { saved: "exists" });
   const created = await prisma.guiaClient.create({ data: { agentKey: ACK_AGENT_KEY, name, normalizedName } });
+  // The client also gets its place in Clients & team, to be configured there.
+  try {
+    await ensureAcctClientFor({ id: created.id, name: created.name });
+  } catch (error) {
+    console.error("accounting client", error);
+  }
+  revalidatePath("/guias/acct-clients");
   revalidatePath("/guias/directory");
   back(created.id, { saved: "client" });
 }

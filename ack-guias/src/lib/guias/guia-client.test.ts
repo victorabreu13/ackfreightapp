@@ -18,14 +18,17 @@ test("bill-to names fold punctuation and keep LLC", () => {
 test("clients and rates are ACK only", () => {
   const form = readFileSync(new URL("../../components/guia-client-rate-form.tsx", import.meta.url), "utf8");
   assert.match(form, /Agreed rate \(USD\/chargeable kg\)/);
-  const page = readFileSync(new URL("../../app/(portal)/guias/clients/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /Clients and rates/);
-  assert.match(page, /isAdmin/);
+  // The rates of the clients are set in Clients & team, the one list of the clients: the old page only leads there.
+  const page = readFileSync(new URL("../../app/(portal)/guias/acct-clients/page.tsx", import.meta.url), "utf8");
+  assert.match(page, /Agreed rate \(USD per chargeable kg\)/);
   assert.match(page, /agentKey: "ack"/);
   assert.equal(page.includes('title="Kope"'), false);
   assert.equal(page.includes('agentKey="kope"'), false);
+  const old = readFileSync(new URL("../../app/(portal)/guias/clients/page.tsx", import.meta.url), "utf8");
+  assert.match(old, /redirect\("\/guias\/acct-clients"\)/);
   const nav = readFileSync(new URL("./nav.ts", import.meta.url), "utf8");
-  assert.match(nav, /href: "\/guias\/clients"/);
+  assert.match(nav, /href: "\/guias\/acct-clients"/);
+  assert.equal(nav.includes('href: "/guias/clients"'), false);
   const actions = readFileSync(new URL("../../server/guia-actions.ts", import.meta.url), "utf8");
   assert.equal(actions.includes("matchClient"), false);
   assert.match(actions, /ensureGuiaClient/);

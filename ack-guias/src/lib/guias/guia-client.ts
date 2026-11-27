@@ -1,14 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { normalizeBillToName } from "@/lib/guias/bill-to-name";
 
-/**
- * Bill-to key for one company. "PACIFIKO, LLC" and "pacifiko llc" match.
- * LLC stays. The shipper is not a bill-to.
- */
-export function normalizeBillToName(value: string | null | undefined): string {
-  const folded = (value ?? "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-  return folded.replace(/[^A-Z0-9]+/g, " ").trim().replace(/ +/g, " ");
-}
+export { normalizeBillToName };
 
 export function guiaBillToName(row: {
   guiaClient?: { name: string } | null;
@@ -40,6 +34,14 @@ export async function ensureGuiaClient(agentKey: string, billTo: string | null |
     const created = await prisma.guiaClient.create({
       data: { agentKey: key, name, normalizedName },
     });
+    if (key === "ack") {
+      try {
+        const { ensureAcctClientFor } = await import("@/lib/guias/acct-link");
+        await ensureAcctClientFor({ id: created.id, name: created.name });
+      } catch (acctError) {
+        console.error("accounting client", acctError);
+      }
+    }
     return { id: created.id, name: created.name, agentKey: created.agentKey };
   } catch (error) {
     if (!isUnique(error)) throw error;

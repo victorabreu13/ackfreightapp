@@ -4,7 +4,8 @@ import { ruleCost, ruleOf, tableFor, type CostRule } from "@/lib/guias/acct-cost
 import { airlineOfAwb, linesFor, matchProvider, NO_RULES, totalsOf, tripShares, uldsFromBup, uldText, type ClientRules, type Lines } from "@/lib/guias/acct-engine";
 import { isManual, overrideFromInvoice } from "@/lib/guias/commission-edit";
 import { pickupTruckerOf } from "@/lib/guias/files";
-import { normalizeBillToName } from "@/lib/guias/guia-client";
+import { ensureAcctClientByName, ensureAcctClientFor } from "@/lib/guias/acct-link";
+import { normalizeBillToName } from "@/lib/guias/bill-to-name";
 
 /** The accounting row of an AWB: made when the AWB is issued, from its numbers, its client and its truckers. */
 
@@ -55,19 +56,29 @@ export async function syncShipmentWithInvoice(shipmentId: string, invoiceTotal: 
   await prisma.acctShipment.update({ where: { id: shipmentId }, data: { invoicedOverride, ...totals } });
 }
 
-/** The accounting client of an AWB, by its name. */
-async function clientFor(name: string) {
+/**
+ * The accounting client of an AWB: the one linked to its client, or the one whose name matches. When there is none it is
+ * made now, marked as not configured, so the AWB is never left without a client in Clients & team.
+ */
+async function clientFor(name: string, guiaClientId: string | null) {
+  const withSplits = { splits: true } as const;
+  if (guiaClientId) {
+    const linked = await prisma.acctClient.findUnique({ where: { guiaClientId }, include: withSplits });
+    if (linked) return linked;
+  }
   const wanted = normalizeBillToName(name);
   if (!wanted) return null;
-  const clients = await prisma.acctClient.findMany({ include: { splits: true } });
-  return (
+  const clients = await prisma.acctClient.findMany({ include: withSplits });
+  const found =
     clients.find((client) => normalizeBillToName(client.name) === wanted) ??
     clients.find((client) => {
       const key = normalizeBillToName(client.name);
       return key.length >= 3 && (wanted.startsWith(`${key} `) || wanted === key);
     }) ??
-    null
-  );
+    null;
+  if (found) return found;
+  const made = guiaClientId ? await ensureAcctClientFor({ id: guiaClientId, name }) : await ensureAcctClientByName(name);
+  return made ? prisma.acctClient.findUnique({ where: { id: made.id }, include: withSplits }) : null;
 }
 
 /**
@@ -105,7 +116,8 @@ export async function createAcctForGuia(guiaId: string): Promise<{ created: bool
   if (!guia) return { created: false, notes: [] };
   const notes: string[] = [];
   const clientLabel = guia.guiaClient?.name || guia.clientLabel || "";
-  const client = await clientFor(clientLabel);
+  const client = await clientFor(clientLabel, guia.guiaClientId);
+  if (client?.needsSetup) notes.push(`The client ${client.name} was made automatically and is not configured yet: set how it is charged, its split and its invoice data in Clients & team.`);
   if (!client) notes.push(`No accounting client matches "${clientLabel}": its rules and its split were left empty.`);
   const rules: ClientRules = client ?? NO_RULES;
 

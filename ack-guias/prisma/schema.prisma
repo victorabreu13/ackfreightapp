@@ -342,6 +342,8 @@ model AcctClient {
   billToName       String?
   billToAddress    String?           @db.Text
   billingEmails    String?           @db.Text
+  /// Made by the system when a client was created, and not configured yet by accounting.
+  needsSetup       Boolean           @default(false)
   updatedAt        DateTime          @updatedAt
   splits           AcctClientSplit[]
 }

@@ -31,17 +31,17 @@ test("each role sees only its own links, and an empty group is left out", () => 
     "Documents",
     "AWB Status",
     "Operations: Houses | Pickup requests | Warehouse receipts",
-    "Clients: Clients and rates | Directory",
-    "Accounting: Clients & team | Commissions | Costs | Invoices | Rates | Reports | Shipments",
+    "Clients: Clients & team | Directory",
+    "Accounting: Commissions | Costs | Invoices | Rates | Reports | Shipments",
     "Resources: AWB stock | Carriers | Custom Labels | Drivers | Labels DG | Templates",
     "Settings: Company | Users",
   ]);
   assert.deepEqual(labels("OPERATIONS"), ["AWB", "Documents", "AWB Status", "Operations: Houses | Pickup requests | Warehouse receipts", "Clients: Directory", "Resources: AWB stock | Carriers | Custom Labels | Drivers | Labels DG | Templates"]);
-  assert.deepEqual(labels("ACCOUNTING"), ["AWB", "Documents", "AWB Status", "Accounting: Clients & team | Commissions | Costs | Invoices | Rates | Reports | Shipments", "Resources: Templates"]);
+  assert.deepEqual(labels("ACCOUNTING"), ["AWB", "Documents", "AWB Status", "Clients: Clients & team", "Accounting: Commissions | Costs | Invoices | Rates | Reports | Shipments", "Resources: Templates"]);
   assert.deepEqual(labels("VIEWER"), ["AWB", "Documents", "AWB Status", "Resources: Templates"]);
 });
 
 test("the flat list still has every page of the menu", () => {
-  assert.equal(GUIAS_NAV.length, 23);
+  assert.equal(GUIAS_NAV.length, 22);
   assert.ok(GUIAS_NAV.some((link) => link.href === "/guias/users"));
 });

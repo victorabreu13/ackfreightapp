@@ -7,6 +7,8 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { chargeBasisFrom, splitError, splitRows } from "@/lib/guias/acct-clients";
 import { parseRate } from "@/lib/guias/airline-rates";
+import { ensureAcctClientFor } from "@/lib/guias/acct-link";
+import { ensureGuiaClient, normalizeBillToName } from "@/lib/guias/guia-client";
 import { emailsFrom } from "@/lib/guias/invoice-lines";
 
 function text(value: FormDataEntryValue | null): string {
@@ -17,6 +19,7 @@ async function requireFinance() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (!canViewFinance(user)) redirect("/guias?error=The%20accounting%20is%20only%20for%20the%20accounting");
+  return user;
 }
 
 function back(message: string, kind: "notice" | "error" = "notice"): never {
@@ -32,10 +35,22 @@ function amount(formData: FormData, name: string): number | null {
 
 /** Saves how a client is charged and its default split of the profit. Shipments already made keep their own split. */
 export async function saveAcctClient(formData: FormData) {
-  await requireFinance();
+  const user = await requireFinance();
   const id = text(formData.get("id"));
-  const found = await prisma.acctClient.findUnique({ where: { id }, select: { name: true } });
+  const found = await prisma.acctClient.findUnique({ where: { id }, select: { name: true, guiaClientId: true } });
   if (!found) back("That client was not found.", "error");
+  // The client of the AWBs it goes with, and the rate agreed with it per chargeable kilo (what the AWB is priced with).
+  const postedLink = text(formData.get("guiaClientId"));
+  const guiaClientId = postedLink || found.guiaClientId;
+  if (postedLink && postedLink !== found.guiaClientId) {
+    const book = await prisma.guiaClient.findFirst({ where: { id: postedLink, agentKey: "ack" }, select: { id: true } });
+    if (!book) back(`${found.name}: that client of the AWBs was not found.`, "error");
+    const taken = await prisma.acctClient.findFirst({ where: { guiaClientId: postedLink, NOT: { id } }, select: { name: true } });
+    if (taken) back(`${found.name}: that client of the AWBs already goes with ${taken.name}.`, "error");
+  }
+  const agreedText = text(formData.get("agreedRate")).replace(/,/g, "");
+  const agreed = agreedText === "" ? null : Number(agreedText);
+  if (agreed != null && (!Number.isFinite(agreed) || agreed <= 0)) back(`${found.name}: the agreed rate must be a number greater than zero. Nothing was saved.`, "error");
   const split = splitRows(formData.getAll("payee").map(String), formData.getAll("pct").map(String));
   if (split.error) back(`${found.name}: ${split.error} Nothing was saved.`, "error");
   const problem = splitError(split.rows);
@@ -60,27 +75,42 @@ export async function saveAcctClient(formData: FormData) {
         billToName: text(formData.get("billToName")) || null,
         billToAddress: text(formData.get("billToAddress")) || null,
         billingEmails: emailsFrom(text(formData.get("billingEmails"))).join("\n") || null,
+        guiaClientId: guiaClientId || null,
+        needsSetup: false,
       },
     }),
     prisma.acctClientSplit.deleteMany({ where: { clientId: id } }),
     prisma.acctClientSplit.createMany({ data: split.rows.map((row) => ({ clientId: id, payee: row.payee, pct: row.pct })) }),
+    ...(agreed != null && guiaClientId
+      ? [
+          prisma.clientAgreedRate.upsert({
+            where: { agentKey_guiaClientId: { agentKey: "ack", guiaClientId } },
+            create: { agentKey: "ack", guiaClientId, ratePerKg: agreed, updatedBy: user.email },
+            update: { ratePerKg: agreed, updatedBy: user.email },
+          }),
+        ]
+      : []),
   ]);
   revalidatePath("/guias/acct-clients");
   back(`${found.name} saved.`);
 }
 
-/** A new client with the usual rules and a split to complete. */
+/**
+ * A new client. It is one client for the AWBs and for the accounting: it is made in the client book of the AWBs and gets its
+ * place here, with the usual rules and the house share as its split, to be completed.
+ */
 export async function addAcctClient(formData: FormData) {
   await requireFinance();
-  const name = text(formData.get("name")).replace(/\s+/g, " ").toUpperCase();
-  if (!name) back("Type the name of the client.", "error");
-  const exists = await prisma.acctClient.findUnique({ where: { name }, select: { id: true } });
-  if (exists) back(`${name} is already a client.`, "error");
-  const house = await prisma.acctPerson.findFirst({ where: { houseShare: true }, select: { name: true } });
-  const created = await prisma.acctClient.create({ data: { name } });
-  if (house) await prisma.acctClientSplit.create({ data: { clientId: created.id, payee: house.name, pct: 100 } });
+  const name = text(formData.get("name")).replace(/\s+/g, " ");
+  if (!normalizeBillToName(name)) back("Type the name of the client.", "error");
+  const book = await ensureGuiaClient("ack", name);
+  if (!book) back("The client could not be saved.", "error");
+  const made = await ensureAcctClientFor({ id: book.id, name: book.name });
+  if (!made) back(`${name}: a client with that name is already here under another one of the AWBs. Choose it in its settings instead.`, "error");
   revalidatePath("/guias/acct-clients");
-  back(`${name} added. Set its split and its charges.`);
+  revalidatePath("/guias/directory");
+  const fresh = made.created || (await prisma.acctClient.findUnique({ where: { id: made.id }, select: { needsSetup: true } }))?.needsSetup;
+  back(fresh ? `${book.name} added. Set its split, its charges and its invoice data.` : `${book.name} was already a client: it is here as ${made.name}.`);
 }
 
 export async function deleteAcctClient(formData: FormData) {
