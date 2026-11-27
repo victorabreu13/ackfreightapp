@@ -11,7 +11,8 @@ const state: {
   guias: Row[];
   shipments: Row[];
   splits: Row[];
-} = { guias: [], shipments: [], splits: [] };
+  clients: Row[];
+} = { guias: [], shipments: [], splits: [], clients: [] };
 
 const providers = [
   { name: "ACK Team LLC", aliases: "ACK TEAM, ACK LOGISTICS", pickupMode: "per_trip", pickupTripCost: 40, pickupBaseCost: null, pickupBasePallets: null, pickupStepCost: null, pickupStepPallets: null, transferMode: "per_trip", transferTripCost: 40, transferBaseCost: null, transferBasePallets: null, transferStepCost: null, transferStepPallets: null },
@@ -34,7 +35,16 @@ const match = (row: Row, where: Row) => Object.entries(where).every(([key, value
     update: async ({ where, data }: { where: Row; data: Row }) => Object.assign(state.shipments.find((row) => row.id === where.id) as Row, data),
   },
   acctSplit: { createMany: async ({ data }: { data: Row[] }) => void state.splits.push(...data) },
-  acctClient: { findMany: async () => [pacifiko] },
+  acctClient: {
+    findMany: async () => [pacifiko, ...state.clients],
+    findUnique: async ({ where }: { where: Row }) => state.clients.find((row) => row.id === where.id) ?? null,
+    create: async ({ data }: { data: Row }) => {
+      const row = { id: `c${state.clients.length + 1}`, kopeHandlingPct: 10, kopeInCost: true, pickupPerKg: 0, handlingPerKg: 0, transferPerKg: 0, chargeBasis: "chw", insuranceCostPct: 0.35, insuranceSoldPct: 0.5, awbFee: 0, flatSellPerKg: null, splits: [], ...data };
+      state.clients.push(row);
+      return row;
+    },
+  },
+  acctPerson: { findFirst: async () => null },
   acctProvider: { findMany: async () => providers, findUnique: async ({ where }: { where: Row }) => providers.find((row) => row.name === where.name) ?? null },
   acctUldCost: { findMany: async () => [{ uld: "DQF", handlingCost: 50 }, { uld: "LOOSE", handlingCost: 0 }] },
   acctSetting: { findMany: async () => [{ key: "minPickupSold", value: 75 }, { key: "minHandlingSold", value: 75 }, { key: "minTransferSold", value: 75 }] },
@@ -119,11 +129,16 @@ test("the cost of the trip of the day goes to the biggest AWB, and RL Services i
 test("what could not be worked out is written in the note of the row", async () => {
   state.shipments = [];
   state.splits = [];
+  state.clients = [];
   state.guias = [guia({ id: "odd", awb: "045-56639999", destination: "MIAMI (MIA)", clientLabel: "UNKNOWN CO", guiaClient: { name: "UNKNOWN CO" }, truckerName: "KAY AIR DELIVERY", pickupTruckerName: null })];
   const { createAcctForGuia } = await import("@/lib/guias/acct-service");
   await createAcctForGuia("odd");
   const note = String(state.shipments[0].note);
-  assert.match(note, /No accounting client matches "UNKNOWN CO"/);
+  // A client that is not in Clients & team is added there, marked to configure, and the note says so.
+  assert.match(note, /The client UNKNOWN CO was made automatically and is not configured yet/);
+  assert.equal(state.clients.length, 1);
+  assert.equal(state.clients[0].name, "UNKNOWN CO");
+  assert.equal(state.clients[0].needsSetup, true);
   assert.match(note, /No rate for LATAM to MIA/);
   assert.match(note, /"KAY AIR DELIVERY" is not a provider/);
   assert.equal(state.splits.length, 0);
