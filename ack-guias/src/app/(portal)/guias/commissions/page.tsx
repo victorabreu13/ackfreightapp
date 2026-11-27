@@ -155,7 +155,7 @@ export default async function CommissionsPage({ searchParams }: { searchParams: 
                           invoiceNo: split.shipment.invoiceNo, note: split.shipment.note, manualFields: split.shipment.manualFields,
                           airCost: split.shipment.airCost, airSold: split.shipment.airSold, pickupCost: split.shipment.pickupCost, pickupSold: split.shipment.pickupSold,
                           handlingCost: split.shipment.handlingCost, handlingSold: split.shipment.handlingSold, transferCost: split.shipment.transferCost, transferSold: split.shipment.transferSold,
-                          kopeHandling: split.shipment.kopeHandling, insuranceCost: split.shipment.insuranceCost, insuranceSold: split.shipment.insuranceSold, aes: split.shipment.aes, awbFee: split.shipment.awbFee,
+                          kopeHandling: split.shipment.kopeHandling, insuranceCost: split.shipment.insuranceCost, insuranceSold: split.shipment.insuranceSold, aes: split.shipment.aes, awbFee: split.shipment.awbFee, otherCost: split.shipment.otherCost, otherSold: split.shipment.otherSold,
                         }}
                         splits={split.shipment.splits.map((item) => ({ id: item.id, payee: item.payee, pct: item.pct, paid: item.paid, house: houses.includes(item.payee) }))}
                       >

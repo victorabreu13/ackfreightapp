@@ -25,6 +25,8 @@ export type ShipmentForInvoice = {
   insuranceSold: number;
   aes: number;
   awbFee: number;
+  /** Charges with no rubro of their own. */
+  otherSold?: number;
   invoicedOverride: number | null;
   uldText: string | null;
 };
@@ -70,6 +72,7 @@ export function invoiceLinesFor(shipment: ShipmentForInvoice, context: InvoiceCo
   flat("AES", shipment.aes);
   flat("INSURANCE", shipment.insuranceSold, "Cargo insurance");
   flat("AWB", shipment.awbFee);
+  flat("OTHER CHARGES", shipment.otherSold ?? 0);
   // A total typed by hand in the accounting row is what the client owes, so the difference shows as its own line.
   if (shipment.invoicedOverride != null) {
     const difference = cents(shipment.invoicedOverride - totalOf(lines));

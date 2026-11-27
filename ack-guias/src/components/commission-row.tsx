@@ -263,7 +263,7 @@ function ShipmentEditor({ shipment, splits, invoice, onDone }: { shipment: Detai
         </label>
         {invoice ? (
           <p className="rounded-md bg-secondary px-3 py-2 text-xs text-muted-foreground">
-            Invoice #{invoice.number} ({invoice.status}) was made from this shipment. When the invoice is saved, its total is what was invoiced here, so charges added to the invoice count in the profit and the commissions. Correcting the amounts here does not change the invoice.
+            Invoice #{invoice.number} ({invoice.status}) was made from this shipment. When the invoice is saved, its lines are copied here: each one to its rubro, and the charges that have none (DGD, inspection) to Other charges. So what the client is billed is what counts in the profit and the commissions. Correcting the amounts here does not change the invoice.
           </p>
         ) : null}
       </div>

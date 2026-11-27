@@ -20,7 +20,7 @@ export async function loadReportShipments(filters: ReportFilters): Promise<Repor
     select: {
       date: true, client: true, dest: true, airline: true, pcs: true, gross: true, chw: true,
       airSold: true, airCost: true, pickupSold: true, pickupCost: true, handlingSold: true, handlingCost: true, transferSold: true, transferCost: true,
-      insuranceSold: true, insuranceCost: true, aes: true, awbFee: true, kopeHandling: true, kopeInCost: true, invoiced: true, costTotal: true, profit: true,
+      insuranceSold: true, insuranceCost: true, aes: true, awbFee: true, otherSold: true, otherCost: true, kopeHandling: true, kopeInCost: true, invoiced: true, costTotal: true, profit: true,
     },
   });
 }

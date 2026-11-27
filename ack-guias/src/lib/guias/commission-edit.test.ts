@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isManual, overrideFromInvoice, parseAmount, planShipmentEdit, type EditInput, type ShipmentAmounts } from "@/lib/guias/commission-edit";
+import { isManual, parseAmount, planShipmentEdit, soldFromInvoiceLines, type EditInput, type ShipmentAmounts } from "@/lib/guias/commission-edit";
 
 const current: ShipmentAmounts = {
   airCost: 672.19, airSold: 948.27, pickupCost: 50, pickupSold: 75.68, handlingCost: 45, handlingSold: 100.9, transferCost: 50, transferSold: 75.68,
-  kopeHandling: 60.02, kopeInCost: true, insuranceCost: 0, insuranceSold: 0, aes: 0, awbFee: 50, invoicedOverride: null, invoiceNo: null, note: null, manualFields: null,
+  kopeHandling: 60.02, otherCost: 0, otherSold: 0, kopeInCost: true, insuranceCost: 0, insuranceSold: 0, aes: 0, awbFee: 50, invoicedOverride: null, invoiceNo: null, note: null, manualFields: null,
 };
 const splits = [
   { id: "a", pct: 35 },
@@ -79,13 +79,34 @@ test("a typed amount that is not a number is refused, and the fields not sent ke
   assert.equal(kept.data.airSold, 1000);
 });
 
-test("charges added to the invoice become the invoiced total, and an invoice that is just the sum holds nothing by hand", () => {
-  assert.equal(overrideFromInvoice(614.7, 864.7), 864.7);
-  assert.equal(overrideFromInvoice(614.7, 614.7), null);
-  assert.equal(overrideFromInvoice(614.7, 614.700001), null);
-  // The profit follows: the invoiced total minus the cost.
-  const plan = planShipmentEdit(current, splits, same({ invoicedOverride: "1500" }));
-  assert.ok(!("error" in plan));
-  if ("error" in plan) return;
-  assert.equal(plan.totals.profit, Math.round((1500 - plan.totals.costTotal) * 100) / 100);
+test("the lines of the invoice go to their rubros, and a charge with no rubro goes to the other charges", () => {
+  // The invoice of AGRO-INDUSTRIAL CENTER: handling and transfer billed together, the air freight at its own price.
+  const sold = soldFromInvoiceLines([
+    { product: "PICKUP", amount: 75 },
+    { product: "HANDLING", amount: 75 },
+    { product: "AIRFREIGHT", amount: 350 },
+    { product: "AWB", amount: 50 },
+  ]);
+  assert.deepEqual(sold, { airSold: 350, pickupSold: 75, handlingSold: 75, transferSold: 0, insuranceSold: 0, aes: 0, awbFee: 50, otherSold: 0 });
+  // A DGD and its inspection are other charges, and the lines of a product add up.
+  const extra = soldFromInvoiceLines([
+    { product: "airport transfer", amount: 75 },
+    { product: "DGD", amount: 125 },
+    { product: "DGDI", amount: 125 },
+    { product: "PICKUP", amount: 40 },
+    { product: "PICKUP", amount: 35.5 },
+  ]);
+  assert.equal(extra.transferSold, 75);
+  assert.equal(extra.otherSold, 250);
+  assert.equal(extra.pickupSold, 75.5);
+});
+
+test("the other charges count in the totals, and what they cost takes from the profit", () => {
+  const withOther = { ...current, otherSold: 250, otherCost: 100 };
+  const base = planShipmentEdit(current, splits, same());
+  const plan = planShipmentEdit(withOther, splits, same({ amounts: { otherSold: "250", otherCost: "100" } }));
+  assert.ok(!("error" in base) && !("error" in plan));
+  if ("error" in base || "error" in plan) return;
+  assert.equal(Math.round((plan.totals.invoiced - base.totals.invoiced) * 100) / 100, 250);
+  assert.equal(Math.round((plan.totals.profit - base.totals.profit) * 100) / 100, 150);
 });

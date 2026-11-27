@@ -89,6 +89,9 @@ export type Lines = {
   insuranceSold: number;
   aes: number;
   awbFee: number;
+  /** Charges with no rubro of their own, typed by hand or taken from the invoice. */
+  otherCost: number;
+  otherSold: number;
 };
 
 export type Totals = { costTotal: number; invoiced: number; profit: number };
@@ -122,13 +125,15 @@ export function linesFor(input: EngineInput): Lines {
     insuranceSold: cents((rules.insuranceSoldPct / 100) * input.cargoValue),
     aes: cents(input.aes),
     awbFee: cents(rules.awbFee),
+    otherCost: 0,
+    otherSold: 0,
   };
 }
 
 /** What a shipment cost, what was invoiced and the profit, from its lines. An invoice total typed by hand takes the place of the sum. */
 export function totalsOf(lines: Lines, kopeInCost: boolean, invoicedOverride: number | null = null): Totals {
-  const costTotal = cents(lines.airCost + lines.pickupCost + lines.handlingCost + lines.transferCost + lines.insuranceCost + (kopeInCost ? lines.kopeHandling : 0));
-  const invoiced = invoicedOverride ?? cents(lines.airSold + lines.pickupSold + lines.handlingSold + lines.transferSold + lines.insuranceSold + lines.aes + lines.awbFee);
+  const costTotal = cents(lines.airCost + lines.pickupCost + lines.handlingCost + lines.transferCost + lines.insuranceCost + lines.otherCost + (kopeInCost ? lines.kopeHandling : 0));
+  const invoiced = invoicedOverride ?? cents(lines.airSold + lines.pickupSold + lines.handlingSold + lines.transferSold + lines.insuranceSold + lines.aes + lines.awbFee + lines.otherSold);
   return { costTotal, invoiced, profit: cents(invoiced - costTotal) };
 }
 

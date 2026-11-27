@@ -2,7 +2,7 @@ import { codeForPlace } from "@/lib/awb/airports";
 import { prisma } from "@/lib/db";
 import { ruleCost, ruleOf, tableFor, type CostRule } from "@/lib/guias/acct-costs";
 import { airlineOfAwb, linesFor, matchProvider, NO_RULES, totalsOf, tripShares, uldsFromBup, uldText, type ClientRules, type Lines } from "@/lib/guias/acct-engine";
-import { AMOUNT_KEYS, isManual, overrideFromInvoice } from "@/lib/guias/commission-edit";
+import { AMOUNT_KEYS, isManual, soldFromInvoiceLines } from "@/lib/guias/commission-edit";
 import { pickupTruckerOf } from "@/lib/guias/files";
 import { ensureAcctClientByName, ensureAcctClientFor } from "@/lib/guias/acct-link";
 import { normalizeBillToName } from "@/lib/guias/bill-to-name";
@@ -29,7 +29,7 @@ export function destinationCode(value: string | null | undefined): string {
 type ShipmentLines = {
   airCost: number; airSold: number; pickupCost: number; pickupSold: number; handlingCost: number; handlingSold: number;
   transferCost: number; transferSold: number; kopeHandling: number; kopeInCost: boolean; insuranceCost: number; insuranceSold: number;
-  aes: number; awbFee: number; invoicedOverride: number | null;
+  aes: number; awbFee: number; otherCost: number; otherSold: number; invoicedOverride: number | null;
 };
 
 /** The totals of a shipment from the lines it holds. */
@@ -38,22 +38,26 @@ export function totalsFromShipment(shipment: ShipmentLines) {
     airCost: shipment.airCost, airSold: shipment.airSold, pickupCost: shipment.pickupCost, pickupSold: shipment.pickupSold,
     handlingCost: shipment.handlingCost, handlingSold: shipment.handlingSold, transferCost: shipment.transferCost, transferSold: shipment.transferSold,
     kopeHandling: shipment.kopeHandling, insuranceCost: shipment.insuranceCost, insuranceSold: shipment.insuranceSold, aes: shipment.aes, awbFee: shipment.awbFee,
+    otherCost: shipment.otherCost, otherSold: shipment.otherSold,
   };
   return totalsOf(lines, shipment.kopeInCost, shipment.invoicedOverride);
 }
 
 /**
- * Makes the shipment follow its invoice: the total of the invoice is what was invoiced, so the profit and the commissions
- * include the charges added to the invoice. Called each time the draft of the invoice is saved.
+ * Makes the shipment follow its invoice: each line of the invoice goes to the rubro it belongs to (PICKUP to the pickup,
+ * AIRFREIGHT to the air freight, and so on), and a charge with no rubro of its own (a DGD, an inspection) goes to the other
+ * charges. So the amounts, the profit and the commissions are those of what the client is billed. Called each time the draft of
+ * the invoice is saved.
  */
-export async function syncShipmentWithInvoice(shipmentId: string, invoiceTotal: number): Promise<void> {
+export async function syncShipmentWithInvoice(shipmentId: string, invoiceLines: Array<{ product: string; amount: number }>): Promise<void> {
   const shipment = await prisma.acctShipment.findUnique({ where: { id: shipmentId } });
   if (!shipment) return;
-  const soldSum = totalsFromShipment({ ...shipment, invoicedOverride: null }).invoiced;
-  const invoicedOverride = overrideFromInvoice(soldSum, invoiceTotal);
-  const totals = totalsFromShipment({ ...shipment, invoicedOverride });
-  if (invoicedOverride === shipment.invoicedOverride && totals.invoiced === shipment.invoiced && totals.profit === shipment.profit) return;
-  await prisma.acctShipment.update({ where: { id: shipmentId }, data: { invoicedOverride, ...totals } });
+  const sold = soldFromInvoiceLines(invoiceLines);
+  const changed = { ...shipment, ...sold, invoicedOverride: null };
+  const totals = totalsFromShipment(changed);
+  const same = (Object.keys(sold) as Array<keyof typeof sold>).every((key) => shipment[key] === sold[key]);
+  if (same && shipment.invoicedOverride === null && totals.invoiced === shipment.invoiced && totals.profit === shipment.profit) return;
+  await prisma.acctShipment.update({ where: { id: shipmentId }, data: { ...sold, invoicedOverride: null, ...totals } });
 }
 
 /**

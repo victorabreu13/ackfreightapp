@@ -23,6 +23,7 @@ export const RUBROS: AmountRubro[] = [
   { label: "Kope handling", cost: "kopeHandling" },
   { label: "AES", sold: "aes" },
   { label: "AWB fee", sold: "awbFee" },
+  { label: "Other charges (DGD, inspection…)", cost: "otherCost", sold: "otherSold" },
 ];
 
 export const AMOUNT_KEYS: AmountKey[] = RUBROS.flatMap((rubro) => [rubro.cost, rubro.sold].filter((key): key is AmountKey => Boolean(key)));
@@ -60,7 +61,7 @@ export function parseAmount(value: string | undefined | null): number | null {
 
 const LABEL: Record<string, string> = {
   airCost: "Air freight cost", airSold: "Air freight sold", pickupCost: "Pickup cost", pickupSold: "Pickup sold", handlingCost: "Handling cost", handlingSold: "Handling sold",
-  transferCost: "Transfer cost", transferSold: "Transfer sold", insuranceCost: "Insurance cost", insuranceSold: "Insurance sold", kopeHandling: "Kope handling", aes: "AES", awbFee: "AWB fee",
+  transferCost: "Transfer cost", transferSold: "Transfer sold", insuranceCost: "Insurance cost", insuranceSold: "Insurance sold", kopeHandling: "Kope handling", aes: "AES", awbFee: "AWB fee", otherCost: "Other charges cost", otherSold: "Other charges sold",
 };
 
 export function planShipmentEdit(current: ShipmentAmounts, currentSplits: Array<{ id: string; pct: number }>, input: EditInput): EditPlan {
@@ -110,14 +111,31 @@ export function planShipmentEdit(current: ShipmentAmounts, currentSplits: Array<
   };
 }
 
+/** The rubro an invoice line belongs to, by its product. A product with no rubro of its own is an other charge. */
+const PRODUCT_RUBRO: Record<string, AmountKey> = {
+  PICKUP: "pickupSold",
+  HANDLING: "handlingSold",
+  "AIRPORT TRANSFER": "transferSold",
+  TRANSFER: "transferSold",
+  AIRFREIGHT: "airSold",
+  "AIR FREIGHT": "airSold",
+  AES: "aes",
+  INSURANCE: "insuranceSold",
+  AWB: "awbFee",
+};
+
 /**
- * The invoice total a shipment holds after its invoice was saved. What the client is billed is what was invoiced, so charges
- * added to the invoice (a DGD, an inspection) count in the profit and the commissions. When the invoice is just the sum of
- * what was sold there is nothing typed by hand: null.
+ * What each rubro sold, from the lines of an invoice: the lines of a product add up in its rubro, and every line that is not a
+ * rubro of its own (DGD, DGDI, an adjustment) adds up in the other charges. All the sold columns are given, so a rubro that is
+ * no longer on the invoice goes to 0.
  */
-export function overrideFromInvoice(soldSum: number, invoiceTotal: number): number | null {
-  const total = cents(invoiceTotal);
-  return total === cents(soldSum) ? null : total;
+export function soldFromInvoiceLines(lines: Array<{ product: string; amount: number }>): Record<"airSold" | "pickupSold" | "handlingSold" | "transferSold" | "insuranceSold" | "aes" | "awbFee" | "otherSold", number> {
+  const sold = { airSold: 0, pickupSold: 0, handlingSold: 0, transferSold: 0, insuranceSold: 0, aes: 0, awbFee: 0, otherSold: 0 };
+  for (const line of lines) {
+    const key = (PRODUCT_RUBRO[line.product.trim().toUpperCase()] ?? "otherSold") as keyof typeof sold;
+    sold[key] = cents(sold[key] + line.amount);
+  }
+  return sold;
 }
 
 /** Whether a column was typed by hand, so that a shared-out trip price leaves it alone. */

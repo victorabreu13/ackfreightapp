@@ -22,6 +22,8 @@ export type ReportShipment = {
   insuranceCost: number;
   aes: number;
   awbFee: number;
+  otherSold?: number;
+  otherCost?: number;
   kopeHandling: number;
   kopeInCost: boolean;
   invoiced: number;
@@ -112,6 +114,7 @@ export function rubroReport(shipments: ReportShipment[]): { rows: RubroRow[]; to
     { label: "Insurance", sold: take((s) => s.insuranceSold), cost: take((s) => s.insuranceCost) },
     { label: "AES", sold: take((s) => s.aes), cost: 0 },
     { label: "AWB fee", sold: take((s) => s.awbFee), cost: 0 },
+    { label: "Other charges", sold: take((s) => s.otherSold ?? 0), cost: take((s) => s.otherCost ?? 0) },
     { label: "Kope handling", sold: 0, cost: take((s) => (s.kopeInCost ? s.kopeHandling : 0)) },
   ].map((row) => ({ ...row, profit: cents(row.sold - row.cost) }));
   const sales = take((s) => s.invoiced);

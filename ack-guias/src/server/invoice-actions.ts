@@ -95,7 +95,7 @@ async function saveDraft(id: string, formData: FormData): Promise<string | null>
   ]);
   // The charges added to the invoice count in the profit and the commissions of its shipment.
   if (invoice.shipmentId) {
-    await syncShipmentWithInvoice(invoice.shipmentId, totalOf(lines));
+    await syncShipmentWithInvoice(invoice.shipmentId, lines);
     revalidatePath("/guias/commissions");
     revalidatePath("/guias/accounting");
   }

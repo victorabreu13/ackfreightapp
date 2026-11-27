@@ -398,6 +398,9 @@ model AcctShipment {
   insuranceSold   Float       @default(0)
   aes             Float       @default(0)
   awbFee          Float       @default(0)
+  /// Charges that have no rubro of their own (a DGD, an inspection): what they cost ACK and what the client pays.
+  otherCost       Float       @default(0)
+  otherSold       Float       @default(0)
   invoicedOverride Float?
   costTotal       Float       @default(0)
   invoiced        Float       @default(0)
